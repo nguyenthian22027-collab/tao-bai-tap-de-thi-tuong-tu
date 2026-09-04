@@ -18,6 +18,7 @@ import {
   Sliders,
   Check,
   CalendarDays,
+  ShieldAlert,
 } from 'lucide-react';
 import { subscribeAllUsers, adminUpdateUserLicense } from '../lib/licenseService';
 import { FirebaseUserProfile, LicenseTier } from '../types';
@@ -39,6 +40,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState<'all' | LicenseTier>('all');
   const [isProcessingUid, setIsProcessingUid] = useState<string | null>(null);
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
 
   // Modal phê duyệt tùy chọn (số ngày / số lượt)
   const [customTargetUser, setCustomTargetUser] = useState<FirebaseUserProfile | null>(null);
@@ -48,11 +50,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    setFirestoreError(null);
 
     // Lắng nghe toàn bộ người dùng từ Cloud Firestore (Realtime)
-    const unsubscribe = subscribeAllUsers((userList) => {
-      setUsers(userList);
-    });
+    const unsubscribe = subscribeAllUsers(
+      (userList) => {
+        setUsers(userList);
+        setFirestoreError(null);
+      },
+      (err) => {
+        setFirestoreError(err.message || 'Lỗi quyền truy cập Firestore Security Rules');
+      }
+    );
 
     return () => {
       if (unsubscribe) unsubscribe();
@@ -219,6 +228,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Hướng dẫn mở Security Rules nếu bị lỗi quyền */}
+        {firestoreError && (
+          <div className="mx-4 mt-3 p-3.5 bg-rose-50 border border-rose-300 rounded-xl space-y-2 text-rose-950 text-xs shrink-0 shadow-xs">
+            <div className="font-bold flex items-center space-x-2 text-rose-800">
+              <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
+              <span>CẦN MỞ QUYỀN TRUY CẬP TRÊN FIREBASE CONSOLE (1 BƯỚC DUY NHẤT):</span>
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-rose-900">
+              Hiện tại Firestore Security Rules của bạn đang chặn quyền đọc dữ liệu: <code>{firestoreError}</code>. Để danh sách giáo viên hiện ra đầy đủ, bạn chỉ cần mở khóa như sau (mất 20 giây):
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] font-medium pl-1 bg-white p-2.5 rounded-lg border border-rose-200">
+              <li>Vào <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="font-bold text-blue-600 underline">Firebase Console</a> → Chọn dự án <code>tao-bai-tap-de-thi-tuong-tu</code>.</li>
+              <li>Bấm <b>Firestore Database</b> ở menu bên trái → Chọn tab <b>Rules (Quy tắc)</b>.</li>
+              <li>Thay toàn bộ bằng đoạn sau: <code className="bg-slate-100 p-1 rounded font-mono text-emerald-700 font-bold">allow read, write: if true;</code></li>
+              <li>Bấm nút <b>Publish (Xuất bản)</b>. Ngay lập tức danh sách giáo viên sẽ xuất hiện tại đây!</li>
+            </ol>
+          </div>
+        )}
 
         {/* Danh sách người dùng (Table) */}
         <div className="flex-1 overflow-y-auto p-4">
