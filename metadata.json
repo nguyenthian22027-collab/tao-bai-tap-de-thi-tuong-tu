@@ -1,0 +1,6 @@
+{
+  "name": "SimilarExam Studio",
+  "description": "Công cụ tạo đề thi tương tự từ đề gốc bằng AI, hỗ trợ xuất Word với công thức toán LaTeX, OMML và MathType.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/mathtype-api/:path*",
+      "destination": "https://latex2mathtypeweb.onrender.com/:path*"
+    },
+    {
+      "source": "/kroki-api/:path*",
+      "destination": "https://kroki.io/:path*"
+    }
+  ]
+}
