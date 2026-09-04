@@ -179,7 +179,13 @@ export function App() {
   useEffect(() => {
     const unsubAuth = subscribeAuthChange((user) => {
       setCurrentUser(user);
-      if (!user) setUserProfile(null);
+      if (!user) {
+        setUserProfile(null);
+      } else {
+        ensureUserProfile(user)
+          .then((p) => setUserProfile(p))
+          .catch((err) => console.warn('Lỗi ensureUserProfile:', err));
+      }
     });
     return () => {
       if (unsubAuth) unsubAuth();
@@ -189,9 +195,13 @@ export function App() {
   // Lắng nghe thay đổi hồ sơ bản quyền người dùng từ Firestore (Realtime)
   useEffect(() => {
     if (!currentUser) return;
-    const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
-      setUserProfile(profile);
-    });
+    const unsubProfile = subscribeUserProfile(
+      currentUser.uid,
+      (profile) => {
+        if (profile) setUserProfile(profile);
+      },
+      currentUser
+    );
     return () => {
       if (unsubProfile) unsubProfile();
     };

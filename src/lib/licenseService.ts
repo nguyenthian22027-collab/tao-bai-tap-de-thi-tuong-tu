@@ -63,53 +63,49 @@ export function subscribeAuthChange(callback: (user: FirebaseUser | null) => voi
  * Đảm bảo hồ sơ người dùng đã tồn tại trên Firestore (nếu người mới thì tự động cấp 5 lượt dùng thử)
  */
 export async function ensureUserProfile(user: FirebaseUser): Promise<FirebaseUserProfile> {
+  const fallbackProfile: FirebaseUserProfile = {
+    uid: user.uid,
+    email: user.email || '',
+    displayName: user.displayName || user.email || 'Giáo viên',
+    photoURL: user.photoURL || undefined,
+    tier: 'trial',
+    trialRemaining: 5,
+    trialTotal: 5,
+    createdAt: Date.now(),
+    lastLoginAt: Date.now(),
+  };
+
   if (!db) {
-    // Fallback nếu chưa có db
-    return {
-      uid: user.uid,
-      email: user.email || '',
-      displayName: user.displayName || user.email || 'Giáo viên',
-      photoURL: user.photoURL || undefined,
-      tier: 'trial',
-      trialRemaining: 5,
-      trialTotal: 5,
-      createdAt: Date.now(),
-      lastLoginAt: Date.now(),
-    };
+    return fallbackProfile;
   }
 
-  const userDocRef = doc(db, 'users', user.uid);
-  const snap = await getDoc(userDocRef);
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const snap = await getDoc(userDocRef);
 
-  if (!snap.exists()) {
-    // Tài khoản mới lần đầu đăng nhập: Cấp gói DÙNG THỬ (5 lượt)
-    const newProfile: FirebaseUserProfile = {
-      uid: user.uid,
-      email: user.email || '',
-      displayName: user.displayName || user.email || 'Giáo viên',
-      photoURL: user.photoURL || undefined,
-      tier: 'trial',
-      trialRemaining: 5,
-      trialTotal: 5,
-      createdAt: Date.now(),
-      lastLoginAt: Date.now(),
-    };
-    await setDoc(userDocRef, newProfile);
-    return newProfile;
-  } else {
-    // Đã tồn tại: Cập nhật lần đăng nhập gần nhất & ảnh/tên nếu có đổi
-    const data = snap.data() as FirebaseUserProfile;
-    await updateDoc(userDocRef, {
-      lastLoginAt: Date.now(),
-      displayName: user.displayName || data.displayName,
-      photoURL: user.photoURL || data.photoURL,
-    });
-    return {
-      ...data,
-      displayName: user.displayName || data.displayName,
-      photoURL: user.photoURL || data.photoURL,
-      lastLoginAt: Date.now(),
-    };
+    if (!snap.exists()) {
+      // Tài khoản mới lần đầu đăng nhập: Cấp gói DÙNG THỬ (5 lượt)
+      await setDoc(userDocRef, fallbackProfile);
+      return fallbackProfile;
+    } else {
+      // Đã tồn tại: Cập nhật lần đăng nhập gần nhất & ảnh/tên nếu có đổi
+      const data = snap.data() as FirebaseUserProfile;
+      const updatedProfile: FirebaseUserProfile = {
+        ...data,
+        displayName: user.displayName || data.displayName,
+        photoURL: user.photoURL || data.photoURL,
+        lastLoginAt: Date.now(),
+      };
+      await updateDoc(userDocRef, {
+        lastLoginAt: Date.now(),
+        displayName: user.displayName || data.displayName,
+        photoURL: user.photoURL || data.photoURL,
+      });
+      return updatedProfile;
+    }
+  } catch (err) {
+    console.warn('Lỗi khi truy cập Firestore (có thể do Security Rules chưa mở):', err);
+    return fallbackProfile;
   }
 }
 
@@ -119,7 +115,8 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<FirebaseUse
  */
 export function subscribeUserProfile(
   uid: string,
-  callback: (profile: FirebaseUserProfile | null) => void
+  callback: (profile: FirebaseUserProfile | null) => void,
+  fallbackUser?: FirebaseUser | null
 ): Unsubscribe | null {
   if (!db) {
     callback(null);
@@ -131,12 +128,31 @@ export function subscribeUserProfile(
     (snap) => {
       if (snap.exists()) {
         callback(snap.data() as FirebaseUserProfile);
+      } else if (fallbackUser) {
+        // Nếu chưa có document trên Firestore, tự động khởi tạo
+        ensureUserProfile(fallbackUser)
+          .then((p) => callback(p))
+          .catch(() => callback(null));
       } else {
         callback(null);
       }
     },
     (err) => {
-      console.warn('Lỗi realtime hồ sơ người dùng:', err);
+      console.warn('Lỗi realtime hồ sơ người dùng (Firestore Rules có thể đang khóa):', err);
+      // Khi gặp lỗi Firestore, vẫn cung cấp fallback 5 lượt dùng thử để giáo viên không bị mất quyền
+      if (fallbackUser) {
+        callback({
+          uid: fallbackUser.uid,
+          email: fallbackUser.email || '',
+          displayName: fallbackUser.displayName || fallbackUser.email || 'Giáo viên',
+          photoURL: fallbackUser.photoURL || undefined,
+          tier: 'trial',
+          trialRemaining: 5,
+          trialTotal: 5,
+          createdAt: Date.now(),
+          lastLoginAt: Date.now(),
+        });
+      }
     }
   );
 }
@@ -146,12 +162,17 @@ export function subscribeUserProfile(
  */
 export async function decrementTrialCredit(uid: string): Promise<number> {
   if (!db) return 0;
-  const userDocRef = doc(db, 'users', uid);
-  await updateDoc(userDocRef, {
-    trialRemaining: increment(-1),
-  });
-  const snap = await getDoc(userDocRef);
-  return snap.exists() ? (snap.data() as FirebaseUserProfile).trialRemaining : 0;
+  try {
+    const userDocRef = doc(db, 'users', uid);
+    await updateDoc(userDocRef, {
+      trialRemaining: increment(-1),
+    });
+    const snap = await getDoc(userDocRef);
+    return snap.exists() ? (snap.data() as FirebaseUserProfile).trialRemaining : 0;
+  } catch (err) {
+    console.warn('Lỗi decrementTrialCredit:', err);
+    return 0;
+  }
 }
 
 // ====================================================================================
@@ -170,6 +191,7 @@ export function isUserAdmin(email?: string | null): boolean {
   if (
     cleanEmail === 'nguyenvanthien1812@gmail.com' ||
     cleanEmail === 'nguyenthian22027@gmail.com' ||
+    cleanEmail === 'nguyenthian.2.2027@gmail.com' ||
     (adminEmailEnv && cleanEmail === adminEmailEnv)
   ) {
     return true;
@@ -194,26 +216,29 @@ export function verifyAdminPin(pin: string): boolean {
  * Lắng nghe toàn bộ danh sách người dùng realtime (dành cho Admin Panel)
  */
 export function subscribeAllUsers(
-  callback: (users: FirebaseUserProfile[]) => void
+  callback: (users: FirebaseUserProfile[]) => void,
+  onError?: (err: any) => void
 ): Unsubscribe | null {
   if (!db) {
     callback([]);
     return null;
   }
   const usersCol = collection(db, 'users');
-  const q = query(usersCol, orderBy('createdAt', 'desc'));
 
   return onSnapshot(
-    q,
+    usersCol,
     (snapshot) => {
       const users: FirebaseUserProfile[] = [];
       snapshot.forEach((docSnap) => {
         users.push(docSnap.data() as FirebaseUserProfile);
       });
+      // Sắp xếp người dùng mới nhất lên đầu
+      users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       callback(users);
     },
     (err) => {
-      console.warn('Lỗi tải danh sách người dùng Admin:', err);
+      console.warn('Lỗi tải danh sách người dùng Admin (Firestore Rules):', err);
+      if (onError) onError(err);
     }
   );
 }
