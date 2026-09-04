@@ -220,20 +220,27 @@ export function subscribeAllUsers(
 
 /**
  * Quản trị viên phê duyệt gói cho một người dùng:
- * - 'trial': Cấp lại 5 lượt dùng thử
+ * - 'trial': Cấp lại số lượt dùng thử (mặc định 5 hoặc tùy chọn)
  * - '1_year': 365 ngày kể từ thời điểm duyệt
+ * - 'custom_days': Số ngày tùy chọn (VD: 30 ngày, 90 ngày, 180 ngày) hoặc theo ngày hết hạn cụ thể
  * - 'lifetime': Vĩnh viễn không giới hạn
  * - 'blocked': Khóa tài khoản
  */
 export async function adminUpdateUserLicense(
   uid: string,
   tier: LicenseTier,
-  adminEmail = 'Admin'
+  options?: {
+    customDays?: number;
+    exactExpireAt?: number;
+    customTrials?: number;
+    adminEmail?: string;
+  }
 ): Promise<void> {
   if (!db) throw new Error('Firestore chưa được khởi tạo');
 
   const userDocRef = doc(db, 'users', uid);
   const now = Date.now();
+  const adminEmail = options?.adminEmail || 'Admin';
 
   const updatePayload: Partial<FirebaseUserProfile> = {
     tier,
@@ -242,11 +249,21 @@ export async function adminUpdateUserLicense(
   };
 
   if (tier === 'trial') {
-    updatePayload.trialRemaining = 5;
+    const trials = options?.customTrials && options.customTrials > 0 ? options.customTrials : 5;
+    updatePayload.trialRemaining = trials;
+    updatePayload.trialTotal = trials;
     updatePayload.expireAt = null;
   } else if (tier === '1_year') {
     // 365 ngày = 365 * 24 * 60 * 60 * 1000 ms
     updatePayload.expireAt = now + 365 * 24 * 60 * 60 * 1000;
+  } else if (tier === 'custom_days') {
+    if (options?.exactExpireAt) {
+      updatePayload.expireAt = options.exactExpireAt;
+    } else if (options?.customDays && options.customDays > 0) {
+      updatePayload.expireAt = now + options.customDays * 24 * 60 * 60 * 1000;
+    } else {
+      updatePayload.expireAt = now + 30 * 24 * 60 * 60 * 1000; // Mặc định 30 ngày
+    }
   } else if (tier === 'lifetime') {
     updatePayload.expireAt = null;
   }

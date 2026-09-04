@@ -21,7 +21,9 @@ export const LicenseStatusModal: React.FC<LicenseStatusModalProps> = ({
   if (!isOpen) return null;
 
   const isTrialExhausted = userProfile?.tier === 'trial' && (userProfile.trialRemaining || 0) <= 0;
-  const isExpired = userProfile?.tier === '1_year' && (userProfile.expireAt || 0) <= Date.now();
+  const isExpired =
+    (userProfile?.tier === '1_year' || userProfile?.tier === 'custom_days') &&
+    (userProfile.expireAt || 0) <= Date.now();
   const isBlocked = userProfile?.tier === 'blocked';
 
   return (
@@ -48,8 +50,8 @@ export const LicenseStatusModal: React.FC<LicenseStatusModalProps> = ({
                 {isBlocked
                   ? 'Tài Khoản Đang Bị Tạm Khóa'
                   : isExpired
-                  ? 'Gói 1 Năm Đã Hết Hạn'
-                  : 'Đã Sử Dụng Hết 5 Lượt Dùng Thử'}
+                  ? 'Bản Quyền Pro Đã Hết Hạn'
+                  : 'Đã Dùng Hết 5 Lượt Tạo & Tải Dùng Thử'}
               </h3>
               <p className="text-xs text-purple-100">
                 Tài khoản: <span className="font-semibold underline">{userProfile?.email}</span>
@@ -69,29 +71,34 @@ export const LicenseStatusModal: React.FC<LicenseStatusModalProps> = ({
             )}
             {isExpired && (
               <p>
-                Thời hạn bản quyền 1 Năm của bạn đã hết. Hãy liên hệ với Quản trị viên để được gia hạn tiếp tục
-                sử dụng không giới hạn.
+                Thời hạn bản quyền Pro của bạn đã hết. Hãy liên hệ với Quản trị viên để được gia hạn tiếp tục
+                sử dụng không giới hạn tính năng tạo và tải file Word MathType OLE.
               </p>
             )}
             {isTrialExhausted && (
               <p>
-                Bạn đã sử dụng hết <b>5/5 lượt tạo đề thi dùng thử miễn phí</b>. Để tiếp tục sử dụng không giới hạn
-                với đầy đủ công thức MathType OLE và vẽ hình tự động, bạn có thể đăng ký nâng cấp gói bản quyền bên dưới!
+                Bạn đã sử dụng hết <b>5/5 lượt tạo & tải đề thi dùng thử miễn phí</b>. Để tiếp tục tạo và tải đề không giới hạn,
+                vẽ hình TikZ tự động và xuất Word MathType OLE, bạn hãy liên hệ Quản trị viên để kích hoạt bản quyền Pro!
               </p>
             )}
           </div>
 
           {/* Pricing options info */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-1 text-center">
-              <span className="text-[10.5px] font-bold text-blue-700 uppercase tracking-wider block">Gói 1 Năm</span>
-              <div className="text-sm font-extrabold text-blue-950">365 Ngày</div>
-              <p className="text-[11px] text-blue-800/80">Tạo đề không giới hạn số lượng trong 1 năm</p>
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="p-2.5 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-0.5 text-center">
+              <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block">Gói Tùy Chọn</span>
+              <div className="text-xs font-extrabold text-indigo-950">1 - 6 Tháng</div>
+              <p className="text-[10.5px] text-indigo-800/80">Linh hoạt theo nhu cầu</p>
             </div>
-            <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-xl space-y-1 text-center">
-              <span className="text-[10.5px] font-bold text-purple-700 uppercase tracking-wider block">Gói Vĩnh Viễn</span>
-              <div className="text-sm font-extrabold text-purple-950">Trọn Đời</div>
-              <p className="text-[11px] text-purple-800/80">Sử dụng mãi mãi, cập nhật mọi tính năng mới</p>
+            <div className="p-2.5 bg-blue-50/60 border border-blue-200 rounded-xl space-y-0.5 text-center">
+              <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Gói 1 Năm</span>
+              <div className="text-xs font-extrabold text-blue-950">365 Ngày</div>
+              <p className="text-[10.5px] text-blue-800/80">Trọn năm học không giới hạn</p>
+            </div>
+            <div className="p-2.5 bg-purple-50/60 border border-purple-200 rounded-xl space-y-0.5 text-center">
+              <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">Vĩnh Viễn</span>
+              <div className="text-xs font-extrabold text-purple-950">Trọn Đời</div>
+              <p className="text-[10.5px] text-purple-800/80">Mãi mãi & trọn bộ tính năng</p>
             </div>
           </div>
 
