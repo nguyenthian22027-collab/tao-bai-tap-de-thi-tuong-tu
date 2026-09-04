@@ -12,6 +12,7 @@ interface ExportToolbarProps {
   onOpenShuffleModal: () => void;
   onSaveToHistory?: () => void;
   onAddToast: (type: 'success' | 'error' | 'warning' | 'info', msg: string) => void;
+  onCheckLicense?: () => boolean;
 }
 
 export const ExportToolbar: React.FC<ExportToolbarProps> = ({
@@ -20,6 +21,7 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
   onOpenShuffleModal,
   onSaveToHistory,
   onAddToast,
+  onCheckLicense,
 }) => {
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [exportScope, setExportScope] = useState<ExportScope>(
@@ -39,6 +41,7 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
 
   // Xuất MathType OLE thật sự (Equation.DSMT4)
   const handleExportMathTypeOle = async () => {
+    if (onCheckLicense && !onCheckLicense()) return;
     setIsExporting('mathtype_ole');
     try {
       const dateStr = new Date().toISOString().slice(0, 10);
@@ -80,6 +83,7 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
   };
 
   const handleExport = async (format: ExportFormat) => {
+    if (onCheckLicense && !onCheckLicense()) return;
     setIsExporting(format);
     try {
       const dateStr = new Date().toISOString().slice(0, 10);

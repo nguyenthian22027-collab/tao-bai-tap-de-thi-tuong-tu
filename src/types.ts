@@ -144,7 +144,7 @@ export interface ExamHistoryItem {
   thoiGian?: number;
 }
 
-export type LicenseTier = 'trial' | '1_year' | 'lifetime' | 'blocked';
+export type LicenseTier = 'trial' | '1_year' | 'lifetime' | 'blocked' | 'custom_days';
 
 export interface FirebaseUserProfile {
   uid: string;

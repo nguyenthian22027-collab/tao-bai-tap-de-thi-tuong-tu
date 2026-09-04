@@ -237,6 +237,39 @@ export function App() {
     }
   };
 
+  // Kiểm tra quyền hạn tạo đề và tải file Word
+  const checkCanPerformAction = useCallback((): boolean => {
+    if (!isFirebaseConfigured()) {
+      return true;
+    }
+
+    if (!currentUser) {
+      addToast('warning', 'Vui lòng đăng nhập Google để tiếp tục tạo và tải đề thi!');
+      handleLoginGoogle();
+      return false;
+    }
+
+    if (userProfile) {
+      if (userProfile.tier === 'blocked') {
+        setIsLicenseStatusOpen(true);
+        return false;
+      }
+      if (
+        (userProfile.tier === '1_year' || userProfile.tier === 'custom_days') &&
+        (userProfile.expireAt || 0) <= Date.now()
+      ) {
+        setIsLicenseStatusOpen(true);
+        return false;
+      }
+      if (userProfile.tier === 'trial' && (userProfile.trialRemaining || 0) <= 0) {
+        setIsLicenseStatusOpen(true);
+        return false;
+      }
+    }
+
+    return true;
+  }, [currentUser, userProfile, handleLoginGoogle]);
+
   // Primary Exam Generation Dispatcher
   const handleGenerateExam = async () => {
     // Check if source exists
@@ -248,32 +281,9 @@ export function App() {
       return;
     }
 
-    // 1. Kiểm tra Đăng nhập Google & Hạn mức bản quyền (nếu Firebase đã cấu hình)
-    if (isFirebaseConfigured()) {
-      if (!currentUser) {
-        addToast('warning', 'Vui lòng đăng nhập Google để nhận 5 lượt dùng thử và tạo đề!');
-        try {
-          await handleLoginGoogle();
-        } catch {
-          return;
-        }
-        return;
-      }
-
-      if (userProfile) {
-        if (userProfile.tier === 'blocked') {
-          setIsLicenseStatusOpen(true);
-          return;
-        }
-        if (userProfile.tier === '1_year' && (userProfile.expireAt || 0) <= Date.now()) {
-          setIsLicenseStatusOpen(true);
-          return;
-        }
-        if (userProfile.tier === 'trial' && (userProfile.trialRemaining || 0) <= 0) {
-          setIsLicenseStatusOpen(true);
-          return;
-        }
-      }
+    // 1. Kiểm tra Đăng nhập Google & Hạn mức bản quyền tạo/tải
+    if (!checkCanPerformAction()) {
+      return;
     }
 
     // 2. Kiểm tra Gemini API Key riêng của người dùng (người dùng vẫn phải nhập API key của họ)
@@ -417,6 +427,7 @@ export function App() {
                 onOpenShuffleModal={() => setIsShuffleOpen(true)}
                 onSaveToHistory={handleSaveToHistory}
                 onAddToast={addToast}
+                onCheckLicense={checkCanPerformAction}
               />
             )}
 

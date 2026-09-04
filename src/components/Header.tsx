@@ -151,10 +151,17 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Vĩnh Viễn</span>
                   </span>
                 )}
-                {userProfile?.tier === '1_year' && (
+                {(userProfile?.tier === '1_year' || userProfile?.tier === 'custom_days') && (
                   <span className="hidden md:inline-flex items-center space-x-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-extrabold rounded-full border border-blue-300">
                     <Calendar className="w-3 h-3 text-blue-600" />
-                    <span>Gói 1 Năm</span>
+                    <span>
+                      {(userProfile.expireAt || 0) <= Date.now()
+                        ? 'Bản Pro (Hết Hạn)'
+                        : `Bản Pro: Còn ${Math.max(
+                            0,
+                            Math.ceil(((userProfile.expireAt || 0) - Date.now()) / (1000 * 60 * 60 * 24))
+                          )} ngày`}
+                    </span>
                   </span>
                 )}
                 {userProfile?.tier === 'trial' && (
@@ -210,13 +217,15 @@ export const Header: React.FC<HeaderProps> = ({
                           <span>Gói Vĩnh Viễn (Không giới hạn)</span>
                         </span>
                       )}
-                      {userProfile?.tier === '1_year' && (
+                      {(userProfile?.tier === '1_year' || userProfile?.tier === 'custom_days') && (
                         <span className="text-blue-700 flex items-center space-x-1">
                           <Calendar className="w-3.5 h-3.5" />
                           <span>
-                            Gói 1 Năm (Hết hạn:{' '}
+                            Bản Pro (Hết hạn:{' '}
                             {userProfile.expireAt ? new Date(userProfile.expireAt).toLocaleDateString('vi-VN') : '-'}
-                            )
+                            {' — Còn '}
+                            {Math.max(0, Math.ceil(((userProfile.expireAt || 0) - Date.now()) / (1000 * 60 * 60 * 24)))}
+                            {' ngày)'}
                           </span>
                         </span>
                       )}
