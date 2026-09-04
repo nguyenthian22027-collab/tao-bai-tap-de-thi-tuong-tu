@@ -165,8 +165,13 @@ export function isUserAdmin(email?: string | null): boolean {
   if (!email) {
     return sessionStorage.getItem(ADMIN_STORAGE_KEY) === 'true';
   }
+  const cleanEmail = email.toLowerCase().trim();
   const adminEmailEnv = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-  if (adminEmailEnv && email.toLowerCase().trim() === adminEmailEnv) {
+  if (
+    cleanEmail === 'nguyenvanthien1812@gmail.com' ||
+    cleanEmail === 'nguyenthian22027@gmail.com' ||
+    (adminEmailEnv && cleanEmail === adminEmailEnv)
+  ) {
     return true;
   }
   // Cho phép mở khóa bằng mã PIN

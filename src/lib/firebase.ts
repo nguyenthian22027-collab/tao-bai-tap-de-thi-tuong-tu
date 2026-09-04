@@ -10,8 +10,17 @@ import { FirebaseConfigData } from '../types';
 
 const FIREBASE_CONFIG_KEY = 'edusheet_firebase_config';
 
+const DEFAULT_FIREBASE_CONFIG: FirebaseConfigData = {
+  apiKey: 'AIzaSyADrYgxAgGuXrD4QGRqP0jQ5QcSgBJUgmI',
+  authDomain: 'tao-bai-tap-de-thi-tuong-tu.firebaseapp.com',
+  projectId: 'tao-bai-tap-de-thi-tuong-tu',
+  storageBucket: 'tao-bai-tap-de-thi-tuong-tu.firebasestorage.app',
+  messagingSenderId: '312183526392',
+  appId: '1:312183526392:web:ec964cb281e4298eabbc0d',
+};
+
 /**
- * Lấy cấu hình Firebase từ import.meta.env hoặc từ LocalStorage đã lưu
+ * Lấy cấu hình Firebase từ import.meta.env, LocalStorage hoặc mặc định
  */
 export function getFirebaseConfig(): FirebaseConfigData | null {
   // 1. Kiểm tra biến môi trường .env
@@ -41,7 +50,8 @@ export function getFirebaseConfig(): FirebaseConfigData | null {
     console.warn('Lỗi đọc cấu hình Firebase từ LocalStorage:', err);
   }
 
-  return null;
+  // 3. Sử dụng cấu hình mặc định của dự án
+  return DEFAULT_FIREBASE_CONFIG;
 }
 
 /**
