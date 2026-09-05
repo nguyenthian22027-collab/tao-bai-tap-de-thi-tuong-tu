@@ -17,6 +17,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   const [newLabel, setNewLabel] = useState('');
   const [newValue, setNewValue] = useState('');
   const [isTestingAll, setIsTestingAll] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
 
   const maskKey = (val: string) => {
     if (!val) return '';
@@ -59,6 +62,58 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     } else {
       onAddToast('error', `Thêm key thành công nhưng test thất bại: ${res.error}`);
     }
+  };
+
+  // Thêm nhiều key cùng lúc từ textarea
+  // Mỗi dòng: AIzaSy... hoặc AIzaSy...,Tên key
+  const handleBulkAdd = async () => {
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) {
+      onAddToast('warning', 'Vui lòng dán ít nhất 1 API Key vào ô trên');
+      return;
+    }
+
+    setIsBulkAdding(true);
+    let currentKeys = [...keys];
+    let addedCount = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Hỗ trợ format: "AIzaSy..." hoặc "AIzaSy...,Tên key"
+      const commaIdx = line.indexOf(',');
+      const keyVal = commaIdx > 0 ? line.slice(0, commaIdx).trim() : line.trim();
+      const keyLabel = commaIdx > 0 ? line.slice(commaIdx + 1).trim() : `API Key #${currentKeys.length + 1}`;
+
+      if (!keyVal.startsWith('AIza') && keyVal.length < 20) continue; // bỏ qua dòng không phải key
+
+      const newKeyItem: ApiKeyInfo = {
+        id: `key_${Date.now()}_${i}`,
+        label: keyLabel,
+        value: keyVal,
+        status: 'testing',
+        lastTested: new Date().toISOString(),
+        usageCount: 0,
+      };
+
+      currentKeys = [...currentKeys, newKeyItem];
+      onUpdateKeys(currentKeys);
+
+      const res = await testApiKey(newKeyItem);
+      currentKeys = currentKeys.map(k =>
+        k.id === newKeyItem.id
+          ? { ...k, status: res.status, lastTested: new Date().toISOString() }
+          : k
+      );
+      onUpdateKeys(currentKeys);
+      addedCount++;
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    setIsBulkAdding(false);
+    setBulkText('');
+    setIsBulkMode(false);
+    onAddToast('success', `Đã thêm và test ${addedCount} API Key thành công!`);
   };
 
   const handleDeleteKey = (id: string) => {
@@ -241,31 +296,82 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       )}
 
       {/* Form Add Key */}
-      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-        <span className="text-xs font-semibold text-slate-700 block">+ Thêm API Key mới</span>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <input
-            type="text"
-            placeholder="Tên gợi nhớ (VD: Key cá nhân)"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-          />
-          <input
-            type="password"
-            placeholder="Dán AIzaSy... vào đây"
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-            className="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white sm:col-span-1"
-          />
-          <button
-            onClick={handleAddKey}
-            className="flex items-center justify-center space-x-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Thêm & Test ngay</span>
-          </button>
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        {/* Tab toggle */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-700">+ Thêm API Key</span>
+          <div className="flex bg-slate-200 rounded-lg p-0.5 text-xs">
+            <button
+              onClick={() => setIsBulkMode(false)}
+              className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${!isBulkMode ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              1 key
+            </button>
+            <button
+              onClick={() => setIsBulkMode(true)}
+              className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${isBulkMode ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Nhiều key
+            </button>
+          </div>
         </div>
+
+        {!isBulkMode ? (
+          /* Mode 1: thêm từng key */
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              type="text"
+              placeholder="Tên gợi nhớ (VD: Key cá nhân)"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            />
+            <input
+              type="password"
+              placeholder="Dán AIzaSy... vào đây"
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddKey()}
+              className="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white sm:col-span-1"
+            />
+            <button
+              onClick={handleAddKey}
+              className="flex items-center justify-center space-x-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Thêm &amp; Test ngay</span>
+            </button>
+          </div>
+        ) : (
+          /* Mode 2: dán nhiều key cùng lúc */
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              Dán nhiều API Key, <strong>mỗi dòng 1 key</strong>. Hỗ trợ 2 định dạng:
+            </p>
+            <div className="bg-slate-100 rounded-lg px-3 py-2 text-xs font-mono text-slate-600 space-y-0.5">
+              <div>AIzaSyXXXXXXXXXXXXXXXXXXXXXXXX</div>
+              <div className="text-slate-400">AIzaSyYYYYYYYYYYYYYYYYYYYYYYYY,Key công ty A</div>
+            </div>
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder={"Dán các API Key vào đây...\nMỗi dòng 1 key\nAIzaSy...\nAIzaSy...,Tên key"}
+              rows={5}
+              className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white resize-none"
+            />
+            <button
+              onClick={handleBulkAdd}
+              disabled={isBulkAdding || !bulkText.trim()}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
+            >
+              {isBulkAdding ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Đang thêm và test...</span></>
+              ) : (
+                <><Plus className="w-3.5 h-3.5" /><span>Thêm tất cả &amp; Test</span></>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
