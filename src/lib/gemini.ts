@@ -217,13 +217,14 @@ export function buildExamPrompt(
   [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.
   [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.`;
 
-  // QUAN TRỌNG: TikZ KHÔNG được sinh inline trong prompt tạo đề.
-  // Lý do: AI tạo 20+ câu cùng lúc hay copy hình, sai loại hình.
-  // TikZ sẽ được sinh RIÊNG TỪNG CÂU sau khi tạo đề xong (trong App.tsx).
-  // tikzMode 'yes'/'auto' → báo cho AI ĐÁNH DẤU câu cần hình (để post-process biết), nhưng KHÔNG sinh code TikZ inline.
   const tikzInstruction = config.tikzMode === 'no'
     ? 'KHÔNG tạo mã TikZ. Bỏ trống trường TIKZ.'
-    : 'Nếu câu hỏi có liên quan đến hình học, đồ thị hàm số, hay hình minh họa: hãy ghi TIKZ: [CAN_VE] vào trường TIKZ của câu đó (KHÔNG viết code TikZ — hệ thống sẽ tự sinh hình riêng). Nếu câu không có hình: bỏ trống trường TIKZ.';
+    : `BẮT BUỘC VẼ HÌNH TIKZ cho mọi câu hỏi có liên quan đến hình học, đồ thị hàm số, bảng biến thiên hay hình minh họa:
+- Viết trực tiếp khối mã LaTeX TikZ hoàn chỉnh vào trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}.
+- Mã TikZ PHẢI CHÍNH XÁC 100% theo các số liệu, tên đỉnh/điểm (A, B, C, S, O,...) và giả thiết riêng của câu hỏi đó.
+- TUYỆT ĐỐI KHÔNG sao chép cùng 1 mã TikZ cho nhiều câu hỏi khác nhau. Mỗi câu phải có mã TikZ riêng biệt, đúng số liệu.
+- Nếu câu hỏi không cần hình vẽ: để trống trường TIKZ.
+${tikzShapeGuide}`;
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
   if (config.mode === 'cau_le') {
@@ -253,7 +254,7 @@ LOAI: tu_luan
 STT: 1
 LOAI: tu_luan
 NOI_DUNG: [Nội dung đề bài toán tương tự 1, LaTeX trong $...]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
 MUC_DO: thong_hieu
 DIEM: 1.0
@@ -287,7 +288,7 @@ Phân tích kỹ lưỡng đề thi gốc dưới đây và tạo 1 ĐỀ THI M�
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. Tất cả công thức Toán, Lý, Hóa, Sinh, Ký hiệu BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
 2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn trước 4 mệnh đề (ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?", "Xét các phát biểu sau về hàm số:", "Khẳng định nào sau đây là đúng?"). KHÔNG được bỏ trống CAU_LENH.
-3. Về hình vẽ / đồ thị: TUYỆT ĐỐI KHÔNG sinh mã TikZ inline ở đây (vì hệ thống sẽ tự sinh hình độc lập từng câu). Nếu câu cần hình vẽ hay đồ thị, chỉ ghi TIKZ: [CAN_VE], hoặc để trống nếu không có hình.
+3. Về hình vẽ / đồ thị: Với bất kỳ câu hỏi nào có hình vẽ, đồ thị, sơ đồ, hình học hoặc bảng biến thiên: BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài (bán kính, tọa độ, góc...). TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau. Nếu câu không có hình, để trống trường TIKZ.
 4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
@@ -318,7 +319,7 @@ DIEM_MOI_CAU: 0.25
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi — LaTeX trong $...$. KHÔNG chứa mã TikZ. KHÔNG chứa "Hình vẽ:" hay "xem hình bên"]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 A: [Phương án A]
 B: [Phương án B]
 C: [Phương án C]
@@ -423,7 +424,7 @@ DIEM_MOI_CAU: 0.25
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi, LaTeX trong $...]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 A: [Nội dung phương án A]
 B: [Nội dung phương án B]
 C: [Nội dung phương án C]
@@ -443,7 +444,7 @@ DIEM_MOI_CAU: 1.0
 STT: ${config.numPart1 + 1}
 LOAI: trac_nghiem_dung_sai
 NOI_DUNG: [Đề dẫn chung của bài toán — ngữ cảnh, giả thiết, dữ kiện chung]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 CAU_LENH: [Câu lệnh hỏi, ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?" hoặc "Xét các khẳng định sau:" — PHẢI CÓ, đây là câu hỏi dẫn bắt buộc]
 MENH_DE_A: [Nội dung mệnh đề a)]
 DAP_AN_A: D
@@ -469,7 +470,7 @@ DIEM_MOI_CAU: 0.5
 STT: ${config.numPart1 + config.numPart2 + 1}
 LOAI: trac_nghiem_tra_loi_ngan
 NOI_DUNG: [Nội dung câu hỏi yêu cầu tính kết quả]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 DAP_AN: [Đáp số ngắn, ví dụ: 12 hoặc 3/4 hoặc 2.5]
 HUONG_DAN_GIAI: [Hướng dẫn giải vắn tắt]
 MUC_DO: van_dung
@@ -486,7 +487,7 @@ DIEM_MOI_CAU: 1.0
 STT: ${config.numPart1 + config.numPart2 + config.numPart3 + 1}
 LOAI: tu_luan
 NOI_DUNG: [Nội dung câu hỏi tự luận]
-TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
 DAP_AN: [Lời giải chi tiết từng bước]
 MUC_DO: van_dung_cao
 DIEM: 1.0
@@ -1077,23 +1078,46 @@ export async function generateTikzFromQuestion(
   const shapeType = detectShapeType(questionText);
 
   const guidanceByType: Record<string, string> = {
-    circle: `- ĐỐI TƯỢNG ĐƯỜNG TRÒN: Vẽ tâm (0,0) bán kính R=2.5cm: \\draw[thick] (0,0) circle (2.5cm); \\fill (0,0) circle (1.5pt); \\node[below left] at (0,0) {$O$};
-- Các điểm trên đường tròn: dùng tọa độ cực (góc:2.5cm), ví dụ: \\coordinate (A) at (130:2.5cm); \\coordinate (B) at (-30:2.5cm);
-- Dây cung / Tiếp tuyến: nối các điểm bằng \\draw[thick] (A)--(B);
-- Giao điểm (nếu có): đánh dấu bằng \\fill (...) circle (1.5pt); và đặt nhãn đúng chữ cái trong đề bài.`,
-    cone: `- ĐỐI TƯỢNG HÌNH NÓN: Đáy là ellipse \\draw[thick] (0,0) ellipse (2cm and 0.6cm); Đỉnh S ở trên (0,3.5); Hai đường sinh \\draw[thick] (-2,0)--(0,3.5); \\draw[thick] (2,0)--(0,3.5); Chiều cao SO vẽ nét đứt [dashed].`,
-    cylinder: `- ĐỐI TƯỢNG HÌNH TRỤ: Đáy dưới ellipse (0,0) ellipse (2cm and 0.6cm); Đáy trên ellipse (0,3.5) ellipse (2cm and 0.6cm); Hai đường sinh thẳng đứng nối hai bên. TUYỆT ĐỐI không dùng hộp chữ nhật.`,
-    sphere: `- ĐỐI TƯỢNG HÌNH CẦU: Đường tròn lớn \\draw[thick] (0,0) circle (2cm); Vòng xích đạo \\draw[thick,dashed] (0,0) ellipse (2cm and 0.6cm); Tâm O và bán kính R.`,
-    pyramid: `- ĐỐI TƯỢNG HÌNH CHÓP: Phối cảnh nghiêng; Đáy tứ giác/tam giác; Cạnh khuất vẽ bằng nét đứt [thick,dashed]; Cạnh thấy vẽ nét liền [thick]; Đỉnh S nối xuống các đỉnh đáy.`,
-    prism: `- ĐỐI TƯỢNG LĂNG TRỤ 3D: Mặt đáy trên và dưới; Các cạnh bên song song; Cạnh khuất phía sau nét đứt [dashed].`,
-    box: `- ĐỐI TƯỢNG HÌNH HỘP / LẬP PHƯƠNG: 8 đỉnh; Cạnh khuất bên trong và phía sau là nét đứt [dashed].`,
-    function_graph: `- ĐỒ THỊ HÀM SỐ: Vẽ hệ trục Oxy có mũi tên; Vẽ đường cong hàm số mềm mại; Đánh dấu các điểm cực trị, giao điểm trục tọa độ; Có số trên các trục.`,
-    variation_table: `- BẢNG BIẾN THIÊN: Khung bảng gồm hàng x, y', y; Có các điểm cực trị, dấu +, - và mũi tên tăng giảm chiều biến thiên.`,
-    triangle: `- ĐỐI TƯỢNG TAM GIÁC: Đặt tọa độ các đỉnh; Vẽ cạnh; Vẽ đường cao/trung tuyến/phân giác theo đúng chữ cái trong đề bài.`,
-    quadrilateral: `- ĐỐI TƯỢNG TỨ GIÁC: Vẽ đúng dạng hình (chữ nhật, thang, bình hành, vuông, thoi) với nhãn 4 đỉnh.`,
-    angle_lines: `- ĐƯỜNG THẲNG VÀ GÓC: Vẽ các đường thẳng song song hoặc cắt nhau; Đánh dấu góc bằng cung tròn có tên góc.`,
-    coordinate: `- HỆ TỌA ĐỘ: Trục Ox, Oy có chia vạch số; Đánh dấu các điểm theo đúng tọa độ trong đề.`,
-    generic: `- Vẽ chính xác các điểm, đoạn thẳng, đa giác được mô tả trong đề bài.`,
+    circle: `- ĐỐI TƯỢNG ĐƯỜNG TRÒN:
+• Đọc kỹ đề bài để lấy đúng tên tâm (O, I...), bán kính R, các dây cung (AB, CD...), tiếp tuyến, cát tuyến hoặc góc trong đề.
+• Vẽ đường tròn: \\draw[thick] (0,0) circle (2.2cm); \\fill (0,0) circle (1.5pt); \\node[below left] at (0,0) {$Tên_tâm$};
+• Tính toán và phân bố các điểm trên đường tròn bằng tọa độ cực \\coordinate (Tên_điểm) at (góc:2.2cm); sao cho thể hiện đúng vị trí tương đối và các giao điểm theo đề bài.
+• Nối đúng các đoạn thẳng, dây cung và đánh dấu các góc nếu bài toán có số đo góc.`,
+    cone: `- ĐỐI TƯỢNG HÌNH NÓN:
+• Đáy là ellipse \\draw[thick] (0,0) ellipse (2cm and 0.6cm); Đỉnh S (hoặc tên đề cho) ở trên (0,3.5);
+• Hai đường sinh bên \\draw[thick] (-2,0)--(0,3.5); \\draw[thick] (2,0)--(0,3.5); Trục chiều cao SO vẽ nét đứt [dashed].
+• Đánh nhãn đúng các chữ cái đỉnh, tâm, bán kính theo đề bài.`,
+    cylinder: `- ĐỐI TƯỢNG HÌNH TRỤ:
+• Đáy dưới ellipse và đáy trên ellipse song song; Hai đường sinh thẳng đứng nối hai bên.
+• Đánh nhãn tâm đáy dưới và đáy trên (O, O' hoặc tên đề cho), bán kính r và chiều cao h theo số liệu đề.`,
+    sphere: `- ĐỐI TƯỢNG HÌNH CẦU:
+• Đường tròn lớn \\draw[thick] (0,0) circle (2cm); Vòng xích đạo \\draw[thick,dashed] (0,0) ellipse (2cm and 0.6cm);
+• Tâm và bán kính theo đúng đề bài.`,
+    pyramid: `- ĐỐI TƯỢNG HÌNH CHÓP:
+• Phối cảnh nghiêng; Đáy theo đúng đề bài (tam giác ABC hoặc tứ giác ABCD);
+• Cạnh khuất BẮT BUỘC vẽ nét đứt [thick,dashed]; cạnh thấy vẽ nét liền [thick]; Đỉnh S nối xuống các đỉnh đáy.`,
+    prism: `- ĐỐI TƯỢNG LĂNG TRỤ 3D / HÌNH HỘP:
+• Mặt đáy trên và dưới song song; Các cạnh bên; Cạnh khuất phía sau nét đứt [dashed].
+• Tên các đỉnh theo đúng thứ tự trong đề bài.`,
+    box: `- ĐỐI TƯỢNG HÌNH HỘP / LẬP PHƯƠNG:
+• Vẽ 8 đỉnh ABCD.A'B'C'D' (hoặc tên theo đề); Cạnh khuất bên trong và phía sau là nét đứt [dashed].`,
+    function_graph: `- ĐỒ THỊ HÀM SỐ:
+• Vẽ hệ trục tọa độ Oxy có mũi tên [->]; Chia các vạch số trên trục;
+• Vẽ đường cong hàm số mềm mại đúng công thức trong đề bài; Đánh dấu các điểm cực trị hoặc giao điểm nếu có.`,
+    variation_table: `- BẢNG BIẾN THIÊN:
+• Khung bảng gồm hàng x, y' (hoặc f'), y (hoặc f); Điền đúng các điểm cực trị, dấu +, - và mũi tên tăng giảm.`,
+    triangle: `- ĐỐI TƯỢNG TAM GIÁC:
+• Đặt tọa độ các đỉnh phù hợp với hình dạng (vuông, cân, đều, nhọn, tù) và tỉ lệ các cạnh trong đề.
+• Đánh nhãn đúng các chữ cái đỉnh (A, B, C...) và các đường cao, phân giác, trung tuyến nếu đề có.`,
+    quadrilateral: `- ĐỐI TƯỢNG TỨ GIÁC:
+• Vẽ đúng dạng hình (hình bình hành, hình chữ nhật, hình thang, hình thoi, tứ giác lồi) theo đề bài.
+• Đặt nhãn 4 đỉnh theo đúng thứ tự trong đề.`,
+    angle_lines: `- ĐƯỜNG THẲNG VÀ GÓC:
+• Vẽ các đường thẳng, tia, đoạn thẳng cắt nhau hoặc song song theo tên gọi trong đề bài.
+• Vẽ cung tròn đánh dấu góc kèm nhãn góc hoặc số đo góc.`,
+    coordinate: `- HỆ TỌA ĐỘ:
+• Trục Ox, Oy có chia vạch số; Đánh dấu và ghi chú đúng tọa độ (x, y) của các điểm trong đề.`,
+    generic: `- Phân tích kỹ các đối tượng hình học trong đề bài để dựng hình chính xác theo đúng tên các điểm và số liệu đề bài.`,
   };
 
   const specificGuidance = guidanceByType[shapeType] || guidanceByType.generic;
@@ -1107,10 +1131,10 @@ ${questionText}
 ${extraDescription ? `MÔ TẢ BỔ SUNG TỪ GIÁO VIÊN: "${extraDescription}"` : ''}
 
 QUY TẮC BẮT BUỘC ĐỂ VẼ HÌNH ĐÚNG 100%:
-1. ĐỌC KỸ ĐỀ VÀ DÙNG ĐÚNG CHỮ CÁI TÊN ĐIỂM:
-   - Dùng chính xác tên các điểm trong đề bài (ví dụ: đề cho đường tròn tâm O, dây cung AB và CD cắt nhau tại I $\\rightarrow$ BẮT BUỘC vẽ đường tròn tâm O, 2 dây cung AB, CD và điểm I).
-   - TUYỆT ĐỐI KHÔNG tự bịa ra điểm lạ (như H, K...) nếu đề không có.
-   - TUYỆT ĐỐI KHÔNG vẽ hình tam giác hay hình của bài toán khác khi đề bài đang nói về đường tròn hay hình khối khác!
+1. DỰNG HÌNH ĐỘC LẬP VÀ CHÍNH XÁC RIÊNG CHO ĐỀ BÀI NÀY:
+   - Dùng chính xác tên các điểm, cạnh, góc trong đề bài (ví dụ: đề cho điểm A, B, C thì BẮT BUỘC vẽ các điểm A, B, C).
+   - TUYỆT ĐỐI KHÔNG tự bịa ra điểm lạ không có trong đề bài.
+   - TUYỆT ĐỐI KHÔNG dùng mã vẽ cố định của bài toán khác. Tọa độ phải được tính toán phù hợp với số liệu và giả thiết của câu hỏi này.
 
 2. HƯỚNG DẪN KỸ THUẬT DỰNG HÌNH:
 ${specificGuidance}

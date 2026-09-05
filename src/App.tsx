@@ -345,7 +345,7 @@ export function App() {
       // 5. Quét và TỰ ĐỘNG VẼ HÌNH SVG CHÍNH XÁC cho mọi câu có hình học
       const allQuestions = parsedExamData.phan.flatMap((p) => p.cauHoi);
 
-      // Bước 5a: Phát hiện và xóa triệt để mã TikZ bị AI sao chép trùng lặp giữa các câu
+      // Bước 5a: Phát hiện và xử lý nếu AI vô tình sao chép trùng 100% mã TikZ giữa các câu
       const tikzCountMap = new Map<string, number>();
       allQuestions.forEach((q) => {
         if (q.tikzCode && q.tikzCode.trim().length > 20) {
@@ -354,30 +354,65 @@ export function App() {
         }
       });
 
+      const seenTikzSet = new Set<string>();
       allQuestions.forEach((q) => {
         if (q.tikzCode) {
           const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
-          // Nếu có >= 2 câu dùng chung 1 mã TikZ HOẶC chứa [CAN_VE] -> xóa bỏ để sinh lại đúng
-          if ((tikzCountMap.get(normalized) || 0) > 1 || q.tikzCode.includes('[CAN_VE]')) {
+          if (q.tikzCode.includes('[CAN_VE]')) {
             q.tikzCode = '';
             q.hinhAnh = undefined;
+          } else if ((tikzCountMap.get(normalized) || 0) > 1) {
+            if (seenTikzSet.has(normalized)) {
+              // Câu bị trùng lặp y hệt từ câu trước -> xóa bỏ mã trùng
+              q.tikzCode = '';
+              q.hinhAnh = undefined;
+            } else {
+              seenTikzSet.add(normalized);
+            }
           }
         }
       });
 
-      // Bước 5b: Tự động vẽ hình SVG cho các câu cần hình học
+      // Bước 5b: Render SVG sắc nét cho các câu đã có mã TikZ riêng biệt từ AI
+      const questionsWithTikz = allQuestions.filter((q) => q.tikzCode && q.tikzCode.includes('tikzpicture'));
+      if (questionsWithTikz.length > 0) {
+        addToast('info', `📐 Đang kết xuất hình vẽ SVG cho ${questionsWithTikz.length} câu hỏi...`);
+
+        let successCount = 0;
+        for (let i = 0; i < questionsWithTikz.length; i++) {
+          const q = questionsWithTikz[i];
+          try {
+            const svg = await renderTikzToSvg(q.tikzCode!);
+            if (svg) {
+              const png = await svgStringToPngBase64(svg);
+              if (png) {
+                q.hinhAnh = png;
+                successCount++;
+              }
+            }
+          } catch (renderErr) {
+            console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
+          }
+
+          // Cập nhật trạng thái từng câu để giao diện hiển thị ngay
+          resetExamState({ ...parsedExamData });
+          await new Promise((r) => setTimeout(r, 100));
+        }
+
+        if (successCount > 0) {
+          addToast('success', `✅ Đã vẽ sẵn hình SVG cho ${successCount}/${questionsWithTikz.length} câu hỏi!`);
+        }
+      }
+
+      // Bước 5c: Bổ sung sinh TikZ riêng nếu có câu nào nói rõ "xem hình bên / hình dưới" mà chưa có TikZ
       if (config.tikzMode !== 'no') {
-        const needsTikzKeywords = /(hình vẽ|hình bên|hình dưới|đồ thị|như hình|cho hình|bảng biến thiên|đường tròn|dây cung|tam giác|hình nón|hình trụ|hình cầu|hình chóp|lăng trụ|hình hộp|parabol)/i;
-        const questionsNeedingTikz = allQuestions.filter(
-          (q) => !q.tikzCode && (detectShapeType(q.noiDung) !== 'generic' || needsTikzKeywords.test(q.noiDung))
+        const needsExplicitFigure = /(xem hình bên|như hình bên|trong hình bên|hình vẽ dưới đây|cho hình vẽ bên|bảng biến thiên dưới đây)/i;
+        const missingTikzQuestions = allQuestions.filter(
+          (q) => !q.tikzCode && needsExplicitFigure.test(q.noiDung)
         );
 
-        if (questionsNeedingTikz.length > 0) {
-          addToast('info', `📐 Đang tạo hình vẽ SVG chính xác cho ${questionsNeedingTikz.length} câu hỏi...`);
-
-          let successCount = 0;
-          for (let i = 0; i < questionsNeedingTikz.length; i++) {
-            const q = questionsNeedingTikz[i];
+        if (missingTikzQuestions.length > 0) {
+          for (const q of missingTikzQuestions) {
             try {
               const fullText = [
                 q.noiDung,
@@ -395,32 +430,17 @@ export function App() {
               const newTikz = await generateTikzFromQuestion(fullText, '', models.genModel);
               if (newTikz && newTikz.includes('tikzpicture')) {
                 q.tikzCode = newTikz;
-
-                // Render sang SVG và PNG
-                try {
-                  const svg = await renderTikzToSvg(newTikz);
-                  if (svg) {
-                    const png = await svgStringToPngBase64(svg);
-                    if (png) {
-                      q.hinhAnh = png;
-                      successCount++;
-                    }
-                  }
-                } catch (renderErr) {
-                  console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
+                const svg = await renderTikzToSvg(newTikz);
+                if (svg) {
+                  const png = await svgStringToPngBase64(svg);
+                  if (png) q.hinhAnh = png;
                 }
               }
             } catch (tikzErr) {
               console.warn(`[TikZ-Gen] Lỗi câu ${q.stt}:`, tikzErr);
             }
-
-            // Cập nhật trạng thái từng câu để giao diện hiển thị ngay
             resetExamState({ ...parsedExamData });
-            await new Promise((r) => setTimeout(r, 300));
-          }
-
-          if (successCount > 0) {
-            addToast('success', `✅ Đã vẽ sẵn hình SVG cho ${successCount}/${questionsNeedingTikz.length} câu hỏi!`);
+            await new Promise((r) => setTimeout(r, 200));
           }
         }
       }
