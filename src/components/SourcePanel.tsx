@@ -295,7 +295,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   const isImages = (source.type === 'image' || source.type === 'paste') && source.fileData && source.fileData.length > 0;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-4">
+    <div className="panel-card p-4 sm:p-5 space-y-3.5">
       {/* Lightbox / Zoom Modal */}
       {previewImage && (
         <div
@@ -315,13 +315,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center space-x-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
             <Upload className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900">
+            <h2 className="text-sm font-bold text-slate-900 leading-tight">
               Nạp Đề Gốc & Bài Tập Mẫu
             </h2>
             <p className="text-[11px] text-slate-500">
@@ -363,13 +363,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-2xl p-4 sm:p-5 transition-all text-center ${
+        className={`relative border-2 border-dashed rounded-xl p-4 sm:p-5 transition-all text-center ${
           isDragging
             ? 'border-indigo-500 bg-indigo-50/80 ring-4 ring-indigo-100'
             : 'border-slate-300 hover:border-indigo-400 bg-slate-50/70 hover:bg-indigo-50/30'
         }`}
       >
-        <div className="flex flex-col items-center justify-center space-y-3">
+        <div className="flex flex-col items-center justify-center space-y-2.5">
           <div className="flex items-center justify-center space-x-2 text-indigo-600">
             <FileText className="w-6 h-6 text-indigo-500" />
             <ImageIcon className="w-6 h-6 text-violet-500" />
@@ -386,13 +386,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           </div>
 
           {/* 4 Fast Action Buttons in clean 2x2 Grid */}
-          <div className="grid grid-cols-2 gap-2.5 w-full pt-1">
+          <div className="grid grid-cols-2 gap-2 w-full pt-1">
             {/* Action 1: Upload File DOCX / PDF */}
             <button
               type="button"
               onClick={() => fileInputDocxPdfRef.current?.click()}
               disabled={isLoadingFile}
-              className="px-3 py-2.5 bg-white hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 rounded-xl flex items-center justify-center space-x-2 text-xs font-semibold text-slate-700 hover:text-indigo-700 shadow-2xs transition-all cursor-pointer"
+              className="px-3 py-2.5 bg-white hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 rounded-lg flex items-center justify-center space-x-2 text-xs font-semibold text-slate-700 hover:text-indigo-700 shadow-2xs transition-all cursor-pointer"
             >
               <FileUp className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>File Word / PDF</span>
@@ -402,7 +402,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             <button
               type="button"
               onClick={() => fileInputImageRef.current?.click()}
-              className="px-3 py-2.5 bg-white hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 rounded-xl flex items-center justify-center space-x-2 text-xs font-semibold text-slate-700 hover:text-indigo-700 shadow-2xs transition-all cursor-pointer"
+              className="px-3 py-2.5 bg-white hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 rounded-lg flex items-center justify-center space-x-2 text-xs font-semibold text-slate-700 hover:text-indigo-700 shadow-2xs transition-all cursor-pointer"
             >
               <ImageIcon className="w-4 h-4 text-violet-600 shrink-0" />
               <span>Tải ảnh lên</span>
@@ -410,7 +410,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
             {/* Action 3: Paste Screenshot Hint */}
             <div
-              className="px-3 py-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-center space-x-2 text-xs font-semibold text-emerald-800 shadow-2xs cursor-default"
+              className="px-3 py-2.5 bg-emerald-50/80 border border-emerald-200 rounded-lg flex items-center justify-center space-x-2 text-xs font-semibold text-emerald-800 shadow-2xs cursor-default"
               title="Nhấn Ctrl+V sau khi chụp màn hình (Snipping Tool, Zalo, Web...)"
             >
               <Clipboard className="w-4 h-4 text-emerald-600 shrink-0" />

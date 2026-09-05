@@ -130,9 +130,9 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3.5 no-print">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center space-x-1.5">
+    <div className="panel-card p-4 sm:p-5 space-y-3 no-print">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xs font-bold text-slate-900 tracking-wide flex items-center space-x-1.5">
           <Download className="w-4 h-4 text-indigo-600" />
           <span>Xuất File Đề Thi & Tiện Ích</span>
         </h3>
@@ -278,11 +278,11 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
       </div>
 
       {/* Utility Buttons: Save to History, Shuffle & Print */}
-      <div className="flex items-center space-x-2 pt-2 border-t border-slate-100 flex-wrap gap-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-2 pt-2 border-t border-slate-100">
         {onSaveToHistory && (
           <button
             onClick={onSaveToHistory}
-            className="py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+            className="w-full sm:w-auto py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
             title="Lưu bản đề thi hiện tại vào danh sách lịch sử"
           >
             <BookmarkPlus className="w-4 h-4 text-indigo-600" />
@@ -292,7 +292,7 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
 
         <button
           onClick={onOpenShuffleModal}
-          className="flex-1 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+          className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
         >
           <Shuffle className="w-4 h-4 text-amber-700" />
           <span>🔀 Trộn Đề (Tạo Mã Đề A/B/C/D)</span>
@@ -300,7 +300,7 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
 
         <button
           onClick={() => window.print()}
-          className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+          className="w-full sm:w-auto py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-lg font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
         >
           <Printer className="w-4 h-4 text-slate-600" />
           <span>In Đề (Ctrl+P)</span>

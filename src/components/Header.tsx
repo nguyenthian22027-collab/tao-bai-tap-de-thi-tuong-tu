@@ -17,6 +17,7 @@ import {
   User,
   ChevronDown,
   Flame,
+  BookOpen,
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { FirebaseUserProfile } from '../types';
@@ -35,6 +36,7 @@ interface HeaderProps {
   onLogoutGoogle?: () => void;
   onOpenAdminPanel?: () => void;
   onOpenFirebaseConfig?: () => void;
+  onOpenGuide: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutGoogle,
   onOpenAdminPanel,
   onOpenFirebaseConfig,
+  onOpenGuide,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,35 +70,35 @@ export const Header: React.FC<HeaderProps> = ({
   const isConfigured = isFirebaseConfigured();
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs no-print">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="bg-white/95 border-b border-slate-200 sticky top-0 z-30 shadow-xs backdrop-blur-sm no-print">
+      <div className="max-w-[1500px] mx-auto px-3 sm:px-5 lg:px-7 min-h-16 py-2 flex items-center justify-between gap-3">
         {/* Brand Logo & Title */}
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
-            <FileSpreadsheet className="w-6 h-6" />
+        <div className="flex items-center space-x-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200 shrink-0">
+            <FileSpreadsheet className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-xl font-bold font-sora text-slate-900 tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center space-x-1.5">
+              <h1 className="text-lg sm:text-xl font-bold font-sora text-slate-900 tracking-tight truncate">
                 SimilarExam <span className="text-indigo-600">Studio</span>
               </h1>
-              <span className="bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-200">
+              <span className="bg-amber-100 text-amber-800 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
                 v1.0
               </span>
             </div>
-            <p className="text-xs text-slate-500 hidden sm:block">
+            <p className="text-[11px] text-slate-500 hidden md:block truncate max-w-[420px]">
               Tạo đề thi tương tự bằng AI — Xuất Word hỗ trợ MathType & OMML
             </p>
           </div>
         </div>
 
         {/* Action Buttons & Auth */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
           {/* Nút Admin nếu là Quản trị viên */}
           {isAdmin && (
             <button
               onClick={onOpenAdminPanel}
-              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-amber-950 bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-600 border border-amber-500 rounded-lg shadow-xs transition-all cursor-pointer animate-in fade-in"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-bold text-amber-950 bg-amber-300 hover:bg-amber-400 border border-amber-400 rounded-lg shadow-xs transition-all cursor-pointer animate-in fade-in"
               title="Bảng điều khiển Quản trị viên và Phê duyệt bản quyền"
             >
               <ShieldCheck className="w-4 h-4 text-amber-900" />
@@ -106,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Lịch sử */}
           <button
             onClick={onToggleHistory}
-            className="flex items-center space-x-1.5 px-3 py-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+            className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
             title="Xem và quản lý lịch sử đề thi đã tạo"
           >
             <History className="w-4 h-4 text-indigo-600" />
@@ -121,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Cài đặt Key Gemini */}
           <button
             onClick={onOpenSettings}
-            className={`flex items-center space-x-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer ${
+            className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all cursor-pointer ${
               !hasKeys
                 ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm animate-pulse'
                 : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
@@ -135,6 +138,17 @@ export const Header: React.FC<HeaderProps> = ({
                 {validKeyCount}
               </span>
             )}
+          </button>
+
+          {/* Hướng dẫn sử dụng */}
+          <button
+            onClick={onOpenGuide}
+            aria-label="Mở hướng dẫn sử dụng"
+            className="flex items-center space-x-1.5 p-2 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+            title="Xem hướng dẫn sử dụng và cách lấy API Key"
+          >
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+            <span className="hidden sm:inline">Hướng dẫn</span>
           </button>
 
           {/* GOOGLE AUTH & USER PROFILE SECTION */}

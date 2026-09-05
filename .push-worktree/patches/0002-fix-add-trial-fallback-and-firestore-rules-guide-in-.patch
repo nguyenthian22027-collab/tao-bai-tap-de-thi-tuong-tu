@@ -1,0 +1,325 @@
+From ee311121fd1409690d8727efa276ee2e593ba1cc Mon Sep 17 00:00:00 2001
+From: Nguyen Van Thien <nguyenvanthien1812@gmail.com>
+Date: Fri, 4 Sep 2026 23:10:11 +0700
+Subject: [PATCH 2/2] fix: add trial fallback and firestore rules guide in
+ admin panel
+
+---
+ src/App.tsx                        |  18 +++-
+ src/components/AdminPanelModal.tsx |  34 +++++++-
+ src/lib/licenseService.ts          | 135 +++++++++++++++++------------
+ 3 files changed, 125 insertions(+), 62 deletions(-)
+
+diff --git a/src/App.tsx b/src/App.tsx
+index eb677db..adc3b81 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -179,7 +179,13 @@ export function App() {
+   useEffect(() => {
+     const unsubAuth = subscribeAuthChange((user) => {
+       setCurrentUser(user);
+-      if (!user) setUserProfile(null);
++      if (!user) {
++        setUserProfile(null);
++      } else {
++        ensureUserProfile(user)
++          .then((p) => setUserProfile(p))
++          .catch((err) => console.warn('Lỗi ensureUserProfile:', err));
++      }
+     });
+     return () => {
+       if (unsubAuth) unsubAuth();
+@@ -189,9 +195,13 @@ export function App() {
+   // Lắng nghe thay đổi hồ sơ bản quyền người dùng từ Firestore (Realtime)
+   useEffect(() => {
+     if (!currentUser) return;
+-    const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
+-      setUserProfile(profile);
+-    });
++    const unsubProfile = subscribeUserProfile(
++      currentUser.uid,
++      (profile) => {
++        if (profile) setUserProfile(profile);
++      },
++      currentUser
++    );
+     return () => {
+       if (unsubProfile) unsubProfile();
+     };
+diff --git a/src/components/AdminPanelModal.tsx b/src/components/AdminPanelModal.tsx
+index 82bc0e0..d64b6d9 100644
+--- a/src/components/AdminPanelModal.tsx
++++ b/src/components/AdminPanelModal.tsx
+@@ -18,6 +18,7 @@ import {
+   Sliders,
+   Check,
+   CalendarDays,
++  ShieldAlert,
+ } from 'lucide-react';
+ import { subscribeAllUsers, adminUpdateUserLicense } from '../lib/licenseService';
+ import { FirebaseUserProfile, LicenseTier } from '../types';
+@@ -39,6 +40,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
+   const [searchTerm, setSearchTerm] = useState('');
+   const [tierFilter, setTierFilter] = useState<'all' | LicenseTier>('all');
+   const [isProcessingUid, setIsProcessingUid] = useState<string | null>(null);
++  const [firestoreError, setFirestoreError] = useState<string | null>(null);
+ 
+   // Modal phê duyệt tùy chọn (số ngày / số lượt)
+   const [customTargetUser, setCustomTargetUser] = useState<FirebaseUserProfile | null>(null);
+@@ -48,11 +50,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
+ 
+   useEffect(() => {
+     if (!isOpen) return;
++    setFirestoreError(null);
+ 
+     // Lắng nghe toàn bộ người dùng từ Cloud Firestore (Realtime)
+-    const unsubscribe = subscribeAllUsers((userList) => {
+-      setUsers(userList);
+-    });
++    const unsubscribe = subscribeAllUsers(
++      (userList) => {
++        setUsers(userList);
++        setFirestoreError(null);
++      },
++      (err) => {
++        setFirestoreError(err.message || 'Lỗi quyền truy cập Firestore Security Rules');
++      }
++    );
+ 
+     return () => {
+       if (unsubscribe) unsubscribe();
+@@ -220,6 +229,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
+           </div>
+         </div>
+ 
++        {/* Hướng dẫn mở Security Rules nếu bị lỗi quyền */}
++        {firestoreError && (
++          <div className="mx-4 mt-3 p-3.5 bg-rose-50 border border-rose-300 rounded-xl space-y-2 text-rose-950 text-xs shrink-0 shadow-xs">
++            <div className="font-bold flex items-center space-x-2 text-rose-800">
++              <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
++              <span>CẦN MỞ QUYỀN TRUY CẬP TRÊN FIREBASE CONSOLE (1 BƯỚC DUY NHẤT):</span>
++            </div>
++            <p className="text-[11.5px] leading-relaxed text-rose-900">
++              Hiện tại Firestore Security Rules của bạn đang chặn quyền đọc dữ liệu: <code>{firestoreError}</code>. Để danh sách giáo viên hiện ra đầy đủ, bạn chỉ cần mở khóa như sau (mất 20 giây):
++            </p>
++            <ol className="list-decimal list-inside space-y-1 text-[11px] font-medium pl-1 bg-white p-2.5 rounded-lg border border-rose-200">
++              <li>Vào <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="font-bold text-blue-600 underline">Firebase Console</a> → Chọn dự án <code>tao-bai-tap-de-thi-tuong-tu</code>.</li>
++              <li>Bấm <b>Firestore Database</b> ở menu bên trái → Chọn tab <b>Rules (Quy tắc)</b>.</li>
++              <li>Thay toàn bộ bằng đoạn sau: <code className="bg-slate-100 p-1 rounded font-mono text-emerald-700 font-bold">allow read, write: if true;</code></li>
++              <li>Bấm nút <b>Publish (Xuất bản)</b>. Ngay lập tức danh sách giáo viên sẽ xuất hiện tại đây!</li>
++            </ol>
++          </div>
++        )}
++
+         {/* Danh sách người dùng (Table) */}
+         <div className="flex-1 overflow-y-auto p-4">
+           {filteredUsers.length === 0 ? (
+diff --git a/src/lib/licenseService.ts b/src/lib/licenseService.ts
+index f17dc61..ac19abb 100644
+--- a/src/lib/licenseService.ts
++++ b/src/lib/licenseService.ts
+@@ -63,53 +63,49 @@ export function subscribeAuthChange(callback: (user: FirebaseUser | null) => voi
+  * Đảm bảo hồ sơ người dùng đã tồn tại trên Firestore (nếu người mới thì tự động cấp 5 lượt dùng thử)
+  */
+ export async function ensureUserProfile(user: FirebaseUser): Promise<FirebaseUserProfile> {
++  const fallbackProfile: FirebaseUserProfile = {
++    uid: user.uid,
++    email: user.email || '',
++    displayName: user.displayName || user.email || 'Giáo viên',
++    photoURL: user.photoURL || undefined,
++    tier: 'trial',
++    trialRemaining: 5,
++    trialTotal: 5,
++    createdAt: Date.now(),
++    lastLoginAt: Date.now(),
++  };
++
+   if (!db) {
+-    // Fallback nếu chưa có db
+-    return {
+-      uid: user.uid,
+-      email: user.email || '',
+-      displayName: user.displayName || user.email || 'Giáo viên',
+-      photoURL: user.photoURL || undefined,
+-      tier: 'trial',
+-      trialRemaining: 5,
+-      trialTotal: 5,
+-      createdAt: Date.now(),
+-      lastLoginAt: Date.now(),
+-    };
++    return fallbackProfile;
+   }
+ 
+-  const userDocRef = doc(db, 'users', user.uid);
+-  const snap = await getDoc(userDocRef);
++  try {
++    const userDocRef = doc(db, 'users', user.uid);
++    const snap = await getDoc(userDocRef);
+ 
+-  if (!snap.exists()) {
+-    // Tài khoản mới lần đầu đăng nhập: Cấp gói DÙNG THỬ (5 lượt)
+-    const newProfile: FirebaseUserProfile = {
+-      uid: user.uid,
+-      email: user.email || '',
+-      displayName: user.displayName || user.email || 'Giáo viên',
+-      photoURL: user.photoURL || undefined,
+-      tier: 'trial',
+-      trialRemaining: 5,
+-      trialTotal: 5,
+-      createdAt: Date.now(),
+-      lastLoginAt: Date.now(),
+-    };
+-    await setDoc(userDocRef, newProfile);
+-    return newProfile;
+-  } else {
+-    // Đã tồn tại: Cập nhật lần đăng nhập gần nhất & ảnh/tên nếu có đổi
+-    const data = snap.data() as FirebaseUserProfile;
+-    await updateDoc(userDocRef, {
+-      lastLoginAt: Date.now(),
+-      displayName: user.displayName || data.displayName,
+-      photoURL: user.photoURL || data.photoURL,
+-    });
+-    return {
+-      ...data,
+-      displayName: user.displayName || data.displayName,
+-      photoURL: user.photoURL || data.photoURL,
+-      lastLoginAt: Date.now(),
+-    };
++    if (!snap.exists()) {
++      // Tài khoản mới lần đầu đăng nhập: Cấp gói DÙNG THỬ (5 lượt)
++      await setDoc(userDocRef, fallbackProfile);
++      return fallbackProfile;
++    } else {
++      // Đã tồn tại: Cập nhật lần đăng nhập gần nhất & ảnh/tên nếu có đổi
++      const data = snap.data() as FirebaseUserProfile;
++      const updatedProfile: FirebaseUserProfile = {
++        ...data,
++        displayName: user.displayName || data.displayName,
++        photoURL: user.photoURL || data.photoURL,
++        lastLoginAt: Date.now(),
++      };
++      await updateDoc(userDocRef, {
++        lastLoginAt: Date.now(),
++        displayName: user.displayName || data.displayName,
++        photoURL: user.photoURL || data.photoURL,
++      });
++      return updatedProfile;
++    }
++  } catch (err) {
++    console.warn('Lỗi khi truy cập Firestore (có thể do Security Rules chưa mở):', err);
++    return fallbackProfile;
+   }
+ }
+ 
+@@ -119,7 +115,8 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<FirebaseUse
+  */
+ export function subscribeUserProfile(
+   uid: string,
+-  callback: (profile: FirebaseUserProfile | null) => void
++  callback: (profile: FirebaseUserProfile | null) => void,
++  fallbackUser?: FirebaseUser | null
+ ): Unsubscribe | null {
+   if (!db) {
+     callback(null);
+@@ -131,12 +128,31 @@ export function subscribeUserProfile(
+     (snap) => {
+       if (snap.exists()) {
+         callback(snap.data() as FirebaseUserProfile);
++      } else if (fallbackUser) {
++        // Nếu chưa có document trên Firestore, tự động khởi tạo
++        ensureUserProfile(fallbackUser)
++          .then((p) => callback(p))
++          .catch(() => callback(null));
+       } else {
+         callback(null);
+       }
+     },
+     (err) => {
+-      console.warn('Lỗi realtime hồ sơ người dùng:', err);
++      console.warn('Lỗi realtime hồ sơ người dùng (Firestore Rules có thể đang khóa):', err);
++      // Khi gặp lỗi Firestore, vẫn cung cấp fallback 5 lượt dùng thử để giáo viên không bị mất quyền
++      if (fallbackUser) {
++        callback({
++          uid: fallbackUser.uid,
++          email: fallbackUser.email || '',
++          displayName: fallbackUser.displayName || fallbackUser.email || 'Giáo viên',
++          photoURL: fallbackUser.photoURL || undefined,
++          tier: 'trial',
++          trialRemaining: 5,
++          trialTotal: 5,
++          createdAt: Date.now(),
++          lastLoginAt: Date.now(),
++        });
++      }
+     }
+   );
+ }
+@@ -146,12 +162,17 @@ export function subscribeUserProfile(
+  */
+ export async function decrementTrialCredit(uid: string): Promise<number> {
+   if (!db) return 0;
+-  const userDocRef = doc(db, 'users', uid);
+-  await updateDoc(userDocRef, {
+-    trialRemaining: increment(-1),
+-  });
+-  const snap = await getDoc(userDocRef);
+-  return snap.exists() ? (snap.data() as FirebaseUserProfile).trialRemaining : 0;
++  try {
++    const userDocRef = doc(db, 'users', uid);
++    await updateDoc(userDocRef, {
++      trialRemaining: increment(-1),
++    });
++    const snap = await getDoc(userDocRef);
++    return snap.exists() ? (snap.data() as FirebaseUserProfile).trialRemaining : 0;
++  } catch (err) {
++    console.warn('Lỗi decrementTrialCredit:', err);
++    return 0;
++  }
+ }
+ 
+ // ====================================================================================
+@@ -170,6 +191,7 @@ export function isUserAdmin(email?: string | null): boolean {
+   if (
+     cleanEmail === 'nguyenvanthien1812@gmail.com' ||
+     cleanEmail === 'nguyenthian22027@gmail.com' ||
++    cleanEmail === 'nguyenthian.2.2027@gmail.com' ||
+     (adminEmailEnv && cleanEmail === adminEmailEnv)
+   ) {
+     return true;
+@@ -194,26 +216,29 @@ export function verifyAdminPin(pin: string): boolean {
+  * Lắng nghe toàn bộ danh sách người dùng realtime (dành cho Admin Panel)
+  */
+ export function subscribeAllUsers(
+-  callback: (users: FirebaseUserProfile[]) => void
++  callback: (users: FirebaseUserProfile[]) => void,
++  onError?: (err: any) => void
+ ): Unsubscribe | null {
+   if (!db) {
+     callback([]);
+     return null;
+   }
+   const usersCol = collection(db, 'users');
+-  const q = query(usersCol, orderBy('createdAt', 'desc'));
+ 
+   return onSnapshot(
+-    q,
++    usersCol,
+     (snapshot) => {
+       const users: FirebaseUserProfile[] = [];
+       snapshot.forEach((docSnap) => {
+         users.push(docSnap.data() as FirebaseUserProfile);
+       });
++      // Sắp xếp người dùng mới nhất lên đầu
++      users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+       callback(users);
+     },
+     (err) => {
+-      console.warn('Lỗi tải danh sách người dùng Admin:', err);
++      console.warn('Lỗi tải danh sách người dùng Admin (Firestore Rules):', err);
++      if (onError) onError(err);
+     }
+   );
+ }
+-- 
+2.54.0.windows.1
+

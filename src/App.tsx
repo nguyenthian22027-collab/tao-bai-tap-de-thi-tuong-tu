@@ -37,6 +37,7 @@ import { StatusToast } from './components/StatusToast';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { LicenseStatusModal } from './components/LicenseStatusModal';
+import { GuideModal } from './components/GuideModal';
 
 export function App() {
   // 1. Storage & State Management
@@ -52,6 +53,7 @@ export function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isFirebaseConfigOpen, setIsFirebaseConfigOpen] = useState(false);
   const [isLicenseStatusOpen, setIsLicenseStatusOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [history, setHistory] = useState<ExamHistoryItem[]>([]);
 
@@ -402,13 +404,14 @@ export function App() {
         onLogoutGoogle={handleLogoutGoogle}
         onOpenAdminPanel={handleOpenAdmin}
         onOpenFirebaseConfig={() => setIsFirebaseConfigOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
       />
 
       {/* Main Layout Container */}
-      <main className="max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <main className="max-w-[1500px] w-full mx-auto px-3 sm:px-5 lg:px-7 py-5 sm:py-6 flex-1">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Column (Input & Controls - 5/12 for comfortable breathing room) */}
-          <div className="lg:col-span-5 xl:col-span-5 space-y-4 no-print">
+          <div className="lg:col-span-5 xl:col-span-5 space-y-3.5 no-print">
             <SourcePanel
               source={source}
               onChangeSource={setSource}
@@ -428,7 +431,7 @@ export function App() {
           </div>
 
           {/* Right Column (Exam Views & Exporters - 7/12 ideal document width) */}
-          <div className="lg:col-span-7 xl:col-span-7 space-y-4">
+          <div className="lg:col-span-7 xl:col-span-7 space-y-3.5">
             {/* Export Toolbar (visible when an exam exists) */}
             {exam && (
               <ExportToolbar
@@ -512,6 +515,11 @@ export function App() {
         isOpen={isLicenseStatusOpen}
         userProfile={userProfile}
         onClose={() => setIsLicenseStatusOpen(false)}
+      />
+
+      <GuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
 
       {/* Stackable Status Toast */}

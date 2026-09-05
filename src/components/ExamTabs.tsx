@@ -35,13 +35,13 @@ export const ExamTabs: React.FC<ExamTabsProps> = ({
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('edit');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Tab Navigation */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2 no-print">
-        <div className="flex items-center space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 border-b border-slate-200 pb-2 no-print">
+        <div className="flex items-center space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600 overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab('source')}
-            className={`px-3 py-1.5 rounded-lg flex items-center space-x-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center space-x-1.5 whitespace-nowrap cursor-pointer transition-all ${
               activeTab === 'source' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'hover:text-slate-900'
             }`}
           >
@@ -51,7 +51,7 @@ export const ExamTabs: React.FC<ExamTabsProps> = ({
 
           <button
             onClick={() => setActiveTab('generated')}
-            className={`px-3 py-1.5 rounded-lg flex items-center space-x-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center space-x-1.5 whitespace-nowrap cursor-pointer transition-all ${
               activeTab === 'generated' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'hover:text-slate-900'
             }`}
           >
@@ -66,7 +66,7 @@ export const ExamTabs: React.FC<ExamTabsProps> = ({
 
           <button
             onClick={() => setActiveTab('compare')}
-            className={`px-3 py-1.5 rounded-lg flex items-center space-x-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center space-x-1.5 whitespace-nowrap cursor-pointer transition-all ${
               activeTab === 'compare' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'hover:text-slate-900'
             }`}
           >
@@ -77,7 +77,7 @@ export const ExamTabs: React.FC<ExamTabsProps> = ({
 
         {/* View / Edit Mode Toggle (when on generated exam tab) */}
         {activeTab === 'generated' && exam && (
-          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-medium">
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs font-medium self-end lg:self-auto">
             <button
               onClick={() => setViewMode('view')}
               className={`px-2.5 py-1 rounded-lg flex items-center space-x-1 cursor-pointer transition-all ${

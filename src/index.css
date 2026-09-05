@@ -27,10 +27,39 @@
   --radius-xl: 24px;
 }
 
+/* Shared visual language: compact panels, consistent focus states and restrained depth. */
+.panel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+button,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.3);
+  outline-offset: 2px;
+}
+
 body {
   font-family: 'Be Vietnam Pro', sans-serif;
   color: var(--text-primary);
   background-color: var(--surface-2);
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--text-primary);
 }
 
 .font-sora {
@@ -79,4 +108,3 @@ body {
     page-break-before: always;
   }
 }
-

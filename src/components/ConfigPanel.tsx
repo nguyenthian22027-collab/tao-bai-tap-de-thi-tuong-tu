@@ -9,15 +9,15 @@ interface ConfigPanelProps {
 
 export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <div className="flex items-center space-x-2">
-          <Sliders className="w-4 h-4 text-indigo-600" />
-          <h2 className="text-sm font-bold text-slate-900">Cấu Hình Sinh Đề / Bài Tập</h2>
+    <div className="panel-card p-4 sm:p-5 space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Sliders className="w-4 h-4 text-indigo-600 shrink-0" />
+          <h2 className="text-sm font-bold text-slate-900 truncate">Cấu Hình Sinh Đề / Bài Tập</h2>
         </div>
 
         {/* Mode Selector Pill */}
-        <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
+        <div className="flex flex-wrap p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[11px] sm:text-xs font-semibold">
           <button
             type="button"
             onClick={() => onChangeConfig({ ...config, mode: 'nguyen_de' })}
@@ -181,7 +181,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
             <label className="text-xs font-semibold text-slate-700 block">
               Mức độ thay đổi nội dung:
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => onChangeConfig({ ...config, mucDoTuongTu: 'doi_so_lieu' })}
