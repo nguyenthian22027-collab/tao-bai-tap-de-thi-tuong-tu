@@ -204,11 +204,24 @@ export function buildExamPrompt(
     nang_cao: 'NÂNG CAO / PHÂN LOẠI (Phát triển các câu hỏi vận dụng cao phân loại học sinh giỏi)',
   };
 
+  const tikzShapeGuide = `QUY TẮC VẼ HÌNH TIKZ CHÍNH XÁC (BẮT BUỘC TUÂN THỦ):
+  [A] NHẬN DẠNG LOẠI HÌNH TRƯỚC KHI VIẾT CODE — đọc kỹ đề bài, xác định loại hình, sau đó viết mã TikZ phù hợp:
+    • Đường tròn / dây cung / tiếp tuyến → \\draw (O) circle (Rcm); \\coordinate (P) at ($(O)+(góc:Rcm)$);
+    • Hình trụ (cylinder) → vẽ ellipse cho mặt trên/dưới + 2 đường thẳng bên; TUYỆT ĐỐI không dùng hộp chữ nhật 3D
+    • Hình cầu (sphere) → \\draw circle + \\draw[dashed] ellipse cho mặt cắt xích đạo
+    • Hình chóp (pyramid) / Lăng trụ 3D → phối cảnh nghiêng, cạnh khuất là nét đứt [dashed]
+    • Đồ thị hàm số → \\begin{axis}[...]...\\end{axis} (pgfplots); vẽ đúng domain hàm
+    • Bảng biến thiên → \\draw + \\node + dấu +/- và mũi tên tăng giảm
+    • Tam giác / Đa giác phẳng → \\draw (A)--(B)--(C)--cycle; nhãn điểm đúng vị trí
+  [B] TUYỆT ĐỐI KHÔNG sao chép cùng mã TikZ cho 2 câu khác nhau. Mỗi câu có mã TikZ ĐỘC LẬP, đúng số liệu riêng của câu đó.
+  [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.
+  [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.`;
+
   const tikzInstruction = config.tikzMode === 'yes'
-    ? 'BẮT BUỘC VẼ HÌNH TIKZ: Bất kỳ câu hỏi nào liên quan tới hình học, đồ thị hàm số, sơ đồ hay hình minh họa, BẮT BUỘC viết mã TikZ LaTeX hoàn chỉnh đặt trong thẻ TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}.'
+    ? `BẮT BUỘC VẼ HÌNH TIKZ cho mọi câu có hình học, đồ thị, sơ đồ. Đặt mã vào trường TIKZ: \\\\begin{tikzpicture}...\\\\end{tikzpicture}.\n${tikzShapeGuide}`
     : config.tikzMode === 'no'
     ? 'KHÔNG tạo mã TikZ.'
-    : 'TỰ ĐỘNG VẼ HÌNH TIKZ: Nếu đề bài hoặc câu hỏi gốc có hình vẽ, đồ thị hàm số, bảng biến thiên hay sơ đồ minh họa, BẮT BUỘC tự động tạo mã TikZ LaTeX chuẩn đẹp tương ứng đặt trong thuộc tính TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}.';
+    : `TỰ ĐỘNG VẼ HÌNH TIKZ: Nếu câu hỏi gốc có hình vẽ, đồ thị, bảng biến thiên hay sơ đồ minh họa, BẮT BUỘC sinh mã TikZ tương ứng vào trường TIKZ: \\\\begin{tikzpicture}...\\\\end{tikzpicture}.\n${tikzShapeGuide}`;
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
   if (config.mode === 'cau_le') {
@@ -745,49 +758,277 @@ export function parseExam(rawText: string): ExamData {
   };
 }
 
+
 /**
- * Gọi AI để sinh mã TikZ từ nội dung câu hỏi và mô tả hình vẽ
+ * Nhận dạng loại hình học từ nội dung câu hỏi
+ */
+export function detectShapeType(questionText: string): string {
+  const text = questionText.toLowerCase();
+
+  // Hình trụ
+  if (/(hình trụ|hình ống|sợi dây chuyền.*trụ|trụ tròn|cylinder|thể tích.*trụ|diện tích.*trụ)/i.test(text)) return 'cylinder';
+
+  // Hình cầu
+  if (/(hình cầu|mặt cầu|sphere|bán cầu|thể tích.*cầu)/i.test(text)) return 'sphere';
+
+  // Hình chóp
+  if (/(hình chóp|chóp tứ giác|chóp tam giác|chóp đều|pyramid)/i.test(text)) return 'pyramid';
+
+  // Lăng trụ 3D
+  if (/(lăng trụ|prism|lăng kính)/i.test(text)) return 'prism';
+
+  // Đồ thị hàm số
+  if (/(đồ thị|hàm số|hàm bậc|parabol|đường cong|tiếp tuyến.*hàm|cực trị|cực đại|cực tiểu|điểm uốn)/i.test(text)) return 'function_graph';
+
+  // Bảng biến thiên
+  if (/(bảng biến thiên|monoton|đồng biến|nghịch biến)/i.test(text)) return 'variation_table';
+
+  // Đường tròn (hình học phẳng)
+  if (/(đường tròn|tâm o|bán kính|dây cung|tiếp tuyến|cát tuyến|nội tiếp.*đường tròn|ngoại tiếp.*đường tròn|góc nội tiếp|góc tâm)/i.test(text)) return 'circle';
+
+  // Tam giác
+  if (/(tam giác|đường trung tuyến|đường cao|đường phân giác|trọng tâm|trực tâm|tâm nội tiếp)/i.test(text)) return 'triangle';
+
+  // Tứ giác
+  if (/(hình vuông|hình chữ nhật|hình thang|hình bình hành|hình thoi|tứ giác)/i.test(text)) return 'quadrilateral';
+
+  // Vector / Tọa độ
+  if (/(vector|vectơ|tọa độ|trục ox|trục oy|mặt phẳng tọa độ)/i.test(text)) return 'coordinate';
+
+  return 'generic';
+}
+
+/**
+ * Trả về ví dụ mẫu TikZ phù hợp với từng loại hình
+ */
+function getTikzExample(shapeType: string): string {
+  switch (shapeType) {
+    case 'circle':
+      return `Ví dụ đường tròn tâm O bán kính R=2, có dây MN và điểm P trên đường tròn:
+\\begin{tikzpicture}[scale=1.2]
+  \\coordinate (O) at (0,0);
+  \\draw[thick] (O) circle (2cm);
+  \\fill (O) circle (1.5pt); \\node[below left] at (O) {$O$};
+  \\coordinate (M) at ($(O)+(130:2cm)$);
+  \\coordinate (N) at ($(O)+(-30:2cm)$);
+  \\coordinate (P) at ($(O)+(80:2cm)$);
+  \\draw[thick] (M) -- (N);
+  \\fill (M) circle (1.5pt); \\node[above left] at (M) {$M$};
+  \\fill (N) circle (1.5pt); \\node[right] at (N) {$N$};
+  \\fill (P) circle (1.5pt); \\node[above right] at (P) {$P$};
+\\end{tikzpicture}`;
+
+    case 'cylinder':
+      return `Ví dụ hình trụ bán kính r=2, chiều cao h=4 (ĐÚNG cách vẽ hình trụ — dùng ellipse, KHÔNG dùng hộp):
+\\begin{tikzpicture}[scale=0.8]
+  % Đáy dưới (ellipse)
+  \\draw[thick] (0,0) ellipse (2cm and 0.6cm);
+  % Đáy trên (ellipse)
+  \\draw[thick] (0,4) ellipse (2cm and 0.6cm);
+  % Hai đường bên
+  \\draw[thick] (-2,0) -- (-2,4);
+  \\draw[thick] (2,0) -- (2,4);
+  % Nhãn bán kính và chiều cao
+  \\draw[<->] (0,0) -- (2,0); \\node[below] at (1,0) {$r$};
+  \\draw[<->] (2.3,0) -- (2.3,4); \\node[right] at (2.3,2) {$h$};
+  % Tâm đáy
+  \\fill (0,0) circle (1.5pt); \\fill (0,4) circle (1.5pt);
+\\end{tikzpicture}`;
+
+    case 'sphere':
+      return `Ví dụ hình cầu tâm O bán kính R=2:
+\\begin{tikzpicture}[scale=1]
+  \\coordinate (O) at (0,0);
+  \\draw[thick] (O) circle (2cm);
+  \\draw[thick,dashed] (O) ellipse (2cm and 0.6cm);
+  \\fill (O) circle (1.5pt); \\node[below right] at (O) {$O$};
+  \\draw[thick] (O) -- (2,0); \\node[above] at (1,0) {$R$};
+\\end{tikzpicture}`;
+
+    case 'pyramid':
+      return `Ví dụ hình chóp S.ABCD đáy hình vuông cạnh a=4, chiều cao h=3 (phối cảnh nghiêng):
+\\begin{tikzpicture}[scale=0.8]
+  % Đáy ABCD (phối cảnh nghiêng)
+  \\coordinate (A) at (0,0); \\coordinate (B) at (4,0);
+  \\coordinate (C) at (4.8,1.2); \\coordinate (D) at (0.8,1.2);
+  \\coordinate (S) at (2.4,4); % Đỉnh chóp
+  % Cạnh đáy (D, DA khuất — nét đứt)
+  \\draw[thick] (A)--(B)--(C); \\draw[thick,dashed] (C)--(D)--(A);
+  % Cạnh bên
+  \\draw[thick] (S)--(A); \\draw[thick] (S)--(B); \\draw[thick] (S)--(C); \\draw[thick,dashed] (S)--(D);
+  % Nhãn
+  \\node[below left] at (A){$A$}; \\node[below right] at (B){$B$};
+  \\node[right] at (C){$C$}; \\node[left] at (D){$D$};
+  \\node[above] at (S){$S$};
+\\end{tikzpicture}`;
+
+    case 'prism':
+      return `Ví dụ lăng trụ đứng ABC.A'B'C' (phối cảnh nghiêng):
+\\begin{tikzpicture}[scale=0.8]
+  \\coordinate (A) at (0,0); \\coordinate (B) at (3,0); \\coordinate (C) at (1,1.5);
+  \\coordinate (A1) at (0,3); \\coordinate (B1) at (3,3); \\coordinate (C1) at (1,4.5);
+  % Mặt dưới
+  \\draw[thick] (A)--(B); \\draw[thick] (B)--(C); \\draw[thick,dashed] (C)--(A);
+  % Mặt trên
+  \\draw[thick] (A1)--(B1)--(C1)--cycle;
+  % Cạnh bên (AA',BB' hiện, CC' khuất)
+  \\draw[thick] (A)--(A1); \\draw[thick] (B)--(B1); \\draw[thick,dashed] (C)--(C1);
+  \\node[below left] at (A){$A$}; \\node[below right] at (B){$B$}; \\node[left] at (C){$C$};
+  \\node[above left] at (A1){$A'$}; \\node[above right] at (B1){$B'$}; \\node[above right] at (C1){$C'$};
+\\end{tikzpicture}`;
+
+    case 'function_graph':
+      return `Ví dụ đồ thị hàm số bậc ba y = x^3 - 3x có cực đại tại x=-1, cực tiểu tại x=1:
+\\begin{tikzpicture}
+  \\begin{axis}[
+    axis lines=center, xlabel={$x$}, ylabel={$y$},
+    xmin=-3, xmax=3, ymin=-4, ymax=4,
+    xtick={-2,-1,0,1,2}, ytick={-2,2},
+    tick label style={font=\\small},
+    width=7cm, height=7cm,
+    samples=100, smooth,
+  ]
+    \\addplot[thick,blue,domain=-2.5:2.5] {x^3 - 3*x};
+    \\addplot[mark=*,mark size=2pt,red] coordinates {(-1,2)} node[above right]{$(−1;2)$};
+    \\addplot[mark=*,mark size=2pt,red] coordinates {(1,-2)} node[below right]{$(1;−2)$};
+  \\end{axis}
+\\end{tikzpicture}`;
+
+    case 'variation_table':
+      return `Ví dụ bảng biến thiên hàm bậc ba có cực đại x=-1 và cực tiểu x=2:
+\\begin{tikzpicture}[scale=1, font=\\small]
+  % Khung bảng
+  \\draw[thick] (0,0) rectangle (8,2.5);
+  \\draw[thick] (0,2) -- (8,2); % Phân cách dòng x và y
+  \\draw[thick] (1.5,0) -- (1.5,2.5); % Cột x
+  % Hàng x
+  \\node at (0.75,2.25) {$x$};
+  \\node at (2.5,2.25) {$-\\infty$};
+  \\node at (4,2.25) {$-1$};
+  \\node at (5.5,2.25) {$2$};
+  \\node at (7.2,2.25) {$+\\infty$};
+  % Hàng y' dấu
+  \\node at (0.75,1.5) {$y'$};
+  \\node at (3,1.5) {$+$}; \\node at (4,1.5) {$0$};
+  \\node at (4.8,1.5) {$-$}; \\node at (5.5,1.5) {$0$}; \\node at (6.5,1.5) {$+$};
+  % Hàng y mũi tên
+  \\node at (0.75,0.7) {$y$};
+  \\draw[->] (2,0.3) -- (3.8,1.6); % tăng đến cực đại
+  \\draw[->] (4.2,1.6) -- (5.2,0.3); % giảm đến cực tiểu
+  \\draw[->] (5.8,0.3) -- (7.5,1.6); % tăng
+\\end{tikzpicture}`;
+
+    case 'triangle':
+      return `Ví dụ tam giác ABC với đường cao AH:
+\\begin{tikzpicture}[scale=1.2]
+  \\coordinate (A) at (1,3); \\coordinate (B) at (0,0); \\coordinate (C) at (4,0);
+  \\draw[thick] (A)--(B)--(C)--cycle;
+  % Chân đường cao
+  \\coordinate (H) at ($(B)!(A)!(C)$);
+  \\draw[thick] (A)--(H);
+  % Ký hiệu vuông tại H
+  \\draw ($(H)!0.25cm!(B)$) -- ++(0,0.25cm) -- ($(H)!0.25cm!(C)$);
+  \\fill (A) circle (1.5pt); \\node[above] at (A) {$A$};
+  \\fill (B) circle (1.5pt); \\node[below left] at (B) {$B$};
+  \\fill (C) circle (1.5pt); \\node[below right] at (C) {$C$};
+  \\fill (H) circle (1.5pt); \\node[below] at (H) {$H$};
+\\end{tikzpicture}`;
+
+    case 'quadrilateral':
+      return `Ví dụ hình chữ nhật ABCD có AB=4, BC=3:
+\\begin{tikzpicture}[scale=0.9]
+  \\coordinate (A) at (0,0); \\coordinate (B) at (4,0);
+  \\coordinate (C) at (4,3); \\coordinate (D) at (0,3);
+  \\draw[thick] (A)--(B)--(C)--(D)--cycle;
+  \\node[below left] at (A){$A$}; \\node[below right] at (B){$B$};
+  \\node[above right] at (C){$C$}; \\node[above left] at (D){$D$};
+  \\draw[<->] (0,-0.5)--(4,-0.5); \\node[below] at (2,-0.5){$4$};
+  \\draw[<->] (4.5,0)--(4.5,3); \\node[right] at (4.5,1.5){$3$};
+\\end{tikzpicture}`;
+
+    case 'coordinate':
+      return `Ví dụ hệ tọa độ Oxy có điểm A(2,3) và B(-1,1):
+\\begin{tikzpicture}[scale=0.8]
+  \\draw[->] (-2.5,0) -- (3.5,0) node[right]{$x$};
+  \\draw[->] (0,-0.5) -- (0,4) node[above]{$y$};
+  \\node[below left] at (0,0){$O$};
+  \\coordinate (A) at (2,3); \\coordinate (B) at (-1,1);
+  \\fill (A) circle (2pt); \\node[above right] at (A){$A(2;3)$};
+  \\fill (B) circle (2pt); \\node[above right] at (B){$B(-1;1)$};
+  \\draw[dashed] (2,0) -- (A) -- (0,3);
+  \\draw[dashed] (-1,0) -- (B) -- (0,1);
+  \\foreach \\x in {-2,-1,1,2,3} { \\draw (\\x,2pt)--(\\x,-2pt) node[below,font=\\tiny]{$\\x$}; }
+  \\foreach \\y in {1,2,3} { \\draw (2pt,\\y)--(-2pt,\\y) node[left,font=\\tiny]{$\\y$}; }
+\\end{tikzpicture}`;
+
+    default:
+      return `Ví dụ hình minh họa tổng quát (điểm, đoạn thẳng, góc):
+\\begin{tikzpicture}[scale=1]
+  \\coordinate (A) at (0,0); \\coordinate (B) at (4,0); \\coordinate (C) at (2,3);
+  \\draw[thick] (A)--(B)--(C)--cycle;
+  \\fill (A) circle (1.5pt); \\node[below left] at (A){$A$};
+  \\fill (B) circle (1.5pt); \\node[below right] at (B){$B$};
+  \\fill (C) circle (1.5pt); \\node[above] at (C){$C$};
+\\end{tikzpicture}`;
+  }
+}
+
+/**
+ * Gọi AI để sinh mã TikZ từ nội dung câu hỏi và mô tả hình vẽ.
+ * Tự động nhận dạng loại hình và cung cấp ví dụ mẫu phù hợp.
  */
 export async function generateTikzFromQuestion(
   questionText: string,
   extraDescription: string,
   model = 'gemini-3.5-flash'
 ): Promise<string> {
-  const prompt = `Bạn là chuyên gia TikZ LaTeX. Hãy viết mã TikZ chính xác để vẽ hình minh họa cho câu hỏi sau.
+  // Tự động nhận dạng loại hình học từ đề bài
+  const shapeType = detectShapeType(questionText);
+  const exampleCode = getTikzExample(shapeType);
 
-NỘI DUNG CÂU HỎI:
+  const shapeTypeLabel: Record<string, string> = {
+    circle: 'đường tròn (circle geometry)',
+    cylinder: 'hình trụ (cylinder — dùng ellipse + 2 đường thẳng, KHÔNG dùng box 3D)',
+    sphere: 'hình cầu (sphere — dùng circle + dashed ellipse)',
+    pyramid: 'hình chóp (pyramid — phối cảnh nghiêng, cạnh khuất là nét đứt)',
+    prism: 'lăng trụ (prism — phối cảnh nghiêng, cạnh khuất là nét đứt)',
+    function_graph: 'đồ thị hàm số (dùng pgfplots \\begin{axis})',
+    variation_table: 'bảng biến thiên (dùng \\draw + \\node)',
+    triangle: 'tam giác (triangle geometry)',
+    quadrilateral: 'tứ giác (quadrilateral)',
+    coordinate: 'hệ tọa độ (coordinate system)',
+    generic: 'hình học tổng quát',
+  };
+
+  const detectedLabel = shapeTypeLabel[shapeType] || 'hình học tổng quát';
+
+  const prompt = `Bạn là chuyên gia TikZ LaTeX chuyên vẽ hình minh họa toán học chính xác.
+
+BƯỚC 1 — NHẬN DẠNG ĐÃ HOÀN TẤT:
+Đề bài yêu cầu vẽ: ${detectedLabel}
+${extraDescription ? `Mô tả thêm từ người dùng: ${extraDescription}` : ''}
+
+BƯỚC 2 — NỘI DUNG CÂU HỎI CẦN VẼ HÌNH:
 ${questionText}
 
-${extraDescription ? `MÔ TẢ THÊM VỀ HÌNH VẼ:\n${extraDescription}\n` : ''}
+BƯỚC 3 — YÊU CẦU VẼ HÌNH CHÍNH XÁC:
+- Viết mã TikZ dạng \\begin{tikzpicture}...\\end{tikzpicture}
+- Hình phải CHÍNH XÁC theo dữ kiện số trong đề bài (bán kính, độ dài, góc, tọa độ...)
+- Đánh nhãn đầy đủ tất cả điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài
+- Hình vẽ rõ ràng, cân đối, tỉ lệ đẹp, phù hợp để in trong đề thi
+- Dùng \\usetikzlibrary{calc,intersections,angles,quotes,arrows.meta,patterns}
+- Nếu là hình 3D: cạnh khuất phải là nét đứt [dashed]
+- Nếu là hình trụ: PHẢI dùng ellipse cho 2 đầu + 2 đường thẳng bên, KHÔNG dùng hộp chữ nhật
+- Nếu là đồ thị hàm: dùng \\begin{axis} của pgfplots, vẽ đúng chiều tăng giảm
+- CHỈ trả về mã TikZ thuần túy, KHÔNG có giải thích, KHÔNG có markdown, KHÔNG có text thêm.
 
-YÊU CẦU:
-- Viết mã TikZ hoàn chỉnh dạng \\begin{tikzpicture}...\\end{tikzpicture}
-- Hình phải CHÍNH XÁC theo dữ kiện số trong câu hỏi (bán kính, tọa độ, góc...)
-- Dùng \\usepackage{tikz} và các thư viện: \\usetikzlibrary{calc,intersections,angles,quotes}
-- Đánh nhãn các điểm, đường thẳng đúng theo đề bài
-- Hình vẽ rõ ràng, cân đối, có tỉ lệ đẹp
-- CHỈ trả về mã TikZ thuần túy, KHÔNG giải thích, KHÔNG markdown, KHÔNG thêm gì khác.
+${exampleCode}
 
-Ví dụ đường tròn tâm O bán kính R, có dây AB và điểm E ngoài đường tròn:
-\\begin{tikzpicture}[scale=1.2]
-  \\coordinate (O) at (0,0);
-  \\draw[thick] (O) circle (2cm);
-  \\node[below] at (O) {$O$};
-  \\coordinate (A) at ($(O)+(55:2cm)$);
-  \\coordinate (B) at ($(O)+(-70:2cm)$);
-  \\draw[thick] (A) -- (B);
-  \\node[above right] at (A) {$A$};
-  \\node[below right] at (B) {$B$};
-  \\fill (O) circle (1.5pt);
-  \\fill (A) circle (1.5pt);
-  \\fill (B) circle (1.5pt);
-\\end{tikzpicture}
-
-Mã TikZ cho câu hỏi trên:`;
+Mã TikZ CHÍNH XÁC cho câu hỏi trên (bắt đầu bằng \\begin{tikzpicture}):`;
 
   const rawText = await callGeminiRoundRobin(prompt, model);
 
-  // Trích xuất mã TikZ từ response
+  // Trích xuất mã TikZ từ response (ưu tiên lấy từ begin{tikzpicture})
   const match = rawText.match(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/);
   if (match) {
     return match[0].trim();

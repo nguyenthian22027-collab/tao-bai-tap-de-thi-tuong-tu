@@ -4,7 +4,7 @@ import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCir
 import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng } from '../lib/tikzRenderer';
-import { generateTikzFromQuestion } from '../lib/gemini';
+import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 
 interface QuestionCardProps {
   question: Question;
@@ -521,10 +521,34 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               </h3>
               <button onClick={() => setShowTikzAiModal(false)} className="text-slate-400 hover:text-slate-700 text-xl leading-none cursor-pointer">✕</button>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 leading-relaxed border border-slate-200">
+            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600 leading-relaxed border border-slate-200 max-h-32 overflow-y-auto">
               <strong className="text-slate-800">Đề bài:</strong>{' '}
-              {question.noiDung.substring(0, 200)}{question.noiDung.length > 200 ? '...' : ''}
+              {question.noiDung}
             </div>
+            {/* Shape type detection badge */}
+            {(() => {
+              const shapeType = detectShapeType(question.noiDung);
+              const shapeLabels: Record<string, { label: string; color: string }> = {
+                circle: { label: '🔵 Đường tròn', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                cylinder: { label: '🛢️ Hình trụ', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                sphere: { label: '🔮 Hình cầu', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                pyramid: { label: '🔺 Hình chóp', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                prism: { label: '📦 Lăng trụ 3D', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                function_graph: { label: '📈 Đồ thị hàm số', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                variation_table: { label: '📊 Bảng biến thiên', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+                triangle: { label: '📐 Tam giác', color: 'bg-sky-50 text-sky-700 border-sky-200' },
+                quadrilateral: { label: '🔲 Tứ giác', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+                coordinate: { label: '📍 Hệ tọa độ', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+                generic: { label: '✏️ Hình học tổng quát', color: 'bg-slate-50 text-slate-600 border-slate-200' },
+              };
+              const info = shapeLabels[shapeType] || shapeLabels['generic'];
+              return (
+                <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${info.color}`}>
+                  <span>🤖 AI nhận dạng loại hình:</span>
+                  <span className="font-bold">{info.label}</span>
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-slate-700">Mô tả thêm về hình vẽ cần vẽ (tuỳ chọn):</label>
               <textarea
