@@ -286,8 +286,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       )}
 
-      {/* Question Illustration Image (nếu có) */}
-      {(question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]) && !chartSvg && (
+      {/* Question Illustration Image (chỉ render nếu đề gốc có ảnh và câu KHÔNG có TikZ) */}
+      {(question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]) && !activeTikz && !chartSvg && (
         <div className="flex justify-center p-2 bg-slate-50/80 border border-slate-100 rounded-xl overflow-hidden">
           <img
             src={question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]}

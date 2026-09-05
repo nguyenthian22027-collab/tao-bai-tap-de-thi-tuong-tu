@@ -217,11 +217,13 @@ export function buildExamPrompt(
   [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.
   [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.`;
 
-  const tikzInstruction = config.tikzMode === 'yes'
-    ? `BẮT BUỘC VẼ HÌNH TIKZ cho mọi câu có hình học, đồ thị, sơ đồ. Đặt mã vào trường TIKZ: \\\\begin{tikzpicture}...\\\\end{tikzpicture}.\n${tikzShapeGuide}`
-    : config.tikzMode === 'no'
-    ? 'KHÔNG tạo mã TikZ.'
-    : `TỰ ĐỘNG VẼ HÌNH TIKZ: Nếu câu hỏi gốc có hình vẽ, đồ thị, bảng biến thiên hay sơ đồ minh họa, BẮT BUỘC sinh mã TikZ tương ứng vào trường TIKZ: \\\\begin{tikzpicture}...\\\\end{tikzpicture}.\n${tikzShapeGuide}`;
+  // QUAN TRỌNG: TikZ KHÔNG được sinh inline trong prompt tạo đề.
+  // Lý do: AI tạo 20+ câu cùng lúc hay copy hình, sai loại hình.
+  // TikZ sẽ được sinh RIÊNG TỪNG CÂU sau khi tạo đề xong (trong App.tsx).
+  // tikzMode 'yes'/'auto' → báo cho AI ĐÁNH DẤU câu cần hình (để post-process biết), nhưng KHÔNG sinh code TikZ inline.
+  const tikzInstruction = config.tikzMode === 'no'
+    ? 'KHÔNG tạo mã TikZ. Bỏ trống trường TIKZ.'
+    : 'Nếu câu hỏi có liên quan đến hình học, đồ thị hàm số, hay hình minh họa: hãy ghi TIKZ: [CAN_VE] vào trường TIKZ của câu đó (KHÔNG viết code TikZ — hệ thống sẽ tự sinh hình riêng). Nếu câu không có hình: bỏ trống trường TIKZ.';
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
   if (config.mode === 'cau_le') {
@@ -251,7 +253,7 @@ LOAI: tu_luan
 STT: 1
 LOAI: tu_luan
 NOI_DUNG: [Nội dung đề bài toán tương tự 1, LaTeX trong $...]
-TIKZ: [Mã TikZ nếu có, ví dụ: \\begin{tikzpicture}...\\end{tikzpicture}]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
 MUC_DO: thong_hieu
 DIEM: 1.0
@@ -285,7 +287,7 @@ Phân tích kỹ lưỡng đề thi gốc dưới đây và tạo 1 ĐỀ THI M�
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. Tất cả công thức Toán, Lý, Hóa, Sinh, Ký hiệu BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
 2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn trước 4 mệnh đề (ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?", "Xét các phát biểu sau về hàm số:", "Khẳng định nào sau đây là đúng?"). KHÔNG được bỏ trống CAU_LENH.
-3. Với bất kỳ câu hỏi nào có hình vẽ, đồ thị, sơ đồ, hình học hoặc biểu đồ thống kê: BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài (bán kính, tọa độ, góc...).
+3. Về hình vẽ / đồ thị: TUYỆT ĐỐI KHÔNG sinh mã TikZ inline ở đây (vì hệ thống sẽ tự sinh hình độc lập từng câu). Nếu câu cần hình vẽ hay đồ thị, chỉ ghi TIKZ: [CAN_VE], hoặc để trống nếu không có hình.
 4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
@@ -299,12 +301,6 @@ QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
 4. MỨC ĐỘ TƯƠNG TỰ MÔN HỌC: ${modeTextMap[config.mucDoTuongTu]}
 5. VẼ HÌNH TIKZ: ${tikzInstruction}
 ${config.extraPrompt ? `6. YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
-
-QUY TẮC TRÌNH BÀY BẮT BUỘC:
-1. Tất cả công thức Toán, Lý, Hóa, Sinh, Ký hiệu BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
-3. Với bất kỳ câu hỏi nào có hình vẽ, đồ thị, sơ đồ, hình học hoặc biểu đồ thống kê: BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ.
-4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
-5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
 ===DE===
 TIEU_DE: ${deTitle}
@@ -322,7 +318,7 @@ DIEM_MOI_CAU: 0.25
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi — LaTeX trong $...$. KHÔNG chứa mã TikZ. KHÔNG chứa "Hình vẽ:" hay "xem hình bên"]
-TIKZ: [BẮTS BUỘC ghi mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị. Để trống nếu không có hình]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 A: [Phương án A]
 B: [Phương án B]
 C: [Phương án C]
@@ -427,7 +423,7 @@ DIEM_MOI_CAU: 0.25
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi, LaTeX trong $...]
-TIKZ: [Mã TikZ nếu có]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 A: [Nội dung phương án A]
 B: [Nội dung phương án B]
 C: [Nội dung phương án C]
@@ -447,7 +443,7 @@ DIEM_MOI_CAU: 1.0
 STT: ${config.numPart1 + 1}
 LOAI: trac_nghiem_dung_sai
 NOI_DUNG: [Đề dẫn chung của bài toán — ngữ cảnh, giả thiết, dữ kiện chung]
-TIKZ: [Mã TikZ nếu có hình vẽ hoặc đồ thị]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 CAU_LENH: [Câu lệnh hỏi, ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?" hoặc "Xét các khẳng định sau:" — PHẢI CÓ, đây là câu hỏi dẫn bắt buộc]
 MENH_DE_A: [Nội dung mệnh đề a)]
 DAP_AN_A: D
@@ -473,7 +469,7 @@ DIEM_MOI_CAU: 0.5
 STT: ${config.numPart1 + config.numPart2 + 1}
 LOAI: trac_nghiem_tra_loi_ngan
 NOI_DUNG: [Nội dung câu hỏi yêu cầu tính kết quả]
-TIKZ: [Mã TikZ nếu có]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 DAP_AN: [Đáp số ngắn, ví dụ: 12 hoặc 3/4 hoặc 2.5]
 HUONG_DAN_GIAI: [Hướng dẫn giải vắn tắt]
 MUC_DO: van_dung
@@ -490,7 +486,7 @@ DIEM_MOI_CAU: 1.0
 STT: ${config.numPart1 + config.numPart2 + config.numPart3 + 1}
 LOAI: tu_luan
 NOI_DUNG: [Nội dung câu hỏi tự luận]
-TIKZ: [Mã TikZ nếu có]
+TIKZ: [Để trống, hoặc ghi [CAN_VE] nếu câu có hình vẽ/đồ thị]
 DAP_AN: [Lời giải chi tiết từng bước]
 MUC_DO: van_dung_cao
 DIEM: 1.0

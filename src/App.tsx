@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { ApiKeyInfo, ConfigState, SourceState, ExamData, ToastMessage, ExamHistoryItem, FirebaseUserProfile } from './types';
 import { useLocalStorage } from './lib/useLocalStorage';
 import { useUndoRedo } from './lib/useUndoRedo';
-import { buildExamPrompt, callGeminiRoundRobin, parseExam, DEFAULT_KEYS_STORAGE_KEY, DEFAULT_MODEL_STORAGE_KEY } from './lib/gemini';
+import { buildExamPrompt, callGeminiRoundRobin, parseExam, DEFAULT_KEYS_STORAGE_KEY, DEFAULT_MODEL_STORAGE_KEY, generateTikzFromQuestion, detectShapeType } from './lib/gemini';
 import { renderTikzToSvg } from './lib/tikzRenderer';
 import { svgStringToPngBase64 } from './lib/tableAndChartHelper';
 import {
@@ -346,32 +346,92 @@ export function App() {
         }
       }
 
-      // 6. Auto-Render TikZ → SVG → PNG (chạy ngầm, không block UI)
-      const allQuestionsWithTikz = parsedExamData.phan
-        .flatMap((p) => p.cauHoi)
-        .filter((q) => q.tikzCode && q.tikzCode.trim());
+      // 6. Post-process: Sinh TikZ riêng từng câu (KHÔNG dùng TikZ inline từ AI tạo đề)
+      //    Lý do: AI tạo 20+ câu cùng lúc → hay copy cùng 1 hình TikZ cho nhiều câu khác nhau.
+      //    Giải pháp: Xóa sạch mã copy trùng lặp, sau đó sinh TikZ độc lập từng câu.
+      const allQuestions = parsedExamData.phan.flatMap((p) => p.cauHoi);
 
-      if (allQuestionsWithTikz.length > 0) {
-        (async () => {
-          let renderedCount = 0;
-          for (const q of allQuestionsWithTikz) {
-            try {
-              const svg = await renderTikzToSvg(q.tikzCode!);
-              if (svg) {
-                const png = await svgStringToPngBase64(svg);
-                if (png) {
-                  q.hinhAnh = png;
-                  renderedCount++;
+      // Bước 6a: Phát hiện và xóa triệt để mã TikZ bị AI sao chép trùng lặp giữa các câu
+      const tikzCountMap = new Map<string, number>();
+      allQuestions.forEach((q) => {
+        if (q.tikzCode && q.tikzCode.trim().length > 20) {
+          const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
+          tikzCountMap.set(normalized, (tikzCountMap.get(normalized) || 0) + 1);
+        }
+      });
+
+      allQuestions.forEach((q) => {
+        if (q.tikzCode) {
+          const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
+          // Nếu có >= 2 câu dùng chung 1 mã TikZ HOẶC chứa [CAN_VE] -> xóa bỏ để sinh lại đúng
+          if ((tikzCountMap.get(normalized) || 0) > 1 || q.tikzCode.includes('[CAN_VE]')) {
+            q.tikzCode = '';
+            q.hinhAnh = undefined;
+          }
+        }
+      });
+
+      if (config.tikzMode !== 'no') {
+        const needsTikzKeywords = /(hình vẽ|hình bên|hình dưới|đồ thị|như hình|cho hình|bảng biến thiên)/i;
+        // Chỉ sinh TikZ cho câu chưa có hình VÀ có dữ liệu hình học
+        const questionsNeedingTikz = allQuestions.filter(
+          (q) => !q.tikzCode && (detectShapeType(q.noiDung) !== 'generic' || needsTikzKeywords.test(q.noiDung))
+        );
+
+        if (questionsNeedingTikz.length > 0) {
+          addToast('info', `📐 Đang tự động vẽ hình riêng cho ${questionsNeedingTikz.length} câu hỏi...`);
+
+          // Chạy nền, không block UI
+          (async () => {
+            let successCount = 0;
+
+            for (const q of questionsNeedingTikz) {
+              try {
+                // Xóa tikzCode cũ (có thể sai từ AI inline) trước khi sinh mới
+                q.tikzCode = '';
+
+                // Sinh TikZ riêng cho câu này — AI tập trung 100% vào câu này
+                const newTikz = await generateTikzFromQuestion(q.noiDung, '');
+                if (newTikz && newTikz.includes('tikzpicture')) {
+                  q.tikzCode = newTikz;
+
+                  // Render sang PNG để nhúng vào Word
+                  try {
+                    const svg = await renderTikzToSvg(newTikz);
+                    if (svg) {
+                      const png = await svgStringToPngBase64(svg);
+                      if (png) {
+                        q.hinhAnh = png;
+                        successCount++;
+                      }
+                    }
+                  } catch (renderErr) {
+                    console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
+                  }
                 }
+
+                // Cập nhật exam state để UI hiện hình ngay
+                setExam({ ...parsedExamData });
+              } catch (tikzErr) {
+                console.warn(`[TikZ-Gen] Lỗi câu ${q.stt}:`, tikzErr);
               }
-            } catch (e) {
-              console.warn(`[Auto-Render] Lỗi vẽ hình câu ${q.stt}:`, e);
+
+              // Delay nhỏ tránh spam API
+              await new Promise((r) => setTimeout(r, 600));
             }
-          }
-          if (renderedCount > 0) {
-            addToast('success', `🖼️ Đã vẽ sẵn ${renderedCount} hình minh họa — Tải Word sẽ có ảnh ngay!`);
-          }
-        })();
+
+            if (successCount > 0) {
+              addToast('success', `✅ Đã vẽ và nhúng hình cho ${successCount}/${questionsNeedingTikz.length} câu!`);
+              // Cập nhật lại lịch sử với hình mới
+              try {
+                await saveExamToHistory(parsedExamData);
+                await refreshHistory();
+              } catch (_) { /* ignore */ }
+            } else {
+              addToast('warning', 'Đã cố gắng vẽ hình nhưng không thành công. Bạn có thể dùng nút "Sinh TikZ AI" trên từng câu.');
+            }
+          })();
+        }
       }
 
       // Tự động lưu vào Lịch sử IndexedDB
