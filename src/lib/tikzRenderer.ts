@@ -44,7 +44,6 @@ export function buildStandaloneLatex(tikzCode: string): string {
   const normalized = normalizeTikzCode(tikzCode);
 
   return `\\documentclass[border=6pt]{standalone}
-\\usepackage[utf8]{vietnam}
 \\usepackage{amsmath,amssymb}
 \\usepackage{tikz}
 \\usepackage{pgfplots}
@@ -56,6 +55,7 @@ export function buildStandaloneLatex(tikzCode: string): string {
 ${normalized}
 \\end{document}`;
 }
+
 
 export interface TikzRenderResult {
   svg: string;
@@ -167,11 +167,11 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
   const isBrowser = typeof window !== 'undefined';
   let lastError = '';
 
-  // 1. Kiểm tra nếu backend cục bộ D:\app-tikz-hinh-ve đang chạy tại localhost:8000
-  if (isBrowser) {
+  // 1. Kiểm tra backend cục bộ nếu người dùng chạy localhost (tránh lỗi Mixed Content trên HTTPS Vercel)
+  if (isBrowser && (window.location.protocol === 'http:' || window.location.hostname === 'localhost')) {
     try {
       const localCtrl = new AbortController();
-      const localTimeout = setTimeout(() => localCtrl.abort(), 1800);
+      const localTimeout = setTimeout(() => localCtrl.abort(), 1500);
       const localResp = await fetch('http://localhost:8000/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,13 +195,47 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
         }
       }
     } catch {
-      // Backend cục bộ không phản hồi, tự động dùng tiếp TeXLive.net Cloud
+      // Backend cục bộ không bật, chuyển sang gọi TeXLive Cloud
     }
   }
 
-  // 2. Biên dịch qua máy chủ đám mây TeXLive.net
+  // 2. Biên dịch qua máy chủ Serverless Proxy /api/texlive (trên Vercel & Vite)
   const fullLatex = buildStandaloneLatex(normalized);
 
+  // A. Thử gọi qua endpoint Serverless Proxy /api/texlive (không bao giờ bị lỗi CORS trên trình duyệt)
+  if (isBrowser) {
+    try {
+      const proxyCtrl = new AbortController();
+      const proxyTimeout = setTimeout(() => proxyCtrl.abort(), 35000);
+      const proxyResp = await fetch('/api/texlive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: fullLatex }),
+        signal: proxyCtrl.signal,
+      });
+      clearTimeout(proxyTimeout);
+
+      const contentType = proxyResp.headers.get('content-type') || '';
+      if (proxyResp.ok && contentType.includes('pdf')) {
+        const pdfBlob = await proxyResp.blob();
+        const png = await convertPdfBlobToPng(pdfBlob);
+        if (png) {
+          const svg = wrapPngInSvg(png);
+          svgCache.set(cacheKey, svg);
+          pngCache.set(normalized, png);
+          return { svg, png, engineUsed: 'texlive' };
+        }
+      } else if (proxyResp.status === 422) {
+        const logText = await proxyResp.text();
+        lastError = extractLatexError(logText) || 'Lỗi biên dịch LaTeX trên TeXLive.net';
+        console.warn('[TeXLive Proxy] LaTeX compile error:', lastError);
+      }
+    } catch (err: any) {
+      console.warn('[TeXLive Proxy] /api/texlive error, falling back:', err);
+    }
+  }
+
+  // B. Fallback nếu proxy không khả dụng: Gọi trực tiếp qua FormData
   const formData = new FormData();
   const blob = new Blob([fullLatex], { type: 'text/plain; charset=utf-8' });
   formData.append('filecontents[]', blob, 'document.tex');
@@ -209,11 +243,9 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
   formData.append('engine', 'pdflatex');
   formData.append('return', 'pdf');
 
-  const endpoints = isBrowser
-    ? ['/texlive-api/cgi-bin/latexcgi', 'https://texlive.net/cgi-bin/latexcgi']
-    : ['https://texlive.net/cgi-bin/latexcgi'];
+  const fallbackUrls = ['https://texlive.net/cgi-bin/latexcgi'];
 
-  for (const url of endpoints) {
+  for (const url of fallbackUrls) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 28000);
@@ -235,16 +267,6 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
           svgCache.set(cacheKey, svg);
           pngCache.set(normalized, png);
           return { svg, png, engineUsed: 'texlive' };
-        } else {
-          // Canvas chưa render được -> fallback hiển thị PDF Object URL trực tiếp
-          const pdfUrl = URL.createObjectURL(pdfBlob);
-          const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="auto">
-            <foreignObject width="100%" height="100%">
-              <iframe src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit" width="100%" height="380" style="border:none;border-radius:8px;"></iframe>
-            </foreignObject>
-          </svg>`;
-          svgCache.set(cacheKey, fallbackSvg);
-          return { svg: fallbackSvg, engineUsed: 'texlive' };
         }
       } else {
         const logText = await resp.text();
@@ -256,6 +278,7 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
       console.warn(`[TeXLive.net] Failed via ${url}:`, err);
     }
   }
+
 
   return {
     svg: '',

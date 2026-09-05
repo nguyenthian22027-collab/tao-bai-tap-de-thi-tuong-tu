@@ -3,9 +3,30 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
+function texliveDevPlugin() {
+  return {
+    name: 'texlive-dev-api',
+    configureServer(server: any) {
+      server.middlewares.use('/api/texlive', async (req: any, res: any) => {
+        try {
+          const { default: handler } = await import('./api/texlive.js');
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) chunks.push(chunk);
+          const rawBody = Buffer.concat(chunks).toString('utf-8');
+          req.body = rawBody;
+          await handler(req, res);
+        } catch (e: any) {
+          res.statusCode = 500;
+          res.end(e.message || 'Internal error');
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), texliveDevPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
