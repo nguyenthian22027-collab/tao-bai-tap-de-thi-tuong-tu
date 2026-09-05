@@ -1065,67 +1065,75 @@ function getTikzExample(shapeType: string): string {
  * Gọi AI để sinh mã TikZ từ nội dung câu hỏi và mô tả hình vẽ.
  * Tự động nhận dạng loại hình và cung cấp ví dụ mẫu phù hợp.
  */
+/**
+ * Gọi AI để sinh mã TikZ từ nội dung câu hỏi và mô tả hình vẽ.
+ * Phân tích trực tiếp các thực thể hình học (điểm, đường, hình khối) trong bài toán để vẽ chính xác 100%.
+ */
 export async function generateTikzFromQuestion(
   questionText: string,
   extraDescription: string,
   model = 'gemini-3.5-flash'
 ): Promise<string> {
-  // Tự động nhận dạng loại hình học từ đề bài
   const shapeType = detectShapeType(questionText);
-  const exampleCode = getTikzExample(shapeType);
 
-  const shapeTypeLabel: Record<string, string> = {
-    cone: 'hình nón (cone — dùng ellipse đáy + 2 đường sinh, KHÔNG dùng hộp)',
-    box: 'hình hộp chữ nhật / lập phương (box — phối cảnh nghiêng, cạnh khuất nét đứt)',
-    circle: 'đường tròn (circle geometry)',
-    circle_triangle: 'đường tròn nội/ngoại tiếp tam giác (circle + inscribed triangle)',
-    cylinder: 'hình trụ (cylinder — dùng ellipse + 2 đường thẳng, KHÔNG dùng box 3D)',
-    sphere: 'hình cầu (sphere — dùng circle + dashed ellipse)',
-    pyramid: 'hình chóp (pyramid — phối cảnh nghiêng, cạnh khuất là nét đứt)',
-    prism: 'lăng trụ (prism — phối cảnh nghiêng, cạnh khuất là nét đứt)',
-    function_graph: 'đồ thị hàm số (dùng pgfplots \\begin{axis})',
-    variation_table: 'bảng biến thiên (dùng \\draw + \\node)',
-    angle_lines: 'góc và đường thẳng (angle + parallel/intersecting lines)',
-    triangle: 'tam giác (triangle geometry)',
-    quadrilateral: 'tứ giác (quadrilateral)',
-    coordinate: 'hệ tọa độ (coordinate system)',
-    generic: 'hình học tổng quát',
+  const guidanceByType: Record<string, string> = {
+    circle: `- ĐỐI TƯỢNG ĐƯỜNG TRÒN: Vẽ tâm (0,0) bán kính R=2.5cm: \\draw[thick] (0,0) circle (2.5cm); \\fill (0,0) circle (1.5pt); \\node[below left] at (0,0) {$O$};
+- Các điểm trên đường tròn: dùng tọa độ cực (góc:2.5cm), ví dụ: \\coordinate (A) at (130:2.5cm); \\coordinate (B) at (-30:2.5cm);
+- Dây cung / Tiếp tuyến: nối các điểm bằng \\draw[thick] (A)--(B);
+- Giao điểm (nếu có): đánh dấu bằng \\fill (...) circle (1.5pt); và đặt nhãn đúng chữ cái trong đề bài.`,
+    cone: `- ĐỐI TƯỢNG HÌNH NÓN: Đáy là ellipse \\draw[thick] (0,0) ellipse (2cm and 0.6cm); Đỉnh S ở trên (0,3.5); Hai đường sinh \\draw[thick] (-2,0)--(0,3.5); \\draw[thick] (2,0)--(0,3.5); Chiều cao SO vẽ nét đứt [dashed].`,
+    cylinder: `- ĐỐI TƯỢNG HÌNH TRỤ: Đáy dưới ellipse (0,0) ellipse (2cm and 0.6cm); Đáy trên ellipse (0,3.5) ellipse (2cm and 0.6cm); Hai đường sinh thẳng đứng nối hai bên. TUYỆT ĐỐI không dùng hộp chữ nhật.`,
+    sphere: `- ĐỐI TƯỢNG HÌNH CẦU: Đường tròn lớn \\draw[thick] (0,0) circle (2cm); Vòng xích đạo \\draw[thick,dashed] (0,0) ellipse (2cm and 0.6cm); Tâm O và bán kính R.`,
+    pyramid: `- ĐỐI TƯỢNG HÌNH CHÓP: Phối cảnh nghiêng; Đáy tứ giác/tam giác; Cạnh khuất vẽ bằng nét đứt [thick,dashed]; Cạnh thấy vẽ nét liền [thick]; Đỉnh S nối xuống các đỉnh đáy.`,
+    prism: `- ĐỐI TƯỢNG LĂNG TRỤ 3D: Mặt đáy trên và dưới; Các cạnh bên song song; Cạnh khuất phía sau nét đứt [dashed].`,
+    box: `- ĐỐI TƯỢNG HÌNH HỘP / LẬP PHƯƠNG: 8 đỉnh; Cạnh khuất bên trong và phía sau là nét đứt [dashed].`,
+    function_graph: `- ĐỒ THỊ HÀM SỐ: Vẽ hệ trục Oxy có mũi tên; Vẽ đường cong hàm số mềm mại; Đánh dấu các điểm cực trị, giao điểm trục tọa độ; Có số trên các trục.`,
+    variation_table: `- BẢNG BIẾN THIÊN: Khung bảng gồm hàng x, y', y; Có các điểm cực trị, dấu +, - và mũi tên tăng giảm chiều biến thiên.`,
+    triangle: `- ĐỐI TƯỢNG TAM GIÁC: Đặt tọa độ các đỉnh; Vẽ cạnh; Vẽ đường cao/trung tuyến/phân giác theo đúng chữ cái trong đề bài.`,
+    quadrilateral: `- ĐỐI TƯỢNG TỨ GIÁC: Vẽ đúng dạng hình (chữ nhật, thang, bình hành, vuông, thoi) với nhãn 4 đỉnh.`,
+    angle_lines: `- ĐƯỜNG THẲNG VÀ GÓC: Vẽ các đường thẳng song song hoặc cắt nhau; Đánh dấu góc bằng cung tròn có tên góc.`,
+    coordinate: `- HỆ TỌA ĐỘ: Trục Ox, Oy có chia vạch số; Đánh dấu các điểm theo đúng tọa độ trong đề.`,
+    generic: `- Vẽ chính xác các điểm, đoạn thẳng, đa giác được mô tả trong đề bài.`,
   };
 
-  const detectedLabel = shapeTypeLabel[shapeType] || 'hình học tổng quát';
+  const specificGuidance = guidanceByType[shapeType] || guidanceByType.generic;
 
-  const prompt = `Bạn là chuyên gia TikZ LaTeX chuyên vẽ hình minh họa toán học chính xác.
+  const prompt = `Bạn là một chuyên gia toán học và lập trình viên LaTeX TikZ hàng đầu, chuyên vẽ hình minh họa cho các đề thi Toán THCS và THPT Việt Nam.
 
-BƯỚC 1 — NHẬN DẠNG ĐÃ HOÀN TẤT:
-Đề bài yêu cầu vẽ: ${detectedLabel}
-${extraDescription ? `Mô tả thêm từ người dùng: ${extraDescription}` : ''}
-
-BƯỚC 2 — NỘI DUNG CÂU HỎI CẦN VẼ HÌNH:
+NỘI DUNG ĐỀ BÀI TOÁN CẦN VẼ HÌNH:
+"""
 ${questionText}
+"""
+${extraDescription ? `MÔ TẢ BỔ SUNG TỪ GIÁO VIÊN: "${extraDescription}"` : ''}
 
-BƯỚC 3 — YÊU CẦU VẼ HÌNH CHÍNH XÁC:
-- Viết mã TikZ dạng \\begin{tikzpicture}...\\end{tikzpicture}
-- Hình phải CHÍNH XÁC theo dữ kiện số trong đề bài (bán kính, độ dài, góc, tọa độ...)
-- Đánh nhãn đầy đủ tất cả điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài
-- Hình vẽ rõ ràng, cân đối, tỉ lệ đẹp, phù hợp để in trong đề thi
-- Dùng \\usetikzlibrary{calc,intersections,angles,quotes,arrows.meta,patterns}
-- Nếu là hình 3D: cạnh khuất phải là nét đứt [dashed]
-- Nếu là hình trụ: PHẢI dùng ellipse cho 2 đầu + 2 đường thẳng bên, KHÔNG dùng hộp chữ nhật
-- Nếu là đồ thị hàm: dùng \\begin{axis} của pgfplots, vẽ đúng chiều tăng giảm
-- CHỈ trả về mã TikZ thuần túy, KHÔNG có giải thích, KHÔNG có markdown, KHÔNG có text thêm.
+QUY TẮC BẮT BUỘC ĐỂ VẼ HÌNH ĐÚNG 100%:
+1. ĐỌC KỸ ĐỀ VÀ DÙNG ĐÚNG CHỮ CÁI TÊN ĐIỂM:
+   - Dùng chính xác tên các điểm trong đề bài (ví dụ: đề cho đường tròn tâm O, dây cung AB và CD cắt nhau tại I $\\rightarrow$ BẮT BUỘC vẽ đường tròn tâm O, 2 dây cung AB, CD và điểm I).
+   - TUYỆT ĐỐI KHÔNG tự bịa ra điểm lạ (như H, K...) nếu đề không có.
+   - TUYỆT ĐỐI KHÔNG vẽ hình tam giác hay hình của bài toán khác khi đề bài đang nói về đường tròn hay hình khối khác!
 
-${exampleCode}
+2. HƯỚNG DẪN KỸ THUẬT DỰNG HÌNH:
+${specificGuidance}
 
-Mã TikZ CHÍNH XÁC cho câu hỏi trên (bắt đầu bằng \\begin{tikzpicture}):`;
+3. KÝ HIỆU VÀ ĐÁNH NHÃN:
+   - Tất cả các điểm phải được chấm rõ: \\fill (Tên) circle (1.5pt);
+   - Nhãn điểm: \\node[vị_trí] at (Tên) {$Tên$}; (vị trí: above, below, left, right, above left, below right... sao cho chữ không bị đè lên nét vẽ).
+   - Dùng \\usetikzlibrary{calc,intersections,angles,quotes,arrows.meta,patterns}
+
+4. ĐỊNH DẠNG ĐẦU RA:
+   - BẮT BUỘC bắt đầu bằng \\begin{tikzpicture} và kết thúc bằng \\end{tikzpicture}.
+   - Kích thước vừa vặn trong đề thi (dùng [scale=0.8] đến [scale=1.2]).
+   - TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT KHỐI MÃ \\begin{tikzpicture}...\\end{tikzpicture}. KHÔNG giải thích, KHÔNG markdown code block thừa.
+
+Mã TikZ chuẩn xác:`;
 
   const rawText = await callGeminiRoundRobin(prompt, model);
 
-  // Trích xuất mã TikZ từ response (ưu tiên lấy từ begin{tikzpicture})
+  // Trích xuất mã TikZ từ response
   const match = rawText.match(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/);
   if (match) {
     return match[0].trim();
   }
 
-  // Nếu không có tags, trả về toàn bộ nội dung đã trim
   return rawText.trim();
 }

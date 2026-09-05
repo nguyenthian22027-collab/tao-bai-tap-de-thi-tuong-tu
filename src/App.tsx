@@ -332,11 +332,7 @@ export function App() {
         throw new Error('AI không tạo đúng cấu trúc đề thi. Vui lòng thử lại!');
       }
 
-      // 4. Hiển thị đề ngay để người dùng thấy
-      resetExamState(parsedExamData);
-      addToast('success', '✨ Đã tạo xong đề thi tương tự! Đang vẽ hình minh họa...');
-
-      // 5. Trừ 1 lượt dùng thử trên Cloud Firestore nếu đang dùng gói Dùng thử
+      // 4. Trừ 1 lượt dùng thử trên Cloud Firestore nếu đang dùng gói Dùng thử
       if (currentUser && userProfile && userProfile.tier === 'trial') {
         try {
           const remaining = await decrementTrialCredit(currentUser.uid);
@@ -346,12 +342,10 @@ export function App() {
         }
       }
 
-      // 6. Post-process: Sinh TikZ riêng từng câu (KHÔNG dùng TikZ inline từ AI tạo đề)
-      //    Lý do: AI tạo 20+ câu cùng lúc → hay copy cùng 1 hình TikZ cho nhiều câu khác nhau.
-      //    Giải pháp: Xóa sạch mã copy trùng lặp, sau đó sinh TikZ độc lập từng câu.
+      // 5. Quét và TỰ ĐỘNG VẼ HÌNH SVG CHÍNH XÁC cho mọi câu có hình học
       const allQuestions = parsedExamData.phan.flatMap((p) => p.cauHoi);
 
-      // Bước 6a: Phát hiện và xóa triệt để mã TikZ bị AI sao chép trùng lặp giữa các câu
+      // Bước 5a: Phát hiện và xóa triệt để mã TikZ bị AI sao chép trùng lặp giữa các câu
       const tikzCountMap = new Map<string, number>();
       allQuestions.forEach((q) => {
         if (q.tikzCode && q.tikzCode.trim().length > 20) {
@@ -371,70 +365,71 @@ export function App() {
         }
       });
 
+      // Bước 5b: Tự động vẽ hình SVG cho các câu cần hình học
       if (config.tikzMode !== 'no') {
-        const needsTikzKeywords = /(hình vẽ|hình bên|hình dưới|đồ thị|như hình|cho hình|bảng biến thiên)/i;
-        // Chỉ sinh TikZ cho câu chưa có hình VÀ có dữ liệu hình học
+        const needsTikzKeywords = /(hình vẽ|hình bên|hình dưới|đồ thị|như hình|cho hình|bảng biến thiên|đường tròn|dây cung|tam giác|hình nón|hình trụ|hình cầu|hình chóp|lăng trụ|hình hộp|parabol)/i;
         const questionsNeedingTikz = allQuestions.filter(
           (q) => !q.tikzCode && (detectShapeType(q.noiDung) !== 'generic' || needsTikzKeywords.test(q.noiDung))
         );
 
         if (questionsNeedingTikz.length > 0) {
-          addToast('info', `📐 Đang tự động vẽ hình riêng cho ${questionsNeedingTikz.length} câu hỏi...`);
+          addToast('info', `📐 Đang tạo hình vẽ SVG chính xác cho ${questionsNeedingTikz.length} câu hỏi...`);
 
-          // Chạy nền, không block UI
-          (async () => {
-            let successCount = 0;
+          let successCount = 0;
+          for (let i = 0; i < questionsNeedingTikz.length; i++) {
+            const q = questionsNeedingTikz[i];
+            try {
+              const fullText = [
+                q.noiDung,
+                q.cauLenh,
+                q.menhDeA ? `a) ${q.menhDeA}` : '',
+                q.menhDeB ? `b) ${q.menhDeB}` : '',
+                q.menhDeC ? `c) ${q.menhDeC}` : '',
+                q.menhDeD ? `d) ${q.menhDeD}` : '',
+                q.optionA ? `A. ${q.optionA}` : '',
+                q.optionB ? `B. ${q.optionB}` : '',
+                q.optionC ? `C. ${q.optionC}` : '',
+                q.optionD ? `D. ${q.optionD}` : '',
+              ].filter(Boolean).join('\n');
 
-            for (const q of questionsNeedingTikz) {
-              try {
-                // Xóa tikzCode cũ (có thể sai từ AI inline) trước khi sinh mới
-                q.tikzCode = '';
+              const newTikz = await generateTikzFromQuestion(fullText, '', models.genModel);
+              if (newTikz && newTikz.includes('tikzpicture')) {
+                q.tikzCode = newTikz;
 
-                // Sinh TikZ riêng cho câu này — AI tập trung 100% vào câu này
-                const newTikz = await generateTikzFromQuestion(q.noiDung, '');
-                if (newTikz && newTikz.includes('tikzpicture')) {
-                  q.tikzCode = newTikz;
-
-                  // Render sang PNG để nhúng vào Word
-                  try {
-                    const svg = await renderTikzToSvg(newTikz);
-                    if (svg) {
-                      const png = await svgStringToPngBase64(svg);
-                      if (png) {
-                        q.hinhAnh = png;
-                        successCount++;
-                      }
+                // Render sang SVG và PNG
+                try {
+                  const svg = await renderTikzToSvg(newTikz);
+                  if (svg) {
+                    const png = await svgStringToPngBase64(svg);
+                    if (png) {
+                      q.hinhAnh = png;
+                      successCount++;
                     }
-                  } catch (renderErr) {
-                    console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
                   }
+                } catch (renderErr) {
+                  console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
                 }
-
-                // Cập nhật exam state để UI hiện hình ngay
-                setExam({ ...parsedExamData });
-              } catch (tikzErr) {
-                console.warn(`[TikZ-Gen] Lỗi câu ${q.stt}:`, tikzErr);
               }
-
-              // Delay nhỏ tránh spam API
-              await new Promise((r) => setTimeout(r, 600));
+            } catch (tikzErr) {
+              console.warn(`[TikZ-Gen] Lỗi câu ${q.stt}:`, tikzErr);
             }
 
-            if (successCount > 0) {
-              addToast('success', `✅ Đã vẽ và nhúng hình cho ${successCount}/${questionsNeedingTikz.length} câu!`);
-              // Cập nhật lại lịch sử với hình mới
-              try {
-                await saveExamToHistory(parsedExamData);
-                await refreshHistory();
-              } catch (_) { /* ignore */ }
-            } else {
-              addToast('warning', 'Đã cố gắng vẽ hình nhưng không thành công. Bạn có thể dùng nút "Sinh TikZ AI" trên từng câu.');
-            }
-          })();
+            // Cập nhật trạng thái từng câu để giao diện hiển thị ngay
+            resetExamState({ ...parsedExamData });
+            await new Promise((r) => setTimeout(r, 300));
+          }
+
+          if (successCount > 0) {
+            addToast('success', `✅ Đã vẽ sẵn hình SVG cho ${successCount}/${questionsNeedingTikz.length} câu hỏi!`);
+          }
         }
       }
 
-      // Tự động lưu vào Lịch sử IndexedDB
+      // 6. Hiển thị đề thi hoàn tất ĐÃ CÓ SẴN HÌNH VẼ SVG
+      resetExamState(parsedExamData);
+      addToast('success', '✨ Đã tạo xong đề thi tương tự kèm đầy đủ hình vẽ SVG!');
+
+      // 7. Tự động lưu vào Lịch sử IndexedDB (đã có hình ảnh đầy đủ)
       try {
         await saveExamToHistory(parsedExamData);
         await refreshHistory();

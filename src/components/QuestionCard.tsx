@@ -578,7 +578,20 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   setIsGeneratingTikz(true);
                   setTikzAiError('');
                   try {
-                    const newTikz = await generateTikzFromQuestion(question.noiDung, tikzAiDescription);
+                    const fullQuestionPrompt = [
+                      question.noiDung,
+                      question.cauLenh,
+                      question.menhDeA ? `a) ${question.menhDeA}` : '',
+                      question.menhDeB ? `b) ${question.menhDeB}` : '',
+                      question.menhDeC ? `c) ${question.menhDeC}` : '',
+                      question.menhDeD ? `d) ${question.menhDeD}` : '',
+                      question.optionA ? `A. ${question.optionA}` : '',
+                      question.optionB ? `B. ${question.optionB}` : '',
+                      question.optionC ? `C. ${question.optionC}` : '',
+                      question.optionD ? `D. ${question.optionD}` : '',
+                    ].filter(Boolean).join('\n');
+
+                    const newTikz = await generateTikzFromQuestion(fullQuestionPrompt, tikzAiDescription);
                     if (newTikz) {
                       question.tikzCode = newTikz;
                       question.hinhAnh = undefined;
