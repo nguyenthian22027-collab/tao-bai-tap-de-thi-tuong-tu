@@ -37,6 +37,7 @@ import { StatusToast } from './components/StatusToast';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { LicenseStatusModal } from './components/LicenseStatusModal';
+import { GuideModal } from './components/GuideModal';
 
 export function App() {
   // 1. Storage & State Management
@@ -52,6 +53,7 @@ export function App() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isFirebaseConfigOpen, setIsFirebaseConfigOpen] = useState(false);
   const [isLicenseStatusOpen, setIsLicenseStatusOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [history, setHistory] = useState<ExamHistoryItem[]>([]);
 
@@ -402,6 +404,7 @@ export function App() {
         onLogoutGoogle={handleLogoutGoogle}
         onOpenAdminPanel={handleOpenAdmin}
         onOpenFirebaseConfig={() => setIsFirebaseConfigOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
       />
 
       {/* Main Layout Container */}
@@ -512,6 +515,11 @@ export function App() {
         isOpen={isLicenseStatusOpen}
         userProfile={userProfile}
         onClose={() => setIsLicenseStatusOpen(false)}
+      />
+
+      <GuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
 
       {/* Stackable Status Toast */}

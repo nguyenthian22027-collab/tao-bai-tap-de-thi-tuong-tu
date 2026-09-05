@@ -17,6 +17,7 @@ import {
   User,
   ChevronDown,
   Flame,
+  BookOpen,
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { FirebaseUserProfile } from '../types';
@@ -35,6 +36,7 @@ interface HeaderProps {
   onLogoutGoogle?: () => void;
   onOpenAdminPanel?: () => void;
   onOpenFirebaseConfig?: () => void;
+  onOpenGuide: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutGoogle,
   onOpenAdminPanel,
   onOpenFirebaseConfig,
+  onOpenGuide,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -135,6 +138,17 @@ export const Header: React.FC<HeaderProps> = ({
                 {validKeyCount}
               </span>
             )}
+          </button>
+
+          {/* Hướng dẫn sử dụng */}
+          <button
+            onClick={onOpenGuide}
+            aria-label="Mở hướng dẫn sử dụng"
+            className="flex items-center space-x-1.5 p-2 sm:px-3 sm:py-2 text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+            title="Xem hướng dẫn sử dụng và cách lấy API Key"
+          >
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+            <span className="hidden sm:inline">Hướng dẫn</span>
           </button>
 
           {/* GOOGLE AUTH & USER PROFILE SECTION */}

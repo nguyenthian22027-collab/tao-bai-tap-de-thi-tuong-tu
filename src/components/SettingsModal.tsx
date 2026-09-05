@@ -41,7 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div>
               <h2 className="text-base font-bold text-slate-900">Cài đặt API Key & Model Gemini</h2>
               <p className="text-xs text-slate-500">
-                Tất cả API key đều được mã hóa lưu trữ hoàn toàn trên trình duyệt (localStorage)
+                API key được lưu trên trình duyệt hiện tại (localStorage), không gửi vào máy chủ ứng dụng
               </p>
             </div>
           </div>
