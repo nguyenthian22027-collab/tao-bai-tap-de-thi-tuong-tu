@@ -404,11 +404,11 @@ export function App() {
         }
       }
 
-      // Bước 5c: Bổ sung sinh TikZ riêng nếu có câu nào nói rõ "xem hình bên / hình dưới" mà chưa có TikZ
+      // Bước 5c: Bổ sung sinh TikZ riêng nếu có câu nào nói rõ "xem hình bên / hình dưới" hoặc có hình học/đồ thị mà chưa có TikZ
       if (config.tikzMode !== 'no') {
-        const needsExplicitFigure = /(xem hình bên|như hình bên|trong hình bên|hình vẽ dưới đây|cho hình vẽ bên|bảng biến thiên dưới đây)/i;
+        const needsExplicitFigure = /(xem hình bên|như hình bên|trong hình bên|hình vẽ dưới đây|cho hình vẽ bên|bảng biến thiên dưới đây|đồ thị|bảng biến thiên|hình nón|hình trụ|hình cầu|hình chóp|lăng trụ|hình hộp)/i;
         const missingTikzQuestions = allQuestions.filter(
-          (q) => !q.tikzCode && needsExplicitFigure.test(q.noiDung)
+          (q) => !q.tikzCode && (detectShapeType(q.noiDung) !== 'generic' || needsExplicitFigure.test(q.noiDung))
         );
 
         if (missingTikzQuestions.length > 0) {

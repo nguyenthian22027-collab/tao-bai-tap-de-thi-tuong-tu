@@ -3,7 +3,7 @@ import { Question, QuestionType } from '../types';
 import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
-import { renderTikzToSvg, renderTikzToPng } from '../lib/tikzRenderer';
+import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 
 /**
@@ -196,6 +196,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
     let isMounted = true;
     setIsRenderingTikz(true);
+    setRenderedTikzSvg(''); // Xóa ngay hình cũ để không bị nhầm lẫn giữa các câu
 
     renderTikzToSvg(activeTikz)
       .then(async (svg) => {
@@ -203,16 +204,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         if (svg) {
           setRenderedTikzSvg(svg);
           // Tự động chuyển đổi thành PNG base64 để nhúng vào Word
-          if (!question.hinhAnh) {
-            const png = await svgStringToPngBase64(svg);
-            if (png && isMounted) {
-              question.hinhAnh = png;
-            }
+          const png = await svgStringToPngBase64(svg);
+          if (png && isMounted) {
+            question.hinhAnh = png;
           }
+        } else {
+          setRenderedTikzSvg('');
         }
       })
       .catch((err) => {
         console.warn('TikZ render error:', err);
+        if (isMounted) setRenderedTikzSvg('');
       })
       .finally(() => {
         if (isMounted) setIsRenderingTikz(false);
@@ -239,16 +241,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsRenderingTikz(true);
     setRenderedTikzSvg('');
     try {
-      const svg = await renderTikzToSvg(activeTikz);
-      if (svg) {
-        setRenderedTikzSvg(svg);
-        const png = await svgStringToPngBase64(svg);
+      const result = await renderTikzWithDetails(activeTikz);
+      if (result.svg) {
+        setRenderedTikzSvg(result.svg);
+        const png = await svgStringToPngBase64(result.svg);
         if (png) {
           question.hinhAnh = png;
           if (onUpdateQuestion) {
             onUpdateQuestion({ ...question, hinhAnh: png });
           }
         }
+      } else {
+        setRenderedTikzSvg('');
       }
     } catch (e) {
       console.warn('Re-render error:', e);
@@ -263,10 +267,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsCustomRendering(true);
     setCustomRenderError('');
     try {
-      const svg = await renderTikzToSvg(customTikzCode);
-      if (svg) {
-        setRenderedTikzSvg(svg);
-        const png = await svgStringToPngBase64(svg);
+      const result = await renderTikzWithDetails(customTikzCode);
+      if (result.svg) {
+        setRenderedTikzSvg(result.svg);
+        const png = await svgStringToPngBase64(result.svg);
         question.tikzCode = customTikzCode;
         if (png) question.hinhAnh = png;
         if (onUpdateQuestion) {
@@ -274,7 +278,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         }
         setShowTikzEditModal(false);
       } else {
-        setCustomRenderError('Không kết xuất được hình ảnh từ mã TikZ này. Vui lòng kiểm tra lại cú pháp LaTeX.');
+        setCustomRenderError(result.error || 'Không kết xuất được hình ảnh từ mã TikZ này. Vui lòng kiểm tra lại cú pháp LaTeX.');
       }
     } catch (err: any) {
       setCustomRenderError(err.message || 'Lỗi khi kết xuất TikZ');
@@ -289,11 +293,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsCustomRendering(true);
     setCustomRenderError('');
     try {
-      const svg = await renderTikzToSvg(customTikzCode);
-      if (svg) {
-        setPreviewSvg(svg);
+      const result = await renderTikzWithDetails(customTikzCode);
+      if (result.svg) {
+        setPreviewSvg(result.svg);
       } else {
-        setCustomRenderError('Không kết xuất được hình ảnh xem trước. Vui lòng kiểm tra lại cú pháp.');
+        setCustomRenderError(result.error || 'Không kết xuất được hình ảnh xem trước. Vui lòng kiểm tra lại cú pháp.');
       }
     } catch (err: any) {
       setCustomRenderError(err.message || 'Lỗi khi kết xuất xem trước');
@@ -783,19 +787,24 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                       // Force re-render of TikZ
                       setRenderedTikzSvg('');
                       setIsRenderingTikz(true);
-                      renderTikzToSvg(newTikz).then(async (svg) => {
-                        if (svg) {
-                          setRenderedTikzSvg(svg);
-                          const png = await svgStringToPngBase64(svg);
+                      renderTikzWithDetails(newTikz).then(async (result) => {
+                        if (result.svg) {
+                          setRenderedTikzSvg(result.svg);
+                          const png = await svgStringToPngBase64(result.svg);
                           if (png) {
                             question.hinhAnh = png;
                             if (onUpdateQuestion) {
                               onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png });
                             }
                           }
+                        } else {
+                          setRenderedTikzSvg('');
                         }
                         setIsRenderingTikz(false);
-                      }).catch(() => setIsRenderingTikz(false));
+                      }).catch(() => {
+                        setRenderedTikzSvg('');
+                        setIsRenderingTikz(false);
+                      });
                     } else {
                       setTikzAiError('AI không trả về mã TikZ hợp lệ. Thử lại với mô tả chi tiết hơn.');
                     }

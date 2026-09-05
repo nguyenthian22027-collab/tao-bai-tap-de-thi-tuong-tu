@@ -4,17 +4,34 @@ const svgCache = new Map<string, string>();
 const pngCache = new Map<string, string>();
 
 /**
- * Normalizes TikZ code by stripping wrapping environments if duplicated
+ * Normalizes TikZ code by stripping markdown fences, document wrappers,
+ * and auto-healing undeclared origin coordinate (O).
  */
 export function normalizeTikzCode(code: string): string {
   let clean = code.trim();
 
-  // Remove markdown code blocks ```latex ... ```
+  // Strip markdown code blocks ```latex ... ``` or ```tikz ... ```
   clean = clean.replace(/^```(?:latex|tikz)?\s*/i, '').replace(/```\s*$/, '').trim();
+
+  // Strip standalone/document wrapper if user or AI included it
+  clean = clean.replace(/\\documentclass(\[[^\]]*\])?\{[^}]+\}/gi, '');
+  clean = clean.replace(/\\usepackage(\[[^\]]*\])?\{[^}]+\}/gi, '');
+  clean = clean.replace(/\\begin\{document\}/gi, '');
+  clean = clean.replace(/\\end\{document\}/gi, '');
+  clean = clean.trim();
 
   // Ensure it has \begin{tikzpicture} and \end{tikzpicture}
   if (!clean.includes('\\begin{tikzpicture}')) {
     clean = `\\begin{tikzpicture}\n${clean}\n\\end{tikzpicture}`;
+  }
+
+  // Auto-heal undeclared origin coordinate (O) or (o):
+  // When code references (O) or (o) (e.g. `(O) arc`, `(O) circle`, `-- (O)`, `at (O)`)
+  // but forgot to define `\coordinate (O)`
+  const referencesO = /\([Oo]\)/.test(clean);
+  const definesO = /\\coordinate\s*\([Oo]\)/.test(clean) || /\\node.*?\([Oo]\)/.test(clean);
+  if (referencesO && !definesO) {
+    clean = clean.replace(/(\\begin\{tikzpicture\}(?:\[[^\]]*\])?)/, '$1\n  \\coordinate (O) at (0,0);');
   }
 
   return clean;
@@ -38,15 +55,20 @@ ${normalized}
 \\end{document}`;
 }
 
+export interface TikzRenderResult {
+  svg: string;
+  error?: string;
+}
+
 /**
- * Compiles TikZ code into vector SVG via Kroki TeX engine
+ * Compiles TikZ code into vector SVG via Kroki TeX engine with detailed error tracking
  */
-export async function renderTikzToSvg(tikzCode: string): Promise<string> {
-  if (!tikzCode || !tikzCode.trim()) return '';
+export async function renderTikzWithDetails(tikzCode: string): Promise<TikzRenderResult> {
+  if (!tikzCode || !tikzCode.trim()) return { svg: '', error: 'Mã TikZ trống' };
 
   const normalized = normalizeTikzCode(tikzCode);
   if (svgCache.has(normalized)) {
-    return svgCache.get(normalized)!;
+    return { svg: svgCache.get(normalized)! };
   }
 
   const fullLatex = buildStandaloneLatex(normalized);
@@ -56,10 +78,12 @@ export async function renderTikzToSvg(tikzCode: string): Promise<string> {
     ? ['/kroki-api/tikz/svg', 'https://kroki.io/tikz/svg']
     : ['https://kroki.io/tikz/svg'];
 
+  let lastError = '';
+
   for (const url of endpoints) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 14000);
 
       const resp = await fetch(url, {
         method: 'POST',
@@ -73,19 +97,56 @@ export async function renderTikzToSvg(tikzCode: string): Promise<string> {
 
       clearTimeout(timeoutId);
 
+      const responseText = await resp.text();
+
       if (resp.ok) {
-        const svg = await resp.text();
-        if (svg.includes('<svg')) {
-          svgCache.set(normalized, svg);
-          return svg;
+        if (responseText.includes('<svg')) {
+          svgCache.set(normalized, responseText);
+          return { svg: responseText };
+        }
+      } else {
+        // Extract LaTeX compiler error from Kroki's response
+        let errSnippet = '';
+        const tspanMatches = [...responseText.matchAll(/<tspan[^>]*>(.*?)<\/tspan>/gi)];
+        if (tspanMatches.length > 0) {
+          errSnippet = tspanMatches
+            .map((m) =>
+              m[1]
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&')
+                .replace(/&apos;/g, "'")
+            )
+            .filter((t) => t.trim().length > 0 && !t.includes('latex: Not reading'))
+            .slice(0, 3)
+            .join(' | ');
+        } else {
+          errSnippet = responseText.slice(0, 200).replace(/<[^>]+>/g, '').trim();
+        }
+
+        if (errSnippet) {
+          lastError = errSnippet;
+          console.warn(`[TikZ Renderer] Kroki compile error via ${url}:`, errSnippet);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      lastError = err.message || 'Lỗi kết nối mạng';
       console.warn(`[TikZ Renderer] Failed via ${url}:`, err);
     }
   }
 
-  return '';
+  return {
+    svg: '',
+    error: lastError || 'Không thể kết xuất mã TikZ. Vui lòng kiểm tra lại cú pháp LaTeX.',
+  };
+}
+
+/**
+ * Compiles TikZ code into vector SVG via Kroki TeX engine
+ */
+export async function renderTikzToSvg(tikzCode: string): Promise<string> {
+  const result = await renderTikzWithDetails(tikzCode);
+  return result.svg;
 }
 
 /**

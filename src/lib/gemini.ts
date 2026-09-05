@@ -1136,15 +1136,20 @@ QUY TẮC BẮT BUỘC ĐỂ VẼ HÌNH ĐÚNG 100%:
    - TUYỆT ĐỐI KHÔNG tự bịa ra điểm lạ không có trong đề bài.
    - TUYỆT ĐỐI KHÔNG dùng mã vẽ cố định của bài toán khác. Tọa độ phải được tính toán phù hợp với số liệu và giả thiết của câu hỏi này.
 
-2. HƯỚNG DẪN KỸ THUẬT DỰNG HÌNH:
+2. ĐỊNH NGHĨA TỌA ĐỘ VÀ TÊN ĐIỂM (BẮT BUỘC ĐỂ KHÔNG BỊ LỖI BIÊN DỊCH):
+   - MỌI điểm được sử dụng trong các lệnh \\draw, \\fill, \\node, arc... PHẢI ĐƯỢC ĐỊNH NGHĨA TRƯỚC bằng \\coordinate (Tên) at (x,y); hoặc dùng tọa độ trực tiếp (x,y).
+   - Nếu dùng gốc tọa độ hoặc tâm O: BẮT BUỘC phải viết \\coordinate (O) at (0,0); trước khi gọi (O).
+   - TUYỆT ĐỐI không gọi tên điểm chưa được định nghĩa bằng \\coordinate (tránh triệt để lỗi "No shape named ... is known").
+
+3. HƯỚNG DẪN KỸ THUẬT DỰNG HÌNH:
 ${specificGuidance}
 
-3. KÝ HIỆU VÀ ĐÁNH NHÃN:
+4. KÝ HIỆU VÀ ĐÁNH NHÃN:
    - Tất cả các điểm phải được chấm rõ: \\fill (Tên) circle (1.5pt);
    - Nhãn điểm: \\node[vị_trí] at (Tên) {$Tên$}; (vị trí: above, below, left, right, above left, below right... sao cho chữ không bị đè lên nét vẽ).
    - Dùng \\usetikzlibrary{calc,intersections,angles,quotes,arrows.meta,patterns}
 
-4. ĐỊNH DẠNG ĐẦU RA:
+5. ĐỊNH DẠNG ĐẦU RA:
    - BẮT BUỘC bắt đầu bằng \\begin{tikzpicture} và kết thúc bằng \\end{tikzpicture}.
    - Kích thước vừa vặn trong đề thi (dùng [scale=0.8] đến [scale=1.2]).
    - TUYỆT ĐỐI CHỈ TRẢ VỀ DUY NHẤT KHỐI MÃ \\begin{tikzpicture}...\\end{tikzpicture}. KHÔNG giải thích, KHÔNG markdown code block thừa.
