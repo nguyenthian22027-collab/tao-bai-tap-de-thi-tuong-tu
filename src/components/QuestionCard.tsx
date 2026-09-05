@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
-import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud } from 'lucide-react';
+import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
@@ -154,6 +154,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const [isCustomRendering, setIsCustomRendering] = useState(false);
   const [customRenderError, setCustomRenderError] = useState('');
   const [selectedEngine, setSelectedEngine] = useState<TikzEngine>('auto');
+  const [tikzRenderError, setTikzRenderError] = useState<string>('');
+  const [lastUsedEngine, setLastUsedEngine] = useState<string>('');
 
   // 1. Bóc tách TikZ khỏi nội dung câu hỏi
   const { cleanText: textNoTikz, tikzCode: extractedTikz } = extractAndCleanTikz(question.noiDung);
@@ -241,10 +243,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     if (!activeTikz) return;
     setIsRenderingTikz(true);
     setRenderedTikzSvg('');
+    setTikzRenderError('');
+    setLastUsedEngine(engine === 'texlive' ? 'TeXLive.net' : engine === 'kroki' ? 'Kroki' : 'Tự động');
     try {
       const result = await renderTikzWithDetails(activeTikz, engine);
       if (result.svg) {
         setRenderedTikzSvg(result.svg);
+        setTikzRenderError('');
         const png = result.png || (await svgStringToPngBase64(result.svg));
         if (png) {
           question.hinhAnh = png;
@@ -254,9 +259,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         }
       } else {
         setRenderedTikzSvg('');
+        setTikzRenderError(result.error || 'Máy chủ TeX không thể tạo ảnh từ mã TikZ này.');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Re-render error:', e);
+      setRenderedTikzSvg('');
+      setTikzRenderError(e?.message || 'Lỗi khi kết xuất hình ảnh.');
     } finally {
       setIsRenderingTikz(false);
     }
@@ -626,30 +634,55 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               />
             )}
             {!isRenderingTikz && !renderedTikzSvg && (
-              <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3 text-center w-full space-y-2">
-                <p>Hình vẽ chưa tải được hoặc mã TikZ đang cập nhật.</p>
-                <div className="flex justify-center space-x-2">
+              <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 text-center w-full space-y-2.5">
+                {tikzRenderError ? (
+                  <div className="text-left space-y-1 bg-rose-50 border border-rose-200 rounded p-2.5">
+                    <div className="font-semibold text-rose-800 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
+                      <span>Thông báo lỗi biên dịch {lastUsedEngine ? `(${lastUsedEngine})` : ''}:</span>
+                    </div>
+                    <pre className="text-[11px] font-mono text-rose-900 whitespace-pre-wrap max-h-28 overflow-y-auto bg-white/80 p-1.5 rounded border border-rose-100">
+                      {tikzRenderError}
+                    </pre>
+                  </div>
+                ) : (
+                  <p className="text-slate-500">Hình vẽ chưa tải được hoặc mã TikZ đang cập nhật.</p>
+                )}
+                <div className="flex justify-center flex-wrap gap-2 pt-0.5">
                   <button
+                    type="button"
                     onClick={() => handleReRenderTikz('auto')}
-                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs"
+                    title="Biên dịch tự động"
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Render lại</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleReRenderTikz('texlive')}
-                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors cursor-pointer"
-                    title="Biên dịch chuẩn xác bằng TeXLive.net"
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs"
+                    title="Biên dịch chuẩn xác bằng máy chủ TeXLive.net (giống app TikZ -> Ảnh)"
                   >
                     <Cloud className="w-3 h-3" />
                     <span>☁️ TeXLive.net</span>
                   </button>
                   <button
+                    type="button"
+                    onClick={() => handleReRenderTikz('kroki')}
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs"
+                    title="Biên dịch vector SVG bằng Kroki TeX"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>⚡ Kroki</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setCustomTikzCode(activeTikz || '');
                       setShowTikzEditModal(true);
                     }}
-                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs"
                   >
                     <Code className="w-3 h-3" />
                     <span>Sửa &amp; Render</span>
@@ -657,6 +690,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 </div>
               </div>
             )}
+
           </div>
 
           {/* Khung mã nguồn TikZ có thể đóng mở */}

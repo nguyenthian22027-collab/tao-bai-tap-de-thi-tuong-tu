@@ -43,13 +43,15 @@ export function normalizeTikzCode(code: string): string {
 export function buildStandaloneLatex(tikzCode: string): string {
   const normalized = normalizeTikzCode(tikzCode);
 
-  return `\\documentclass[border=5pt]{standalone}
+  return `\\documentclass[border=6pt]{standalone}
+\\usepackage[utf8]{vietnam}
+\\usepackage{amsmath,amssymb}
 \\usepackage{tikz}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
 \\usepackage{pgfplots}
 \\pgfplotsset{compat=1.18}
-\\usetikzlibrary{shapes,arrows,calc,intersections,patterns,decorations.pathreplacing,angles,quotes,arrows.meta,positioning,through,backgrounds,fit,matrix,chains}
+\\usepackage{tkz-tab}
+\\usepackage{tkz-euclide}
+\\usetikzlibrary{shapes,arrows,calc,intersections,patterns,decorations.pathreplacing,angles,quotes,arrows.meta,positioning,through,backgrounds,fit,matrix,chains,3d}
 \\begin{document}
 ${normalized}
 \\end{document}`;
@@ -65,6 +67,29 @@ export interface TikzRenderResult {
 export type TikzEngine = 'auto' | 'kroki' | 'texlive';
 
 /**
+ * Trích xuất đoạn thông báo lỗi cụ thể từ log của trình biên dịch LaTeX
+ */
+export function extractLatexError(log: string): string {
+  if (!log) return '';
+  const lines = log.split('\n');
+  const errorLines: string[] = [];
+  let capturing = false;
+  for (const line of lines) {
+    if (line.startsWith('!') || line.includes('Error') || line.includes('error')) {
+      capturing = true;
+    }
+    if (capturing) {
+      errorLines.push(line);
+      if (errorLines.length > 8) break;
+    }
+  }
+  if (errorLines.length > 0) {
+    return errorLines.join('\n');
+  }
+  return log.slice(0, 280).trim();
+}
+
+/**
  * Converts a PDF Blob into a high-res PNG base64 data URL via PDF.js and HTML5 Canvas
  */
 export async function convertPdfBlobToPng(pdfBlob: Blob, scale = 2.5): Promise<string> {
@@ -72,10 +97,26 @@ export async function convertPdfBlobToPng(pdfBlob: Blob, scale = 2.5): Promise<s
 
   try {
     const pdfjsLib = await import('pdfjs-dist');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Cấu hình an toàn cho Web Worker tránh lỗi Same-Origin Policy trên trình duyệt
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      try {
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const blob = new Blob([`importScripts("${workerUrl}");`], { type: 'application/javascript' });
+        pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+      } catch {
+        // Dự phòng chế độ Fake Worker chạy trực tiếp trong main thread
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      }
+    }
 
     const arrayBuffer = await pdfBlob.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      useSystemFonts: true,
+      stopAtErrors: false,
+      isEvalSupported: false,
+    });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
 
@@ -86,7 +127,7 @@ export async function convertPdfBlobToPng(pdfBlob: Blob, scale = 2.5): Promise<s
     const context = canvas.getContext('2d');
     if (!context) return '';
 
-    // Clean white background
+    // Nền trắng tinh khiết
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -108,7 +149,7 @@ export function wrapPngInSvg(pngBase64: string, width = 600, height = 450): stri
 }
 
 /**
- * Compiles TikZ code via TeXLive.net (Cloud pdflatex) and converts output to PNG/SVG
+ * Compiles TikZ code via TeXLive.net (or local app-tikz-hinh-ve backend if running) and converts output to PNG/SVG
  */
 export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderResult> {
   if (!tikzCode || !tikzCode.trim()) return { svg: '', error: 'Mã TikZ trống' };
@@ -116,9 +157,49 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
   const normalized = normalizeTikzCode(tikzCode);
   const cacheKey = `texlive_${normalized}`;
   if (svgCache.has(cacheKey)) {
-    return { svg: svgCache.get(cacheKey)!, engineUsed: 'texlive' };
+    return {
+      svg: svgCache.get(cacheKey)!,
+      png: pngCache.get(normalized),
+      engineUsed: 'texlive',
+    };
   }
 
+  const isBrowser = typeof window !== 'undefined';
+  let lastError = '';
+
+  // 1. Kiểm tra nếu backend cục bộ D:\app-tikz-hinh-ve đang chạy tại localhost:8000
+  if (isBrowser) {
+    try {
+      const localCtrl = new AbortController();
+      const localTimeout = setTimeout(() => localCtrl.abort(), 1800);
+      const localResp = await fetch('http://localhost:8000/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tikz: normalized, dpi: 300 }),
+        signal: localCtrl.signal,
+      });
+      clearTimeout(localTimeout);
+
+      if (localResp.ok && localResp.headers.get('content-type')?.includes('image/png')) {
+        const blob = await localResp.blob();
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+        if (base64) {
+          const svg = wrapPngInSvg(base64);
+          svgCache.set(cacheKey, svg);
+          pngCache.set(normalized, base64);
+          return { svg, png: base64, engineUsed: 'texlive' };
+        }
+      }
+    } catch {
+      // Backend cục bộ không phản hồi, tự động dùng tiếp TeXLive.net Cloud
+    }
+  }
+
+  // 2. Biên dịch qua máy chủ đám mây TeXLive.net
   const fullLatex = buildStandaloneLatex(normalized);
 
   const formData = new FormData();
@@ -128,17 +209,14 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
   formData.append('engine', 'pdflatex');
   formData.append('return', 'pdf');
 
-  const isBrowser = typeof window !== 'undefined';
   const endpoints = isBrowser
     ? ['/texlive-api/cgi-bin/latexcgi', 'https://texlive.net/cgi-bin/latexcgi']
     : ['https://texlive.net/cgi-bin/latexcgi'];
 
-  let lastError = '';
-
   for (const url of endpoints) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const timeoutId = setTimeout(() => controller.abort(), 28000);
 
       const resp = await fetch(url, {
         method: 'POST',
@@ -157,11 +235,20 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
           svgCache.set(cacheKey, svg);
           pngCache.set(normalized, png);
           return { svg, png, engineUsed: 'texlive' };
+        } else {
+          // Canvas chưa render được -> fallback hiển thị PDF Object URL trực tiếp
+          const pdfUrl = URL.createObjectURL(pdfBlob);
+          const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="auto">
+            <foreignObject width="100%" height="100%">
+              <iframe src="${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit" width="100%" height="380" style="border:none;border-radius:8px;"></iframe>
+            </foreignObject>
+          </svg>`;
+          svgCache.set(cacheKey, fallbackSvg);
+          return { svg: fallbackSvg, engineUsed: 'texlive' };
         }
       } else {
         const logText = await resp.text();
-        const match = logText.match(/! Package [^\n]*|! [^\n]*/);
-        lastError = match ? match[0] : (logText.slice(0, 300) || 'Lỗi biên dịch TeXLive.net');
+        lastError = extractLatexError(logText) || 'Lỗi biên dịch TeXLive.net';
         console.warn(`[TeXLive.net] Error via ${url}:`, lastError);
       }
     } catch (err: any) {
@@ -176,6 +263,7 @@ export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderRes
     engineUsed: 'texlive',
   };
 }
+
 
 /**
  * Compiles TikZ code into vector SVG via Kroki TeX engine

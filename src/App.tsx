@@ -10,6 +10,7 @@ import {
   logoutGoogle,
   subscribeAuthChange,
   subscribeUserProfile,
+  ensureUserProfile,
   decrementTrialCredit,
   isUserAdmin,
   verifyAdminPin,

@@ -11,6 +11,9 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      emptyOutDir: false,
+    },
     server: {
       proxy: {
         '/mathtype-api': {
