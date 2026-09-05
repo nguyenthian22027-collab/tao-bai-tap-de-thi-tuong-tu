@@ -765,11 +765,17 @@ export function parseExam(rawText: string): ExamData {
 export function detectShapeType(questionText: string): string {
   const text = questionText.toLowerCase();
 
+  // Hình nón (cone) — THPT phổ biến
+  if (/(hình nón|nón tròn xoay|cone|đường sinh.*nón|thể tích.*nón|diện tích xung quanh.*nón)/i.test(text)) return 'cone';
+
+  // Hình hộp / Hình lập phương
+  if (/(hình hộp|hình lập phương|hộp chữ nhật|rectangular box|cube)/i.test(text)) return 'box';
+
   // Hình trụ
-  if (/(hình trụ|hình ống|sợi dây chuyền.*trụ|trụ tròn|cylinder|thể tích.*trụ|diện tích.*trụ)/i.test(text)) return 'cylinder';
+  if (/(hình trụ|hình ống|trụ tròn|cylinder|thể tích.*trụ|diện tích.*trụ|sợi dây chuyền)/i.test(text)) return 'cylinder';
 
   // Hình cầu
-  if (/(hình cầu|mặt cầu|sphere|bán cầu|thể tích.*cầu)/i.test(text)) return 'sphere';
+  if (/(hình cầu|mặt cầu|sphere|bán cầu|thể tích.*cầu|diện tích.*cầu)/i.test(text)) return 'sphere';
 
   // Hình chóp
   if (/(hình chóp|chóp tứ giác|chóp tam giác|chóp đều|pyramid)/i.test(text)) return 'pyramid';
@@ -777,23 +783,32 @@ export function detectShapeType(questionText: string): string {
   // Lăng trụ 3D
   if (/(lăng trụ|prism|lăng kính)/i.test(text)) return 'prism';
 
-  // Đồ thị hàm số
-  if (/(đồ thị|hàm số|hàm bậc|parabol|đường cong|tiếp tuyến.*hàm|cực trị|cực đại|cực tiểu|điểm uốn)/i.test(text)) return 'function_graph';
+  // Bảng biến thiên — kiểm tra trước đồ thị
+  if (/(bảng biến thiên|monoton)/i.test(text)) return 'variation_table';
 
-  // Bảng biến thiên
-  if (/(bảng biến thiên|monoton|đồng biến|nghịch biến)/i.test(text)) return 'variation_table';
+  // Đồ thị hàm số
+  if (/(đồ thị|hàm số|hàm bậc|parabol|đường cong|tiếp tuyến.*hàm|cực trị|cực đại|cực tiểu|điểm uốn|hàm mũ|hàm logarit|hàm lượng giác)/i.test(text)) return 'function_graph';
+
+  // Đường tròn nội/ngoại tiếp tam giác — kiểm tra trước đường tròn đơn
+  if (/(đường tròn nội tiếp|đường tròn ngoại tiếp|nội tiếp tam giác|ngoại tiếp tam giác)/i.test(text)) return 'circle_triangle';
 
   // Đường tròn (hình học phẳng)
-  if (/(đường tròn|tâm o|bán kính|dây cung|tiếp tuyến|cát tuyến|nội tiếp.*đường tròn|ngoại tiếp.*đường tròn|góc nội tiếp|góc tâm)/i.test(text)) return 'circle';
+  if (/(đường tròn|tâm o|bán kính|dây cung|tiếp tuyến|cát tuyến|góc nội tiếp|góc tâm|cung tròn)/i.test(text)) return 'circle';
+
+  // Góc, đường thẳng song song, cắt nhau — THCS
+  if (/(góc vuông|góc nhọn|góc tù|hai đường thẳng song song|đường thẳng cắt nhau|góc so le|góc đồng vị|góc kề bù|góc đối đỉnh|hai góc)/i.test(text)) return 'angle_lines';
 
   // Tam giác
-  if (/(tam giác|đường trung tuyến|đường cao|đường phân giác|trọng tâm|trực tâm|tâm nội tiếp)/i.test(text)) return 'triangle';
+  if (/(tam giác|đường trung tuyến|đường cao|đường phân giác|trọng tâm|trực tâm|tâm nội tiếp|định lý thales|đồng dạng|congruent)/i.test(text)) return 'triangle';
 
   // Tứ giác
-  if (/(hình vuông|hình chữ nhật|hình thang|hình bình hành|hình thoi|tứ giác)/i.test(text)) return 'quadrilateral';
+  if (/(hình vuông|hình chữ nhật|hình thang|hình bình hành|hình thoi|tứ giác|hình đa giác)/i.test(text)) return 'quadrilateral';
 
-  // Vector / Tọa độ
-  if (/(vector|vectơ|tọa độ|trục ox|trục oy|mặt phẳng tọa độ)/i.test(text)) return 'coordinate';
+  // Vector / Tọa độ không gian
+  if (/(vector|vectơ|tọa độ không gian|trục ox|trục oy|trục oz|oxyz|mặt phẳng tọa độ)/i.test(text)) return 'coordinate';
+
+  // Tọa độ phẳng
+  if (/(tọa độ|điểm.*\([0-9]|trung điểm|khoảng cách)/i.test(text)) return 'coordinate';
 
   return 'generic';
 }
@@ -961,6 +976,83 @@ function getTikzExample(shapeType: string): string {
   \\foreach \\y in {1,2,3} { \\draw (2pt,\\y)--(-2pt,\\y) node[left,font=\\tiny]{$\\y$}; }
 \\end{tikzpicture}`;
 
+    case 'cone':
+      return `Ví dụ hình nón tròn xoay bán kính đáy r=2, chiều cao h=4, đường sinh l=sqrt(r^2+h^2):
+\\begin{tikzpicture}[scale=0.8]
+  % Đáy dưới (ellipse biểu diễn mặt tròn)
+  \\draw[thick] (0,0) ellipse (2cm and 0.6cm);
+  % Đỉnh nón
+  \\coordinate (S) at (0,4);
+  % Hai đường sinh thấy được
+  \\draw[thick] (-2,0) -- (S);
+  \\draw[thick] (2,0) -- (S);
+  % Nhãn
+  \\fill (S) circle (1.5pt); \\node[above] at (S){$S$};
+  \\fill (0,0) circle (1.5pt); \\node[below right] at (0,0){$O$};
+  % Bán kính
+  \\draw[<->] (0,0) -- (2,0); \\node[below] at (1,0){$r$};
+  % Chiều cao
+  \\draw[dashed] (0,0) -- (S); \\node[left] at (0,2){$h$};
+\\end{tikzpicture}`;
+
+    case 'box':
+      return `Ví dụ hình hộp chữ nhật ABCD.A'B'C'D' (phối cảnh nghiêng, cạnh khuất nét đứt):
+\\begin{tikzpicture}[scale=0.8]
+  % Mặt trước ABCD
+  \\coordinate (A) at (0,0); \\coordinate (B) at (3,0);
+  \\coordinate (C) at (3,2); \\coordinate (D) at (0,2);
+  % Mặt sau A'B'C'D' (lùi vào và lên)
+  \\coordinate (A1) at (1,0.6); \\coordinate (B1) at (4,0.6);
+  \\coordinate (C1) at (4,2.6); \\coordinate (D1) at (1,2.6);
+  % Mặt trước (hiện)
+  \\draw[thick] (A)--(B)--(C)--(D)--cycle;
+  % Mặt trên (hiện)
+  \\draw[thick] (D)--(D1)--(C1)--(C);
+  % Cạnh bên phải (hiện)
+  \\draw[thick] (B)--(B1)--(C1);
+  % Mặt sau và đáy (khuất — nét đứt)
+  \\draw[thick,dashed] (A)--(A1)--(B1); \\draw[thick,dashed] (A1)--(D1);
+  % Nhãn
+  \\node[below left] at (A){$A$}; \\node[below right] at (B){$B$};
+  \\node[above right] at (C){$C$}; \\node[above left] at (D){$D$};
+  \\node[below] at (A1){$A'$}; \\node[below right] at (B1){$B'$};
+  \\node[above right] at (C1){$C'$}; \\node[above] at (D1){$D'$};
+\\end{tikzpicture}`;
+
+    case 'circle_triangle':
+      return `Ví dụ tam giác ABC nội tiếp đường tròn tâm O bán kính R, đường tròn nội tiếp tâm I:
+\\begin{tikzpicture}[scale=1.2]
+  \\coordinate (O) at (0,0);
+  % Đường tròn ngoại tiếp
+  \\draw[thick] (O) circle (2cm);
+  \\fill (O) circle (1.5pt); \\node[below right] at (O){$O$};
+  % Tam giác ABC nội tiếp
+  \\coordinate (A) at ($(O)+(100:2cm)$);
+  \\coordinate (B) at ($(O)+(220:2cm)$);
+  \\coordinate (C) at ($(O)+(-20:2cm)$);
+  \\draw[thick] (A)--(B)--(C)--cycle;
+  \\fill (A) circle (1.5pt); \\node[above] at (A){$A$};
+  \\fill (B) circle (1.5pt); \\node[below left] at (B){$B$};
+  \\fill (C) circle (1.5pt); \\node[below right] at (C){$C$};
+\\end{tikzpicture}`;
+
+    case 'angle_lines':
+      return `Ví dụ hai đường thẳng song song a, b bị cắt bởi đường thẳng c, thể hiện góc so le trong:
+\\begin{tikzpicture}[scale=1]
+  % Hai đường thẳng song song
+  \\draw[thick] (-0.5,0) -- (4.5,0) node[right]{$a$};
+  \\draw[thick] (-0.5,2) -- (4.5,2) node[right]{$b$};
+  % Đường cắt
+  \\draw[thick] (0.5,2.5) -- (3.5,-0.5) node[below]{$c$};
+  % Tính giao điểm
+  \\coordinate (P) at (1,2); % giao với b
+  \\coordinate (Q) at (3,0); % giao với a
+  \\fill (P) circle (1.5pt); \\fill (Q) circle (1.5pt);
+  % Đánh dấu góc so le trong (xanh)
+  \\draw[blue,thick,->] ($(P)+(0.4,0)$) arc (0:-45:0.4cm) node[right,font=\\small]{$\\alpha$};
+  \\draw[blue,thick,->] ($(Q)+(-0.4,0)$) arc (180:135:0.4cm) node[left,font=\\small]{$\\alpha$};
+\\end{tikzpicture}`;
+
     default:
       return `Ví dụ hình minh họa tổng quát (điểm, đoạn thẳng, góc):
 \\begin{tikzpicture}[scale=1]
@@ -987,13 +1079,17 @@ export async function generateTikzFromQuestion(
   const exampleCode = getTikzExample(shapeType);
 
   const shapeTypeLabel: Record<string, string> = {
+    cone: 'hình nón (cone — dùng ellipse đáy + 2 đường sinh, KHÔNG dùng hộp)',
+    box: 'hình hộp chữ nhật / lập phương (box — phối cảnh nghiêng, cạnh khuất nét đứt)',
     circle: 'đường tròn (circle geometry)',
+    circle_triangle: 'đường tròn nội/ngoại tiếp tam giác (circle + inscribed triangle)',
     cylinder: 'hình trụ (cylinder — dùng ellipse + 2 đường thẳng, KHÔNG dùng box 3D)',
     sphere: 'hình cầu (sphere — dùng circle + dashed ellipse)',
     pyramid: 'hình chóp (pyramid — phối cảnh nghiêng, cạnh khuất là nét đứt)',
     prism: 'lăng trụ (prism — phối cảnh nghiêng, cạnh khuất là nét đứt)',
     function_graph: 'đồ thị hàm số (dùng pgfplots \\begin{axis})',
     variation_table: 'bảng biến thiên (dùng \\draw + \\node)',
+    angle_lines: 'góc và đường thẳng (angle + parallel/intersecting lines)',
     triangle: 'tam giác (triangle geometry)',
     quadrilateral: 'tứ giác (quadrilateral)',
     coordinate: 'hệ tọa độ (coordinate system)',
