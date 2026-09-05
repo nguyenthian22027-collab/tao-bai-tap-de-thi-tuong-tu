@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
-import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye } from 'lucide-react';
+import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
-import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails } from '../lib/tikzRenderer';
+import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 
 /**
@@ -153,6 +153,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const [previewSvg, setPreviewSvg] = useState('');
   const [isCustomRendering, setIsCustomRendering] = useState(false);
   const [customRenderError, setCustomRenderError] = useState('');
+  const [selectedEngine, setSelectedEngine] = useState<TikzEngine>('auto');
 
   // 1. Bóc tách TikZ khỏi nội dung câu hỏi
   const { cleanText: textNoTikz, tikzCode: extractedTikz } = extractAndCleanTikz(question.noiDung);
@@ -235,16 +236,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   };
 
-  // Render lại 1-click từ mã TikZ hiện tại
-  const handleReRenderTikz = async () => {
+  // Render lại 1-click từ mã TikZ hiện tại (Hỗ trợ chọn Engine: auto, texlive, kroki)
+  const handleReRenderTikz = async (engine: TikzEngine = 'auto') => {
     if (!activeTikz) return;
     setIsRenderingTikz(true);
     setRenderedTikzSvg('');
     try {
-      const result = await renderTikzWithDetails(activeTikz);
+      const result = await renderTikzWithDetails(activeTikz, engine);
       if (result.svg) {
         setRenderedTikzSvg(result.svg);
-        const png = await svgStringToPngBase64(result.svg);
+        const png = result.png || (await svgStringToPngBase64(result.svg));
         if (png) {
           question.hinhAnh = png;
           if (onUpdateQuestion) {
@@ -267,10 +268,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsCustomRendering(true);
     setCustomRenderError('');
     try {
-      const result = await renderTikzWithDetails(customTikzCode);
+      const result = await renderTikzWithDetails(customTikzCode, selectedEngine);
       if (result.svg) {
         setRenderedTikzSvg(result.svg);
-        const png = await svgStringToPngBase64(result.svg);
+        const png = result.png || (await svgStringToPngBase64(result.svg));
         question.tikzCode = customTikzCode;
         if (png) question.hinhAnh = png;
         if (onUpdateQuestion) {
@@ -293,7 +294,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsCustomRendering(true);
     setCustomRenderError('');
     try {
-      const result = await renderTikzWithDetails(customTikzCode);
+      const result = await renderTikzWithDetails(customTikzCode, selectedEngine);
       if (result.svg) {
         setPreviewSvg(result.svg);
       } else {
@@ -548,16 +549,28 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <span>Sửa &amp; Render TikZ</span>
               </button>
 
-              {/* Nút 1-click Re-render */}
+              {/* Nút 1-click Re-render (Tự động) */}
               <button
                 type="button"
-                onClick={handleReRenderTikz}
+                onClick={() => handleReRenderTikz('auto')}
                 disabled={isRenderingTikz}
                 className="px-2 py-0.5 text-[10px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1"
-                title="Vẽ lại hình trực tiếp từ mã TikZ hiện có"
+                title="Vẽ lại hình trực tiếp từ mã TikZ (Tự động Kroki + TeXLive.net)"
               >
                 <RefreshCw className={`w-3 h-3 ${isRenderingTikz ? 'animate-spin' : ''}`} />
                 <span>Render lại</span>
+              </button>
+
+              {/* Nút 1-click TeXLive.net */}
+              <button
+                type="button"
+                onClick={() => handleReRenderTikz('texlive')}
+                disabled={isRenderingTikz}
+                className="px-2 py-0.5 text-[10px] text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1"
+                title="Biên dịch chuẩn xác bằng máy chủ TeXLive.net"
+              >
+                <Cloud className="w-3 h-3 text-purple-600" />
+                <span>☁️ TeXLive.net</span>
               </button>
 
               {/* Nút Sinh lại bằng AI */}
@@ -617,11 +630,19 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <p>Hình vẽ chưa tải được hoặc mã TikZ đang cập nhật.</p>
                 <div className="flex justify-center space-x-2">
                   <button
-                    onClick={handleReRenderTikz}
+                    onClick={() => handleReRenderTikz('auto')}
                     className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Render lại</span>
+                  </button>
+                  <button
+                    onClick={() => handleReRenderTikz('texlive')}
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors cursor-pointer"
+                    title="Biên dịch chuẩn xác bằng TeXLive.net"
+                  >
+                    <Cloud className="w-3 h-3" />
+                    <span>☁️ TeXLive.net</span>
                   </button>
                   <button
                     onClick={() => {
@@ -864,9 +885,47 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
             {/* Code Editor Textarea */}
             <div className="flex-1 min-h-[220px] flex flex-col space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-slate-600">
+              <div className="flex items-center justify-between text-xs text-slate-600 flex-wrap gap-2">
                 <span className="font-semibold">Mã nguồn LaTeX TikZ:</span>
-                <span className="text-[11px] text-slate-400">Hỗ trợ đầy đủ các thư viện TikZ chuẩn</span>
+                <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg">
+                  <span className="text-[10px] text-slate-500 font-medium px-1">Máy chủ TeX:</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine('auto')}
+                    className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors cursor-pointer ${
+                      selectedEngine === 'auto'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Tự động dùng Kroki siêu tốc, tự chuyển TeXLive.net nếu cần"
+                  >
+                    ⚡ Tự động
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine('texlive')}
+                    className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors cursor-pointer ${
+                      selectedEngine === 'texlive'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Dùng máy chủ TeXLive.net (giống app TikZ -> Ảnh)"
+                  >
+                    ☁️ TeXLive.net
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine('kroki')}
+                    className={`px-2 py-0.5 text-[10px] rounded font-medium transition-colors cursor-pointer ${
+                      selectedEngine === 'kroki'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Dùng máy chủ Kroki TeX Engine"
+                  >
+                    Kroki TeX
+                  </button>
+                </div>
               </div>
               <textarea
                 value={customTikzCode}

@@ -57,18 +57,135 @@ ${normalized}
 
 export interface TikzRenderResult {
   svg: string;
+  png?: string;
   error?: string;
+  engineUsed?: 'kroki' | 'texlive';
+}
+
+export type TikzEngine = 'auto' | 'kroki' | 'texlive';
+
+/**
+ * Converts a PDF Blob into a high-res PNG base64 data URL via PDF.js and HTML5 Canvas
+ */
+export async function convertPdfBlobToPng(pdfBlob: Blob, scale = 2.5): Promise<string> {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const context = canvas.getContext('2d');
+    if (!context) return '';
+
+    // Clean white background
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('[PDF.js] Failed to convert PDF to PNG:', err);
+    return '';
+  }
 }
 
 /**
- * Compiles TikZ code into vector SVG via Kroki TeX engine with detailed error tracking
+ * Wraps a PNG base64 string inside an SVG image tag for unified rendering
  */
-export async function renderTikzWithDetails(tikzCode: string): Promise<TikzRenderResult> {
+export function wrapPngInSvg(pngBase64: string, width = 600, height = 450): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" style="max-height: 400px; object-fit: contain;">
+  <image href="${pngBase64}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet" />
+</svg>`;
+}
+
+/**
+ * Compiles TikZ code via TeXLive.net (Cloud pdflatex) and converts output to PNG/SVG
+ */
+export async function renderTikzTeXLive(tikzCode: string): Promise<TikzRenderResult> {
+  if (!tikzCode || !tikzCode.trim()) return { svg: '', error: 'Mã TikZ trống' };
+
+  const normalized = normalizeTikzCode(tikzCode);
+  const cacheKey = `texlive_${normalized}`;
+  if (svgCache.has(cacheKey)) {
+    return { svg: svgCache.get(cacheKey)!, engineUsed: 'texlive' };
+  }
+
+  const fullLatex = buildStandaloneLatex(normalized);
+
+  const formData = new FormData();
+  const blob = new Blob([fullLatex], { type: 'text/plain; charset=utf-8' });
+  formData.append('filecontents[]', blob, 'document.tex');
+  formData.append('filename[]', 'document.tex');
+  formData.append('engine', 'pdflatex');
+  formData.append('return', 'pdf');
+
+  const isBrowser = typeof window !== 'undefined';
+  const endpoints = isBrowser
+    ? ['/texlive-api/cgi-bin/latexcgi', 'https://texlive.net/cgi-bin/latexcgi']
+    : ['https://texlive.net/cgi-bin/latexcgi'];
+
+  let lastError = '';
+
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (resp.ok && contentType.includes('pdf')) {
+        const pdfBlob = await resp.blob();
+        const png = await convertPdfBlobToPng(pdfBlob);
+        if (png) {
+          const svg = wrapPngInSvg(png);
+          svgCache.set(cacheKey, svg);
+          pngCache.set(normalized, png);
+          return { svg, png, engineUsed: 'texlive' };
+        }
+      } else {
+        const logText = await resp.text();
+        const match = logText.match(/! Package [^\n]*|! [^\n]*/);
+        lastError = match ? match[0] : (logText.slice(0, 300) || 'Lỗi biên dịch TeXLive.net');
+        console.warn(`[TeXLive.net] Error via ${url}:`, lastError);
+      }
+    } catch (err: any) {
+      lastError = err.message || 'Lỗi kết nối TeXLive.net';
+      console.warn(`[TeXLive.net] Failed via ${url}:`, err);
+    }
+  }
+
+  return {
+    svg: '',
+    error: lastError || 'Máy chủ TeXLive.net không phản hồi',
+    engineUsed: 'texlive',
+  };
+}
+
+/**
+ * Compiles TikZ code into vector SVG via Kroki TeX engine
+ */
+export async function renderTikzKroki(tikzCode: string): Promise<TikzRenderResult> {
   if (!tikzCode || !tikzCode.trim()) return { svg: '', error: 'Mã TikZ trống' };
 
   const normalized = normalizeTikzCode(tikzCode);
   if (svgCache.has(normalized)) {
-    return { svg: svgCache.get(normalized)! };
+    return { svg: svgCache.get(normalized)!, engineUsed: 'kroki' };
   }
 
   const fullLatex = buildStandaloneLatex(normalized);
@@ -102,7 +219,7 @@ export async function renderTikzWithDetails(tikzCode: string): Promise<TikzRende
       if (resp.ok) {
         if (responseText.includes('<svg')) {
           svgCache.set(normalized, responseText);
-          return { svg: responseText };
+          return { svg: responseText, engineUsed: 'kroki' };
         }
       } else {
         // Extract LaTeX compiler error from Kroki's response
@@ -137,15 +254,52 @@ export async function renderTikzWithDetails(tikzCode: string): Promise<TikzRende
 
   return {
     svg: '',
-    error: lastError || 'Không thể kết xuất mã TikZ. Vui lòng kiểm tra lại cú pháp LaTeX.',
+    error: lastError || 'Không thể kết xuất mã TikZ qua Kroki.',
+    engineUsed: 'kroki',
   };
 }
 
 /**
- * Compiles TikZ code into vector SVG via Kroki TeX engine
+ * Universal TikZ compilation supporting Dual-Engine (Kroki + TeXLive.net fallback)
  */
-export async function renderTikzToSvg(tikzCode: string): Promise<string> {
-  const result = await renderTikzWithDetails(tikzCode);
+export async function renderTikzWithDetails(
+  tikzCode: string,
+  engine: TikzEngine = 'auto'
+): Promise<TikzRenderResult> {
+  if (engine === 'texlive') {
+    return renderTikzTeXLive(tikzCode);
+  }
+
+  if (engine === 'kroki') {
+    return renderTikzKroki(tikzCode);
+  }
+
+  // Engine 'auto': Try Kroki first (super fast vector SVG); fallback to TeXLive.net if needed
+  const krokiResult = await renderTikzKroki(tikzCode);
+  if (krokiResult.svg) {
+    return krokiResult;
+  }
+
+  console.info('[TikZ Renderer] Kroki did not return SVG, trying TeXLive.net cloud engine...');
+  const texliveResult = await renderTikzTeXLive(tikzCode);
+  if (texliveResult.svg) {
+    return texliveResult;
+  }
+
+  return {
+    svg: '',
+    error: krokiResult.error || texliveResult.error || 'Biên dịch thất bại trên cả Kroki và TeXLive.net.',
+  };
+}
+
+/**
+ * Compiles TikZ code into vector SVG
+ */
+export async function renderTikzToSvg(
+  tikzCode: string,
+  engine: TikzEngine = 'auto'
+): Promise<string> {
+  const result = await renderTikzWithDetails(tikzCode, engine);
   return result.svg;
 }
 

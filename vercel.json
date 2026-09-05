@@ -7,6 +7,10 @@
     {
       "source": "/kroki-api/:path*",
       "destination": "https://kroki.io/:path*"
+    },
+    {
+      "source": "/texlive-api/:path*",
+      "destination": "https://texlive.net/:path*"
     }
   ]
 }

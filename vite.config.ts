@@ -23,6 +23,11 @@ export default defineConfig(() => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/kroki-api/, ''),
         },
+        '/texlive-api': {
+          target: 'https://texlive.net',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/texlive-api/, ''),
+        },
       },
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
