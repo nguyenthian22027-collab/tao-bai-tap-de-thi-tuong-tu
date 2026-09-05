@@ -20,7 +20,13 @@
         tex: {
           inlineMath: [['$', '$'], ['\\(', '\\)']],
           displayMath: [['$$', '$$'], ['\\[', '\\]']],
-          processEscapes: true
+          processEscapes: true,
+          macros: {
+            wideparen: ['\\overset{\\Large\\frown}{#1}', 1],
+            overgroup: ['\\overset{\\Large\\frown}{#1}', 1],
+            arc: ['\\overset{\\Large\\frown}{#1}', 1],
+            sd: '\\text{sđ}'
+          }
         },
         options: {
           ignoreHtmlClass: 'tex2jax_ignore',

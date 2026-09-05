@@ -518,6 +518,34 @@ function processLatex(input: string, font?: string): string {
         i = grp.endIdx;
         continue;
       }
+      if (cmd === 'wideparen' || cmd === 'overgroup' || cmd === 'arc') {
+        const grp = parseBracedGroup(input, nextCharIdx);
+        elements.push({
+          xml: `<m:acc><m:accPr><m:chr m:val="⌒"/></m:accPr><m:e>${processLatex(grp.content, font)}</m:e></m:acc>`,
+          isSpace: false,
+        });
+        i = grp.endIdx;
+        continue;
+      }
+      if (cmd === 'overset') {
+        const topGrp = parseBracedGroup(input, nextCharIdx);
+        let secondIdx = topGrp.endIdx;
+        while (secondIdx < input.length && input[secondIdx] === ' ') secondIdx++;
+        const baseGrp = parseBracedGroup(input, secondIdx);
+        if (topGrp.content.includes('frown') || topGrp.content.includes('⌒')) {
+          elements.push({
+            xml: `<m:acc><m:accPr><m:chr m:val="⌒"/></m:accPr><m:e>${processLatex(baseGrp.content, font)}</m:e></m:acc>`,
+            isSpace: false,
+          });
+        } else {
+          elements.push({
+            xml: `<m:limUpp><m:e>${processLatex(baseGrp.content, font)}</m:e><m:lim>${processLatex(topGrp.content, font)}</m:lim></m:limUpp>`,
+            isSpace: false,
+          });
+        }
+        i = baseGrp.endIdx;
+        continue;
+      }
 
       // Text inside math: \text{...}, \mathrm{...}, \mathbf{...}
       if (cmd === 'text' || cmd === 'mathrm' || cmd === 'mathbf' || cmd === 'operatorname') {
@@ -696,6 +724,12 @@ export function latexToOmml(latex: string, useCambriaMath = false): string {
   } else if (str.startsWith('$') && str.endsWith('$')) {
     str = str.slice(1, -1).trim();
   }
+
+  // Chuẩn hóa ký hiệu cung tròn dạng không ngoặc: \wideparen AB -> \wideparen{AB}
+  str = str.replace(/\\(?:wideparen|overgroup|arc)\s*(?:\{([^{}]+)\}|([A-Za-z0-9']+))/g, (_m, g1, g2) => {
+    const content = (g1 || g2 || '').trim();
+    return `\\wideparen{${content}}`;
+  });
 
   const innerOmml = processLatex(str, font);
   return `<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${innerOmml}</m:oMath>`;
