@@ -58,7 +58,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Trigger MathJax render when question content changes
+  // Trigger MathJax render when question content changes (including after TikZ/image loads)
   useEffect(() => {
     if (window.MathJax?.typesetPromise && cardRef.current) {
       window.MathJax.typesetPromise([cardRef.current]).catch((e) =>
@@ -66,6 +66,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       );
     }
   }, [
+    question.id,
     question.noiDung,
     question.optionA,
     question.optionB,
@@ -77,6 +78,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     question.menhDeD,
     question.dapAn,
     question.loai,
+    question.hinhAnh,
   ]);
 
   const getBloomBadge = (level?: string) => {
@@ -164,8 +166,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // 2. Tự động nhận diện số liệu thống kê ghép nhóm để vẽ biểu đồ
   const { cleanText: textNoChart, chartSvg } = extractAndGenerateStatisticalChart(textNoTikz);
 
-  // 3. Bóc tách bảng dữ liệu LaTeX \begin{tabular} để hiển thị thành bảng HTML chuẩn
-  const { cleanText: promptTextNoTable, table: parsedTable } = extractAndParseTabular(textNoChart);
+  // 3. Bóc tách bảng dữ liệu LaTeX \begin{tabular} để hiển thị thành bảng HTML chuẩn (hỗ trợ nhiều bảng)
+  const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(textNoChart);
 
   // 4. Nội dung đề bài sạch sẽ, không còn mã LaTeX thô
   const cleanPrompt = normalizeMathLatex(
@@ -226,7 +228,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeTikz, question]);
+  }, [activeTikz, question.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Xóa hình vẽ khỏi câu hỏi
   const handleDeleteFigure = () => {
@@ -370,9 +373,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         {cleanPrompt}
       </div>
 
-      {/* Bảng dữ liệu số liệu (Bảng tần số, bảng phân bố...) */}
-      {parsedTable && (
-        <div className="overflow-x-auto my-2 rounded-lg border border-slate-200 shadow-2xs">
+      {/* Bảng dữ liệu số liệu (Bảng tần số, bảng phân bố...) — Hỗ trợ nhiều bảng */}
+      {parsedTables && parsedTables.length > 0 && parsedTables.map((parsedTable, tIdx) => (
+        <div key={tIdx} className="overflow-x-auto my-2 rounded-lg border border-slate-200 shadow-2xs">
           <table className="min-w-full text-xs text-center border-collapse">
             <thead>
               <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-800 font-bold">
@@ -396,7 +399,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             </tbody>
           </table>
         </div>
-      )}
+      ))}
+
 
       {/* Biểu đồ thống kê tần số tự động vẽ (như hình minh họa) */}
       {chartSvg && (

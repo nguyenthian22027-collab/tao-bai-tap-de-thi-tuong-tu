@@ -595,8 +595,8 @@ export async function exportExamToDocxLatex(
           q.tikzCode = extractedTikz;
         }
 
-        // Extract LaTeX tabular from prompt
-        const { cleanText: promptTextNoTable, table: parsedTable } = extractAndParseTabular(cleanText);
+        // Extract LaTeX tabular from prompt (hỗ trợ nhiều bảng)
+        const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(cleanText);
 
         // Render Question Prompt Paragraphs
         const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
@@ -654,44 +654,47 @@ export async function exportExamToDocxLatex(
         );
       });
 
-      // Render Tabular Table if question contains LaTeX \begin{tabular}
-      if (parsedTable) {
-        const headerCells = parsedTable.headers.map(
-          (h) =>
-            new TableCell({
-              children: [
-                new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [new TextRun({ text: h, bold: true, size: 20 })],
-                }),
-              ],
-              shading: { fill: 'E2E8F0' },
-            })
-        );
-        const tRows = [new TableRow({ children: headerCells })];
-        parsedTable.rows.forEach((r) => {
-          const cells = r.map(
-            (c) =>
+      // Render all Tabular Tables if question contains LaTeX \begin{tabular}
+      if (parsedTables && parsedTables.length > 0) {
+        for (const parsedTable of parsedTables) {
+          const headerCells = parsedTable.headers.map(
+            (h) =>
               new TableCell({
                 children: [
                   new Paragraph({
                     alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: c, size: 20 })],
+                    children: [new TextRun({ text: h, bold: true, size: 20 })],
                   }),
                 ],
+                shading: { fill: 'E2E8F0' },
               })
           );
-          tRows.push(new TableRow({ children: cells }));
-        });
+          const tRows = [new TableRow({ children: headerCells })];
+          parsedTable.rows.forEach((r) => {
+            const cells = r.map(
+              (c) =>
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: c, size: 20 })],
+                    }),
+                  ],
+                })
+            );
+            tRows.push(new TableRow({ children: cells }));
+          });
 
-        children.push(
-          new Table({
-            rows: tRows,
-            width: { size: 100, type: WidthType.PERCENTAGE },
-          })
-        );
-        children.push(new Paragraph({ text: '' }));
+          children.push(
+            new Table({
+              rows: tRows,
+              width: { size: 100, type: WidthType.PERCENTAGE },
+            })
+          );
+          children.push(new Paragraph({ text: '' }));
+        }
       }
+
 
       // Embed Question Images directly into document (including captured TikZ images)
       const qImages = await ensureQuestionImages(q);
@@ -1381,8 +1384,8 @@ export async function exportExamToDocxOmml(
           q.tikzCode = extractedTikz;
         }
 
-        // Extract LaTeX tabular from prompt
-        const { cleanText: promptTextNoTable, table: parsedTable } = extractAndParseTabular(cleanText);
+        // Extract LaTeX tabular from prompt (hỗ trợ nhiều bảng)
+        const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(cleanText);
 
         // Question Prompt
         const prefixTokens: FormattedToken[] = [
@@ -1392,11 +1395,14 @@ export async function exportExamToDocxOmml(
         const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
         bodyXml += emitMarkdownBlockXml(cleanPrompt, prefixTokens, 0);
 
-        // Render Tabular Table if question contains LaTeX \begin{tabular}
-        if (parsedTable) {
-          bodyXml += createOmmlTable(parsedTable.headers, parsedTable.rows);
-          bodyXml += '<w:p/>';
+        // Render all Tabular Tables if question contains LaTeX \begin{tabular}
+        if (parsedTables && parsedTables.length > 0) {
+          for (const parsedTable of parsedTables) {
+            bodyXml += createOmmlTable(parsedTable.headers, parsedTable.rows);
+            bodyXml += '<w:p/>';
+          }
         }
+
 
       // Embed Question Images directly into Word document (including captured TikZ images)
       const qImages = await ensureQuestionImages(q);

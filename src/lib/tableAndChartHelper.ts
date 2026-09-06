@@ -15,29 +15,67 @@ export interface ParsedTableData {
 export function extractAndParseTabular(text: string): {
   cleanText: string;
   table?: ParsedTableData;
+  tables?: ParsedTableData[];
 } {
   if (!text) return { cleanText: '' };
 
-  const tabularRegex = /\\begin\{tabular\}\s*\{[^\}]*\}\s*([\s\S]*?)\\end\{tabular\}/i;
-  const match = text.match(tabularRegex);
+  // Regex khớp cả \begin{tabular} và \begin{tabular*}
+  const tabularRegex = /\\begin\{tabular\*?\}\s*(?:\{[^}]*\}\s*)?\{[^}]*\}\s*([\s\S]*?)\\end\{tabular\*?\}/gi;
+  const allMatches = [...text.matchAll(tabularRegex)];
 
-  if (!match) {
-    return { cleanText: text };
+  if (allMatches.length === 0) {
+    // Fallback: try simpler pattern without optional second arg (for {|c|c|} only)
+    const simpleRegex = /\\begin\{tabular\}\s*\{[^}]*\}\s*([\s\S]*?)\\end\{tabular\}/gi;
+    const simpleMatches = [...text.matchAll(simpleRegex)];
+    if (simpleMatches.length === 0) return { cleanText: text };
+
+    const tables: ParsedTableData[] = [];
+    let cleanText = text
+      .replace(/\\begin\{center\}/gi, '')
+      .replace(/\\end\{center\}/gi, '');
+
+    for (const match of simpleMatches) {
+      const table = parseTabularBody(match[1]);
+      if (table) {
+        tables.push(table);
+        cleanText = cleanText.replace(match[0], '').trim();
+      }
+    }
+
+    return tables.length > 0
+      ? { cleanText: cleanText.trim(), table: tables[0], tables }
+      : { cleanText: text };
   }
 
-  const tabularBody = match[1];
-  const cleanText = text
+  const tables: ParsedTableData[] = [];
+  let cleanText = text
     .replace(/\\begin\{center\}/gi, '')
-    .replace(/\\end\{center\}/gi, '')
-    .replace(tabularRegex, '')
-    .trim();
+    .replace(/\\end\{center\}/gi, '');
 
+  for (const match of allMatches) {
+    const table = parseTabularBody(match[1]);
+    if (table) {
+      tables.push(table);
+      cleanText = cleanText.replace(match[0], '').trim();
+    }
+  }
+
+  return tables.length > 0
+    ? { cleanText: cleanText.trim(), table: tables[0], tables }
+    : { cleanText: text };
+}
+
+/**
+ * Helper: Parses the body of a tabular environment into ParsedTableData
+ */
+function parseTabularBody(tabularBody: string): ParsedTableData | null {
   // Strip horizontal line commands before splitting rows
   const cleanBody = tabularBody
     .replace(/\\hline/g, '')
     .replace(/\\toprule/g, '')
     .replace(/\\midrule/g, '')
-    .replace(/\\bottomrule/g, '');
+    .replace(/\\bottomrule/g, '')
+    .replace(/\\cline\{[^}]*\}/g, '');
 
   // Split rows by '\\' or '\cr'
   const rawRows = cleanBody
@@ -54,21 +92,14 @@ export function extractAndParseTabular(text: string): {
     }
   }
 
-  if (rows.length === 0) {
-    return { cleanText };
-  }
+  if (rows.length === 0) return null;
 
   const headers = rows[0];
   const dataRows = rows.slice(1);
 
-  return {
-    cleanText,
-    table: {
-      headers,
-      rows: dataRows,
-    },
-  };
+  return { headers, rows: dataRows };
 }
+
 
 /**
  * Extracts statistical group percentages or frequencies (e.g. from Câu 12)

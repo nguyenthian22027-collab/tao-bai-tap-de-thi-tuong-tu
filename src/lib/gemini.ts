@@ -219,11 +219,13 @@ export function buildExamPrompt(
 
   const tikzInstruction = config.tikzMode === 'no'
     ? 'KHÔNG tạo mã TikZ. Bỏ trống trường TIKZ.'
-    : `BẮT BUỘC VẼ HÌNH TIKZ cho mọi câu hỏi có liên quan đến hình học, đồ thị hàm số, bảng biến thiên hay hình minh họa:
-- Viết trực tiếp khối mã LaTeX TikZ hoàn chỉnh vào trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}.
-- Mã TikZ PHẢI CHÍNH XÁC 100% theo các số liệu, tên đỉnh/điểm (A, B, C, S, O,...) và giả thiết riêng của câu hỏi đó.
-- TUYỆT ĐỐI KHÔNG sao chép cùng 1 mã TikZ cho nhiều câu hỏi khác nhau. Mỗi câu phải có mã TikZ riêng biệt, đúng số liệu.
-- Nếu câu hỏi không cần hình vẽ: để trống trường TIKZ.
+    : `SINH MÃ TIKZ THEO QUY TẮC SAU:
+- Nếu câu gốc tương ứng được đánh dấu [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ đầy đủ vào trường TIKZ.
+- Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không được tự thêm hình.
+- Mã TikZ phải viết trực tiếp: TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}
+- Mã TikZ PHẢI CHÍNH XÁC 100% theo số liệu, tên đỉnh/điểm (A, B, C, S, O,...) riêng của câu hỏi đó.
+- TUYỆT ĐỐI KHÔNG sao chép cùng 1 mã TikZ cho nhiều câu khác nhau.
+- Với file ảnh/PDF (không có nhãn [CÓ_HÌNH]): nếu câu gốc trong ảnh rõ ràng có hình vẽ thì sinh TikZ, câu không có hình thì để trống.
 ${tikzShapeGuide}`;
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
@@ -288,7 +290,7 @@ Phân tích kỹ lưỡng đề thi gốc dưới đây và tạo 1 ĐỀ THI M�
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. Tất cả công thức Toán, Lý, Hóa, Sinh, Ký hiệu BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
 2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn trước 4 mệnh đề (ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?", "Xét các phát biểu sau về hàm số:", "Khẳng định nào sau đây là đúng?"). KHÔNG được bỏ trống CAU_LENH.
-3. Về hình vẽ / đồ thị: Với bất kỳ câu hỏi nào có hình vẽ, đồ thị, sơ đồ, hình học hoặc bảng biến thiên: BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài (bán kính, tọa độ, góc...). TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau. Nếu câu không có hình, để trống trường TIKZ.
+3. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài (bán kính, tọa độ, góc...). TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
 4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
@@ -404,7 +406,7 @@ QUY TẮC BẮT BUỘC:
 1. Tất cả công thức BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
 2. ${mathTypeNote}
 3. Ở Phần II (Đúng/Sai), BẮT BUỘC cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề.
-4. Với bất kỳ câu hỏi nào có hình vẽ, đồ thị, sơ đồ, hình học hoặc biểu đồ thống kê: BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ.
+4. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ.
 5. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 6. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
 

@@ -320,8 +320,52 @@ export function App() {
         }));
       }
 
+      // Phát hiện câu nào trong đề gốc có hình vẽ và gắn nhãn [CÓ_HÌNH] để AI biết câu nào cần vẽ TikZ
+      // Chỉ áp dụng với source text (không áp dụng với file ảnh/PDF nhị phân vì AI tự đọc hình)
+      if (source.textContent && source.type !== 'image' && source.type !== 'pdf') {
+        const figureKeywords = ['xem hình bên', 'như hình bên', 'trong hình bên', 'hình vẽ dưới đây', 'cho hình vẽ', 'bảng biến thiên dưới đây', 'đồ thị hàm số dưới đây', 'hình minh họa', '\\begin{tikzpicture}', '[hình]', '[ảnh]', '.png', '.jpg', 'base64,', '!['];
+        const cauRegex = /^(Câu\s*\d+[\s.:)]|\d+[\s.])/;
+
+        // Xử lý theo từng dòng: nhận diện đầu câu và đánh dấu khối câu nếu có hình
+        const lines = sourceTextForPrompt.split('\n');
+        let inFigureBlock = false;
+        let blockStart = -1;
+        const markedLines = [...lines];
+
+        for (let i = 0; i < lines.length; i++) {
+          const trimmed = lines[i].trim();
+          if (cauRegex.test(trimmed)) {
+            // Đây là đầu câu mới
+            blockStart = i;
+            inFigureBlock = false;
+          }
+          // Kiểm tra từ khóa hình trong dòng hiện tại
+          if (blockStart >= 0) {
+            const lowerLine = lines[i].toLowerCase();
+            if (figureKeywords.some((kw) => lowerLine.includes(kw.toLowerCase()))) {
+              // Gắn [CÓ_HÌNH] vào đầu câu (dòng blockStart)
+              if (!markedLines[blockStart].includes('[CÓ_HÌNH]')) {
+                markedLines[blockStart] = markedLines[blockStart].replace(
+                  cauRegex,
+                  (m) => m + ' [CÓ_HÌNH]'
+                );
+              }
+              inFigureBlock = true;
+            }
+          }
+        }
+        sourceTextForPrompt = markedLines.join('\n');
+
+        // Nếu source có hình ảnh nhúng (docx), ghi chú chung
+        if (source.imageCount && source.imageCount > 0) {
+          sourceTextForPrompt = `[Lưu ý: Đề gốc có ${source.imageCount} hình ảnh nhúng. Câu nào đề gốc có hình thì câu tương tự phải sinh TikZ, câu không có hình thì KHÔNG sinh TikZ]\n\n` + sourceTextForPrompt;
+        }
+      }
+
+
       // 1. Build structured prompt
       const prompt = buildExamPrompt(sourceTextForPrompt, config, source.mathTypeCount || 0);
+
 
       // 2. Call Gemini API via round-robin
       const rawResponse = await callGeminiRoundRobin(prompt, models.genModel, inlineFiles);
@@ -405,46 +449,10 @@ export function App() {
         }
       }
 
-      // Bước 5c: Bổ sung sinh TikZ riêng nếu có câu nào nói rõ "xem hình bên / hình dưới" hoặc có hình học/đồ thị mà chưa có TikZ
-      if (config.tikzMode !== 'no') {
-        const needsExplicitFigure = /(xem hình bên|như hình bên|trong hình bên|hình vẽ dưới đây|cho hình vẽ bên|bảng biến thiên dưới đây|đồ thị|bảng biến thiên|hình nón|hình trụ|hình cầu|hình chóp|lăng trụ|hình hộp)/i;
-        const missingTikzQuestions = allQuestions.filter(
-          (q) => !q.tikzCode && (detectShapeType(q.noiDung) !== 'generic' || needsExplicitFigure.test(q.noiDung))
-        );
+      // Bước 5c: ĐÃ XÓA — Không tự sinh TikZ cho câu không có hình trong đề gốc.
+      // Logic mới: AI chỉ sinh TikZ khi câu gốc được đánh dấu [CÓ_HÌNH] trong sourceTextForPrompt.
+      // Điều này đảm bảo câu tương tự chỉ có hình khi câu gốc có hình.
 
-        if (missingTikzQuestions.length > 0) {
-          for (const q of missingTikzQuestions) {
-            try {
-              const fullText = [
-                q.noiDung,
-                q.cauLenh,
-                q.menhDeA ? `a) ${q.menhDeA}` : '',
-                q.menhDeB ? `b) ${q.menhDeB}` : '',
-                q.menhDeC ? `c) ${q.menhDeC}` : '',
-                q.menhDeD ? `d) ${q.menhDeD}` : '',
-                q.optionA ? `A. ${q.optionA}` : '',
-                q.optionB ? `B. ${q.optionB}` : '',
-                q.optionC ? `C. ${q.optionC}` : '',
-                q.optionD ? `D. ${q.optionD}` : '',
-              ].filter(Boolean).join('\n');
-
-              const newTikz = await generateTikzFromQuestion(fullText, '', models.genModel);
-              if (newTikz && newTikz.includes('tikzpicture')) {
-                q.tikzCode = newTikz;
-                const svg = await renderTikzToSvg(newTikz);
-                if (svg) {
-                  const png = await svgStringToPngBase64(svg);
-                  if (png) q.hinhAnh = png;
-                }
-              }
-            } catch (tikzErr) {
-              console.warn(`[TikZ-Gen] Lỗi câu ${q.stt}:`, tikzErr);
-            }
-            resetExamState({ ...parsedExamData });
-            await new Promise((r) => setTimeout(r, 200));
-          }
-        }
-      }
 
       // 6. Hiển thị đề thi hoàn tất ĐÃ CÓ SẴN HÌNH VẼ SVG
       resetExamState(parsedExamData);
