@@ -37,6 +37,7 @@ interface HeaderProps {
   onOpenAdminPanel?: () => void;
   onOpenFirebaseConfig?: () => void;
   onOpenGuide: () => void;
+  onOpenLicenseStatus?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -53,6 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAdminPanel,
   onOpenFirebaseConfig,
   onOpenGuide,
+  onOpenLicenseStatus,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -179,10 +181,26 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 )}
                 {userProfile?.tier === 'trial' && (
-                  <span className="hidden md:inline-flex items-center space-x-1 px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold rounded-full border border-amber-300">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onOpenLicenseStatus) onOpenLicenseStatus();
+                    }}
+                    className={`hidden md:inline-flex items-center space-x-1 px-2.5 py-0.5 text-[10px] font-extrabold rounded-full border transition-all cursor-pointer ${
+                      (userProfile.trialRemaining || 0) <= 0
+                        ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300 animate-pulse'
+                        : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
+                    }`}
+                    title="Nhấn để xem thông tin bản quyền và liên hệ Nhân Phúc (0988250112)"
+                  >
                     <Clock className="w-3 h-3 text-amber-600" />
-                    <span>Dùng thử: {userProfile.trialRemaining}/5</span>
-                  </span>
+                    <span>
+                      {(userProfile.trialRemaining || 0) <= 0
+                        ? 'Hết lượt dùng thử (0/5)'
+                        : `Dùng thử: ${userProfile.trialRemaining}/5`}
+                    </span>
+                  </button>
                 )}
                 {userProfile?.tier === 'blocked' && (
                   <span className="hidden md:inline-flex items-center space-x-1 px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-extrabold rounded-full border border-rose-300">
@@ -256,6 +274,27 @@ export const Header: React.FC<HeaderProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* Nút xem bản quyền / nâng cấp */}
+                    {onOpenLicenseStatus && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          onOpenLicenseStatus();
+                        }}
+                        className="mt-1 w-full px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg flex items-center justify-between text-[11px] transition-colors cursor-pointer border border-indigo-200"
+                        title="Xem chi tiết các gói bản quyền & liên hệ Nhân Phúc (0988250112)"
+                      >
+                        <span className="flex items-center space-x-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Nâng cấp Pro / Liên hệ</span>
+                        </span>
+                        <span className="text-[10px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded">
+                          0988.250.112
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Menu items */}
