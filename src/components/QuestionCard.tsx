@@ -170,15 +170,52 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     setIsGeneratingGeoviz(true);
     setGeovizStatusMsg('📐 Đang phân tích bài toán hình học và giải tọa độ chính xác...');
     try {
-      const result = await generateGeovizTikzFromQuestion(question.noiDung);
-      const updatedQ: Question = { ...question, tikzCode: result.tikzCode };
-      onUpdateQuestion(updatedQ);
+      // Ghép toàn bộ nội dung, câu lệnh và các phương án để AI có đầy đủ dữ kiện hình học
+      const fullQuestionPrompt = [
+        question.noiDung,
+        question.cauLenh,
+        question.menhDeA ? `a) ${question.menhDeA}` : '',
+        question.menhDeB ? `b) ${question.menhDeB}` : '',
+        question.menhDeC ? `c) ${question.menhDeC}` : '',
+        question.menhDeD ? `d) ${question.menhDeD}` : '',
+        question.optionA ? `A. ${question.optionA}` : '',
+        question.optionB ? `B. ${question.optionB}` : '',
+        question.optionC ? `C. ${question.optionC}` : '',
+        question.optionD ? `D. ${question.optionD}` : '',
+      ].filter(Boolean).join('\n');
+
+      const result = await generateGeovizTikzFromQuestion(fullQuestionPrompt);
+      const newTikz = result.tikzCode;
+
+      question.tikzCode = newTikz;
+      question.hinhAnh = undefined;
+      onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: undefined });
+
+      // Kích hoạt render tức thời
+      setRenderedTikzSvg('');
+      setIsRenderingTikz(true);
+      setTikzRenderError('');
+      setLastUsedEngine('GeoViz Engine');
+
+      const renderResult = await renderTikzWithDetails(newTikz, 'auto');
+      if (renderResult.svg) {
+        setRenderedTikzSvg(renderResult.svg);
+        const png = renderResult.png || (await svgStringToPngBase64(renderResult.svg));
+        if (png) {
+          question.hinhAnh = png;
+          onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png });
+        }
+      } else {
+        setRenderedTikzSvg('');
+        setTikzRenderError(renderResult.error || 'Máy chủ TeX không thể tạo ảnh từ mã TikZ này.');
+      }
       setGeovizStatusMsg('');
     } catch (err: any) {
       setGeovizStatusMsg('');
       alert(`GeoViz: ${err.message || 'Lỗi không xác định. Hãy thử Sinh TikZ AI thông thường.'}`);
     } finally {
       setIsGeneratingGeoviz(false);
+      setIsRenderingTikz(false);
     }
   };
 

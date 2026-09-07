@@ -43,22 +43,21 @@ export async function generateGeovizTikzFromQuestion(
     throw new Error(`Không thể gọi AI: ${err.message || 'Lỗi không xác định'}`);
   }
 
-  // === Parse JSON từ ---GEOCONSTRAINTS--- ===
+  // === Parse JSON từ ---GEOCONSTRAINTS--- (hỗ trợ xử lý lỗi dấu phẩy, comment của AI) ===
   const graph = parseGeoConstraintsFromText(rawResponse);
 
   if (!graph) {
-    // Fallback: không phải hình phẳng 2D hoặc AI không trả về đúng format
     throw new Error(
       'AI không nhận ra cấu trúc hình học 2D trong bài toán này. ' +
-      'Bài toán có thể là hình không gian 3D hoặc không phải hình học phẳng. ' +
+      'Bài toán có thể là hình không gian 3D, đồ thị hoặc không phải hình phẳng. ' +
       'Hãy thử nút "Sinh TikZ AI" thông thường.'
     );
   }
 
-  // === PHA 2: Giải tọa độ chính xác ===
+  // === PHA 2: Giải tọa độ chính xác 100% bằng giải tích ===
   const shapeData = solveGeometryGraph(graph);
 
-  if (shapeData.points.length === 0) {
+  if (!shapeData || shapeData.points.length === 0) {
     throw new Error(
       'Bộ máy giải hình học không tính được tọa độ các điểm. ' +
       'AI có thể đã trích xuất sai cấu trúc ràng buộc. ' +
@@ -66,7 +65,7 @@ export async function generateGeovizTikzFromQuestion(
     );
   }
 
-  // === PHA 3: Sinh mã TikZ chuẩn ===
+  // === PHA 3: Sinh mã TikZ chuẩn SGK Việt Nam ===
   const tikzCode = generateGeovizTikz(shapeData);
 
   return {
@@ -77,44 +76,76 @@ export async function generateGeovizTikzFromQuestion(
   };
 }
 
+/** Làm sạch JSON: loại bỏ chú thích (//, /*), dấu phẩy thừa cuối mảng/object, dấu ngoặc kép thông minh */
+function cleanJsonString(raw: string): string {
+  return raw
+    .replace(/\/\*[\s\S]*?\*\//gm, '')           // chú thích khối
+    .replace(/\/\/.*$/gm, '')                     // chú thích dòng
+    .replace(/,(\s*[}\]])/g, '$1')                // dấu phẩy thừa cuối
+    .replace(/[\u201C\u201D\u2018\u2019]/g, '"') // ngoặc kép cong → thẳng
+    .trim();
+}
+
 /**
  * Parse JSON ràng buộc hình học từ text trả về của AI.
- * Tìm JSON nằm giữa hai dòng ---GEOCONSTRAINTS---
+ * Đa chiến lược: tách theo ---GEOCONSTRAINTS---, tìm khối json, hoặc tìm cặp ngoặc { ... }
  */
 function parseGeoConstraintsFromText(rawText: string): GeoConstraintGraph | null {
-  // Tìm khối ---GEOCONSTRAINTS---
-  const markerRegex = /---GEOCONSTRAINTS---([\s\S]*?)---GEOCONSTRAINTS---/;
-  const markerMatch = rawText.match(markerRegex);
+  if (!rawText) return null;
 
-  let jsonStr = '';
+  const candidates: string[] = [];
 
-  if (markerMatch && markerMatch[1]) {
-    jsonStr = markerMatch[1].trim();
-  } else {
-    // Fallback: tìm khối JSON bất kỳ trong text
-    const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/;
-    const blockMatch = rawText.match(jsonBlockRegex);
-    if (blockMatch && blockMatch[1]) {
-      jsonStr = blockMatch[1].trim();
-    } else {
-      // Thử tìm dấu { ... } trực tiếp
-      const rawJsonMatch = rawText.match(/(\{[\s\S]*\})/);
-      if (rawJsonMatch && rawJsonMatch[1]) {
-        jsonStr = rawJsonMatch[1].trim();
+  // Chiến lược 1: Khối nằm giữa ---GEOCONSTRAINTS---
+  if (rawText.includes('---GEOCONSTRAINTS---')) {
+    const parts = rawText.split('---GEOCONSTRAINTS---');
+    for (let i = 1; i < parts.length; i += 2) {
+      const block = parts[i]?.trim();
+      if (block) candidates.push(block);
+    }
+    candidates.reverse(); // Ưu tiên khối cuối/tốt nhất
+  }
+
+  // Chiến lược 2: Tìm khối ```json ... ```
+  const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+  while ((match = jsonBlockRegex.exec(rawText)) !== null) {
+    if (match[1]) candidates.push(match[1].trim());
+  }
+
+  // Chiến lược 3: Tìm từ dấu { đầu tiên tới dấu } cuối cùng
+  const firstBrace = rawText.indexOf('{');
+  const lastBrace = rawText.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    candidates.push(rawText.substring(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      let jsonBlock = candidate;
+
+      if (jsonBlock.includes('```')) {
+        jsonBlock = jsonBlock.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
       }
+
+      const fb = jsonBlock.indexOf('{');
+      const lb = jsonBlock.lastIndexOf('}');
+      if (fb !== -1 && lb !== -1) {
+        jsonBlock = jsonBlock.substring(fb, lb + 1);
+      }
+
+      const cleaned = cleanJsonString(jsonBlock);
+      if (!cleaned || !cleaned.startsWith('{')) continue;
+
+      const graph = JSON.parse(cleaned) as GeoConstraintGraph;
+
+      if (graph && (graph.constraints?.length > 0 || (graph.free_points && Object.keys(graph.free_points).length > 0))) {
+        if (!graph.constraints) graph.constraints = [];
+        return graph;
+      }
+    } catch (err) {
+      console.warn('[geovizService] Thử parse khối JSON không thành công:', err);
     }
   }
 
-  if (!jsonStr) return null;
-
-  try {
-    const parsed = JSON.parse(jsonStr) as GeoConstraintGraph;
-    // Kiểm tra cấu trúc tối thiểu
-    if (!parsed.constraints && !parsed.free_points) return null;
-    if (!parsed.constraints) parsed.constraints = [];
-    return parsed;
-  } catch (e) {
-    console.error('[GeoViz] JSON parse error:', e, '\nRaw:', jsonStr.substring(0, 200));
-    return null;
-  }
+  return null;
 }

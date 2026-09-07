@@ -16,6 +16,7 @@ export function normalizeTikzCode(code: string): string {
   // Strip standalone/document wrapper if user or AI included it
   clean = clean.replace(/\\documentclass(\[[^\]]*\])?\{[^}]+\}/gi, '');
   clean = clean.replace(/\\usepackage(\[[^\]]*\])?\{[^}]+\}/gi, '');
+  clean = clean.replace(/\\usetikzlibrary(\[[^\]]*\])?\{[^}]+\}/gi, '');
   clean = clean.replace(/\\begin\{document\}/gi, '');
   clean = clean.replace(/\\end\{document\}/gi, '');
   clean = clean.trim();
