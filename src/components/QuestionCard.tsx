@@ -5,6 +5,7 @@ import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
+import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
 
 /**
  * Chuẩn hóa các công thức toán LaTeX hay bị lỗi hiển thị:
@@ -158,6 +159,28 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const [selectedEngine, setSelectedEngine] = useState<TikzEngine>('auto');
   const [tikzRenderError, setTikzRenderError] = useState<string>('');
   const [lastUsedEngine, setLastUsedEngine] = useState<string>('');
+  const [isGeneratingGeoviz, setIsGeneratingGeoviz] = useState(false);
+  const [geovizStatusMsg, setGeovizStatusMsg] = useState('');
+
+  /**
+   * Vẽ lại hình bằng GeoViz 2D Engine (3 pha: AI → geoSolver → TikZ chính xác)
+   */
+  const handleGeovizDraw = async () => {
+    if (!onUpdateQuestion) return;
+    setIsGeneratingGeoviz(true);
+    setGeovizStatusMsg('📐 Đang phân tích bài toán hình học và giải tọa độ chính xác...');
+    try {
+      const result = await generateGeovizTikzFromQuestion(question.noiDung);
+      const updatedQ: Question = { ...question, tikzCode: result.tikzCode };
+      onUpdateQuestion(updatedQ);
+      setGeovizStatusMsg('');
+    } catch (err: any) {
+      setGeovizStatusMsg('');
+      alert(`GeoViz: ${err.message || 'Lỗi không xác định. Hãy thử Sinh TikZ AI thông thường.'}`);
+    } finally {
+      setIsGeneratingGeoviz(false);
+    }
+  };
 
   // 1. Bóc tách TikZ khỏi nội dung câu hỏi
   const { cleanText: textNoTikz, tikzCode: extractedTikz } = extractAndCleanTikz(question.noiDung);
@@ -596,6 +619,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <span>Sinh TikZ AI</span>
               </button>
 
+              {/* Nút Vẽ GeoViz — hình phẳng 2D chính xác */}
+              <button
+                type="button"
+                onClick={handleGeovizDraw}
+                disabled={isGeneratingGeoviz}
+                className="px-2 py-0.5 text-[10px] text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Vẽ hình phẳng 2D chính xác bằng động cơ GeoViz (AI trích xuất ràng buộc → giải tọa độ → sinh TikZ chuẩn)"
+              >
+                {isGeneratingGeoviz ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>📐</span>}
+                <span>{isGeneratingGeoviz ? 'Đang vẽ GeoViz...' : 'Vẽ GeoViz'}</span>
+              </button>
+
               {/* Nút Sao chép TikZ */}
               <button
                 type="button"
@@ -691,6 +726,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     <Code className="w-3 h-3" />
                     <span>Sửa &amp; Render</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleGeovizDraw}
+                    disabled={isGeneratingGeoviz}
+                    className="inline-flex items-center space-x-1 px-3 py-1 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                    title="Vẽ lại hình học 2D chính xác bằng GeoViz Engine"
+                  >
+                    {isGeneratingGeoviz ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>📐</span>}
+                    <span>{isGeneratingGeoviz ? 'Đang vẽ...' : '📐 Vẽ GeoViz'}</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -732,6 +777,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           >
             <Sparkles className="w-3 h-3" />
             <span>Sinh TikZ AI</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleGeovizDraw}
+            disabled={isGeneratingGeoviz}
+            className="inline-flex items-center space-x-1 px-2.5 py-1 text-[11px] text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Vẽ hình học phẳng 2D chính xác bằng GeoViz Engine (tốt cho đường tròn, tam giác, tiếp tuyến...)"
+          >
+            {isGeneratingGeoviz ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>📐</span>}
+            <span>{isGeneratingGeoviz ? 'Đang vẽ GeoViz...' : '📐 Vẽ GeoViz'}</span>
           </button>
         </div>
       )}
