@@ -222,6 +222,180 @@ export function structureVariationTable(table: ParsedTableData): FormattedVariat
 }
 
 /**
+ * Tự động tạo ảnh vector SVG cho Bảng Biến Thiên chuẩn sách giáo khoa Việt Nam:
+ * - Có các đường mũi tên vector dài nối liền mạch từ đáy lên đỉnh (↗) hoặc từ đỉnh xuống đáy (↘)
+ * - Mũi tên có đầu nhọn chỉ chính xác vào các số cực trị
+ * - Các mốc x, dấu y' và giá trị y được tính toán toạ độ chính xác 100%
+ */
+export function generateVariationTableSvg(table: ParsedTableData): string | null {
+  if (!table) return null;
+  const allRows = [table.headers, ...(table.rows || [])];
+
+  // 1. Phân loại hàng x, hàng y', và các hàng của y
+  let rawXRow: string[] = [];
+  let rawYPrimeRow: string[] = [];
+  const rawYRows: string[][] = [];
+
+  for (let i = 0; i < allRows.length; i++) {
+    const row = allRows[i];
+    const firstCell = (row[0] || '').trim().toLowerCase().replace(/\$/g, '');
+    if (rawXRow.length === 0 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
+      rawXRow = row;
+    } else if (rawYPrimeRow.length === 0 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
+      rawYPrimeRow = row;
+    } else {
+      rawYRows.push(row);
+    }
+  }
+
+  if (rawXRow.length === 0 && allRows.length > 0) rawXRow = allRows[0];
+  if (rawYPrimeRow.length === 0 && allRows.length > 1) rawYPrimeRow = allRows[1];
+  if (rawYRows.length === 0 && allRows.length > 2) rawYRows.push(...allRows.slice(2));
+
+  // Lấy các điểm x
+  const xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  const N = xPoints.length;
+  if (N < 2) return null;
+
+  // Lấy dấu y'
+  const yPrimeItems = rawYPrimeRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+
+  // Lấy giá trị và chiều biến thiên của y theo cột
+  const maxCols = Math.max(...allRows.map((r) => r.length));
+  
+  const colData: { val?: string; arrow?: string }[] = [];
+  for (let c = 1; c < maxCols; c++) {
+    let val: string | undefined;
+    let arrow: string | undefined;
+    for (const r of rawYRows) {
+      const token = cleanVariationToken(r[c] || '');
+      if (!token) continue;
+      if (token === '↗' || token === '↘') {
+        arrow = token;
+      } else if (token !== 'y' && token !== 'f') {
+        val = token;
+      }
+    }
+    if (val !== undefined || arrow !== undefined) {
+      colData.push({ val, arrow });
+    }
+  }
+
+  let yValues: string[] = colData.filter((d) => d.val !== undefined).map((d) => d.val!);
+  let arrows: ('↗' | '↘')[] = colData.filter((d) => d.arrow === '↗' || d.arrow === '↘').map((d) => d.arrow as any);
+
+  // Nếu arrows chưa đủ N-1, suy luận từ dấu y' (+ là ↗, - là ↘)
+  if (arrows.length < N - 1) {
+    const signs = yPrimeItems.filter((item) => item === '+' || item === '-' || item === '−');
+    if (signs.length >= N - 1) {
+      arrows = signs.slice(0, N - 1).map((s) => (s === '+' ? '↗' : '↘'));
+    }
+  }
+
+  // Nếu yValues chưa đủ N, lấy các giá trị từ rawYRows
+  if (yValues.length < N) {
+    const allTokens = rawYRows.flatMap((r) => r.slice(1).map(cleanVariationToken).filter((c) => c.length > 0 && c !== '↗' && c !== '↘' && c !== 'y' && c !== 'f'));
+    if (allTokens.length === N) {
+      yValues = allTokens;
+    } else {
+      return null;
+    }
+  }
+
+  if (arrows.length !== N - 1 || yValues.length !== N) {
+    return null;
+  }
+
+  // TÍNH TOÁN TOẠ ĐỘ SVG CHUẨN XÁC
+  const W = 560;
+  const H = 195;
+  const col1W = 70;
+  const plotW = W - col1W - 40;
+  const stepX = plotW / (N - 1);
+
+  const X_pts = xPoints.map((_, i) => col1W + 20 + i * stepX);
+
+  const isTopPoint: boolean[] = [];
+  for (let i = 0; i < N; i++) {
+    if (i === 0) {
+      isTopPoint.push(arrows[0] === '↘');
+    } else if (i === N - 1) {
+      isTopPoint.push(arrows[arrows.length - 1] === '↗');
+    } else {
+      isTopPoint.push(arrows[i - 1] === '↗');
+    }
+  }
+
+  const Y_top = 118;
+  const Y_bot = 175;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" class="w-full max-w-[580px] h-auto select-none font-serif">`;
+  svg += `<defs>
+    <marker id="bbt-arrow-indigo" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4F46E5"/>
+    </marker>
+  </defs>`;
+
+  svg += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>`;
+  svg += `<line x1="${col1W}" y1="8" x2="${col1W}" y2="${H - 8}" stroke="#0F172A" stroke-width="2"/>`;
+  svg += `<line x1="8" y1="48" x2="${W - 8}" y2="48" stroke="#0F172A" stroke-width="1.5"/>`;
+  svg += `<line x1="8" y1="92" x2="${W - 8}" y2="92" stroke="#0F172A" stroke-width="1.5"/>`;
+
+  svg += `<text x="${col1W / 2}" y="33" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">x</text>`;
+  svg += `<text x="${col1W / 2}" y="76" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y'</text>`;
+  svg += `<text x="${col1W / 2}" y="146" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y</text>`;
+
+  // 1. Điểm hàng x
+  X_pts.forEach((x, i) => {
+    svg += `<text x="${x}" y="33" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${xPoints[i]}</text>`;
+  });
+
+  // 2. Dấu và số 0 ở hàng y'
+  for (let i = 0; i < N; i++) {
+    if (i > 0 && i < N - 1) {
+      svg += `<text x="${X_pts[i]}" y="76" text-anchor="middle" font-weight="bold" font-size="15" fill="#0F172A">0</text>`;
+    }
+    if (i < N - 1) {
+      const midX = (X_pts[i] + X_pts[i + 1]) / 2;
+      const isUp = arrows[i] === '↗';
+      const signText = isUp ? '+' : '−';
+      const signColor = isUp ? '#047857' : '#E11D48';
+      svg += `<text x="${midX}" y="76" text-anchor="middle" font-weight="bold" font-size="17" fill="${signColor}">${signText}</text>`;
+    }
+  }
+
+  // 3. Giá trị hàng y
+  X_pts.forEach((x, i) => {
+    const yVal = yValues[i];
+    const isTop = isTopPoint[i];
+    const yPos = isTop ? Y_top : Y_bot;
+    svg += `<text x="${x}" y="${yPos}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${yVal}</text>`;
+  });
+
+  // 4. Các đường mũi tên vector dài và chỉ đúng vị trí
+  for (let i = 0; i < N - 1; i++) {
+    const isUp = arrows[i] === '↗';
+    const x1 = X_pts[i] + 16;
+    const x2 = X_pts[i + 1] - 16;
+    let y1: number;
+    let y2: number;
+
+    if (isUp) {
+      y1 = Y_bot - 8;
+      y2 = Y_top + 4;
+    } else {
+      y1 = Y_top + 4;
+      y2 = Y_bot - 8;
+    }
+
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#4F46E5" stroke-width="2.2" marker-end="url(#bbt-arrow-indigo)"/>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+/**
  * Parses LaTeX \begin{tabular} ... \end{tabular} out of a text string.
  * Returns the cleaned text (without tabular) and the structured table data.
  */

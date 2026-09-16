@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
 import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken } from '../lib/tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken, generateVariationTableSvg } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
@@ -324,6 +324,25 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   }, [chartSvg, question]);
 
+  // Tự động chuyển đổi vector SVG Bảng Biến Thiên thành ảnh PNG để nhúng vào file Word
+  useEffect(() => {
+    if (parsedTables && parsedTables.length > 0 && !question.hinhAnh) {
+      for (const t of parsedTables) {
+        if (isVariationTable(t)) {
+          const svg = generateVariationTableSvg(t);
+          if (svg) {
+            svgStringToPngBase64(svg).then((png) => {
+              if (png) {
+                question.hinhAnh = png;
+              }
+            });
+            break;
+          }
+        }
+      }
+    }
+  }, [parsedTables, question]);
+
   const [renderedTikzSvg, setRenderedTikzSvg] = useState<string>('');
   const [isRenderingTikz, setIsRenderingTikz] = useState<boolean>(false);
 
@@ -513,6 +532,25 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         const isBBT = isVariationTable(parsedTable);
 
         if (isBBT) {
+          const bbtSvg = generateVariationTableSvg(parsedTable);
+          if (bbtSvg) {
+            return (
+              <div key={tIdx} className="my-3 flex justify-center overflow-x-auto select-none">
+                <div className="inline-block bg-white border border-slate-300 rounded-xl p-3 sm:p-4 shadow-xs max-w-full">
+                  <div className="text-[11px] font-semibold text-indigo-900/80 mb-2 flex items-center justify-between border-b border-slate-100 pb-1.5 font-sans">
+                    <span className="flex items-center gap-1.5">
+                      <span>📊</span> Bảng biến thiên
+                    </span>
+                  </div>
+                  <div
+                    className="w-full flex justify-center overflow-x-auto"
+                    dangerouslySetInnerHTML={{ __html: bbtSvg }}
+                  />
+                </div>
+              </div>
+            );
+          }
+
           const { xRow, yPrimeRow, yRows } = structureVariationTable(parsedTable);
           return (
             <div key={tIdx} className="my-3 flex justify-center overflow-x-auto select-text">
