@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
 import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable } from '../lib/tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
@@ -15,28 +15,28 @@ import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
  */
 function renderVariationTableCell(cell: string): React.ReactNode {
   if (!cell || !cell.trim()) return <span>&nbsp;</span>;
-  const trimmed = cell.trim();
+  const token = cleanVariationToken(cell);
 
-  // Mũi tên tăng lên \nearrow hoặc ↗
-  if (/^(\\nearrow|↗|\\rightarrow|->)$/i.test(trimmed)) {
+  // Mũi tên tăng lên ↗
+  if (token === '↗') {
     return (
-      <span className="inline-flex items-center justify-center text-base sm:text-lg text-indigo-600 font-bold select-none px-1">
+      <span className="inline-flex items-center justify-center text-lg sm:text-xl text-indigo-600 font-extrabold select-none px-1">
         ↗
       </span>
     );
   }
 
-  // Mũi tên giảm xuống \searrow hoặc ↘
-  if (/^(\\searrow|↘)$/i.test(trimmed)) {
+  // Mũi tên giảm xuống ↘
+  if (token === '↘') {
     return (
-      <span className="inline-flex items-center justify-center text-base sm:text-lg text-indigo-600 font-bold select-none px-1">
+      <span className="inline-flex items-center justify-center text-lg sm:text-xl text-indigo-600 font-extrabold select-none px-1">
         ↘
       </span>
     );
   }
 
   // Ký hiệu không xác định (hai vạch đứng ||)
-  if (/^(\\|\\||\\||\/\/)$/.test(trimmed)) {
+  if (token === '||') {
     return (
       <span className="inline-block font-bold text-slate-700 tracking-tighter text-sm px-0.5 select-none">
         ||
@@ -45,35 +45,33 @@ function renderVariationTableCell(cell: string): React.ReactNode {
   }
 
   // Dấu cộng +
-  if (trimmed === '+' || trimmed === '$+$') {
+  if (token === '+') {
     return <span className="text-emerald-700 font-bold text-sm select-none">+</span>;
   }
 
-  // Dấu trừ -
-  if (trimmed === '-' || trimmed === '$-$' || trimmed === '−') {
+  // Dấu trừ −
+  if (token === '-' || token === '−') {
     return <span className="text-rose-700 font-bold text-sm select-none">−</span>;
   }
 
   // Số 0
-  if (trimmed === '0' || trimmed === '$0$') {
+  if (token === '0') {
     return <span className="text-slate-800 font-semibold select-none">0</span>;
   }
 
-  // Vô cực -\infty hoặc +\infty
-  if (trimmed.includes('\\infty') || trimmed.includes('∞')) {
-    const isNeg = trimmed.includes('-');
+  // Vô cực −∞ hoặc +∞
+  if (token.includes('∞')) {
     return (
       <span className="font-serif italic text-xs sm:text-sm font-semibold text-slate-800">
-        {isNeg ? '−∞' : '+∞'}
+        {token}
       </span>
     );
   }
 
   // Các số, chữ số hoặc biểu thức toán thông thường
-  const clean = trimmed.replace(/^\$+|\$+$/g, '').trim();
   return (
     <span className="font-serif italic text-xs sm:text-sm font-semibold text-slate-900">
-      {clean}
+      {token}
     </span>
   );
 }

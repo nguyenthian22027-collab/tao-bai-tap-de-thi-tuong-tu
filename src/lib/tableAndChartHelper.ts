@@ -53,49 +53,170 @@ export interface FormattedVariationTable {
 }
 
 /**
+ * Chuẩn hóa một ô chuỗi trong Bảng Biến Thiên:
+ * Thay thế \nearrow thành ↗, \searrow thành ↘, \infty thành ∞, loại bỏ $ thừa
+ */
+export function cleanVariationToken(cell: string): string {
+  if (!cell) return '';
+  let s = cell.trim();
+  // Bỏ dấu $ bao ngoài
+  s = s.replace(/^\$+|\$+$/g, '').trim();
+  s = s.replace(/\\mathrm\{([^}]+)\}/g, '$1');
+  s = s.replace(/\\text\{([^}]+)\}/g, '$1');
+
+  // Mũi tên tăng / giảm
+  if (/^\\*nearrow$|^↗$|^\\*rightarrow$|^->$/i.test(s) || s.includes('nearrow') || s.includes('↗')) {
+    return '↗';
+  }
+  if (/^\\*searrow$|^↘$/i.test(s) || s.includes('searrow') || s.includes('↘')) {
+    return '↘';
+  }
+
+  // Ký hiệu không xác định
+  if (/^(\\|\\||\\||\/\/)$/.test(s)) {
+    return '||';
+  }
+
+  // Vô cực
+  if (s.includes('infty') || s.includes('∞')) {
+    const isNeg = s.includes('-');
+    return isNeg ? '−∞' : '+∞';
+  }
+
+  // Dấu trừ
+  if (s === '-' || s === '−') {
+    return '−';
+  }
+
+  return s;
+}
+
+/**
  * Chuẩn hóa và phân tách các dòng trong Bảng Biến Thiên:
- * Dòng x, dòng y', và các dòng nhánh của y (chứa số và mũi tên ↗ ↘)
+ * Tự động căn chỉnh hoàn hảo các cột điểm (nghiệm x, cực trị y, 0)
+ * và các cột khoảng biến thiên (dấu đạo hàm +, - và mũi tên ↗ ↘)
  */
 export function structureVariationTable(table: ParsedTableData): FormattedVariationTable {
   const allRows = [table.headers, ...(table.rows || [])];
-  const maxCols = Math.max(...allRows.map((r) => r.length), 1);
 
-  // Cân bằng số cột cho tất cả các hàng
+  // 1. Phân loại các hàng: hàng x, hàng y', và các hàng y
+  let rawXRow: string[] = [];
+  let rawYPrimeRow: string[] = [];
+  const rawYRows: string[][] = [];
+
+  for (let i = 0; i < allRows.length; i++) {
+    const row = allRows[i];
+    const firstCell = (row[0] || '').trim().toLowerCase().replace(/\$/g, '');
+    if (rawXRow.length === 0 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
+      rawXRow = row;
+    } else if (rawYPrimeRow.length === 0 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
+      rawYPrimeRow = row;
+    } else {
+      rawYRows.push(row);
+    }
+  }
+
+  // Dự phòng nếu không tìm thấy theo tên nhãn:
+  if (rawXRow.length === 0 && allRows.length > 0) rawXRow = allRows[0];
+  if (rawYPrimeRow.length === 0 && allRows.length > 1) rawYPrimeRow = allRows[1];
+  if (rawYRows.length === 0 && allRows.length > 2) rawYRows.push(...allRows.slice(2));
+
+  // Lấy danh sách các điểm x không rỗng (bỏ nhãn 'x')
+  const xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  // Lấy danh sách các dấu/số của y' không rỗng (bỏ nhãn 'y'')
+  const yPrimeItems = rawYPrimeRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+
+  const N = xPoints.length;
+  if (N >= 2 && yPrimeItems.length >= N - 1) {
+    const totalDataCols = 2 * N - 1;
+
+    // Căn cột hàng x: điểm nằm ở các cột chẵn 0, 2, 4, 6...; cột lẻ là khoảng trống
+    const alignedXData: string[] = [];
+    for (let i = 0; i < totalDataCols; i++) {
+      if (i % 2 === 0) {
+        alignedXData.push(xPoints[i / 2] || '');
+      } else {
+        alignedXData.push('');
+      }
+    }
+    const xRow = [rawXRow[0] || 'x', ...alignedXData];
+
+    // Căn cột hàng y':
+    const alignedYPrimeData: string[] = Array(totalDataCols).fill('');
+    if (yPrimeItems.length === totalDataCols - 2) {
+      for (let i = 0; i < yPrimeItems.length; i++) {
+        alignedYPrimeData[i + 1] = yPrimeItems[i];
+      }
+    } else if (yPrimeItems.length === totalDataCols) {
+      for (let i = 0; i < yPrimeItems.length; i++) {
+        alignedYPrimeData[i] = yPrimeItems[i];
+      }
+    } else {
+      let signIdx = 0;
+      for (let i = 0; i < totalDataCols; i++) {
+        if (signIdx < yPrimeItems.length) {
+          alignedYPrimeData[i] = yPrimeItems[signIdx++];
+        }
+      }
+    }
+    const yPrimeRow = [rawYPrimeRow[0] || "y'", ...alignedYPrimeData];
+
+    // Căn hàng y:
+    const allYItems = rawYRows.flatMap((r) => r.slice(1).map(cleanVariationToken).filter((c) => c.length > 0));
+    const arrows = allYItems.filter((c) => c === '↗' || c === '↘');
+    const values = allYItems.filter((c) => c !== '↗' && c !== '↘' && c !== 'y' && c !== 'f');
+
+    if (arrows.length === N - 1 && values.length === N) {
+      const topRow = Array(totalDataCols).fill('');
+      const midRow = Array(totalDataCols).fill('');
+      const botRow = Array(totalDataCols).fill('');
+
+      // Mũi tên luôn nằm ở các cột khoảng (cột lẻ 1, 3, 5...)
+      for (let i = 0; i < arrows.length; i++) {
+        midRow[2 * i + 1] = arrows[i];
+      }
+
+      // Giá trị luôn nằm ở các cột điểm (cột chẵn 0, 2, 4, 6...)
+      // Tự động xác định đỉnh (cực đại) hoặc đáy (cực tiểu) dựa trên hướng mũi tên
+      for (let i = 0; i < N; i++) {
+        const val = values[i];
+        let isTop = false;
+        if (i === 0) {
+          isTop = arrows[0] === '↘';
+        } else if (i === N - 1) {
+          isTop = arrows[arrows.length - 1] === '↗';
+        } else {
+          isTop = arrows[i - 1] === '↗';
+        }
+
+        if (isTop) {
+          topRow[2 * i] = val;
+        } else {
+          botRow[2 * i] = val;
+        }
+      }
+
+      const yRows = [
+        ['y', ...topRow],
+        ['', ...midRow],
+        ['', ...botRow],
+      ];
+
+      return { xRow, yPrimeRow, yRows, maxCols: totalDataCols + 1 };
+    }
+  }
+
+  // Trường hợp dự phòng nếu cấu trúc không theo quy luật thông thường
+  const maxCols = Math.max(...allRows.map((r) => r.length), 1);
   const paddedRows = allRows.map((r) => {
-    const copy = [...r];
+    const copy = r.map(cleanVariationToken);
     while (copy.length < maxCols) copy.push('');
     return copy;
   });
 
-  let xRowIdx = -1;
-  let yPrimeRowIdx = -1;
-
-  for (let i = 0; i < paddedRows.length; i++) {
-    const firstCell = (paddedRows[i][0] || '').trim().toLowerCase().replace(/\$/g, '');
-    if (xRowIdx === -1 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
-      xRowIdx = i;
-    } else if (yPrimeRowIdx === -1 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
-      yPrimeRowIdx = i;
-    }
-  }
-
-  if (xRowIdx === -1) xRowIdx = 0;
-  if (yPrimeRowIdx === -1 && paddedRows.length > 1) yPrimeRowIdx = 1;
-
-  const xRow = paddedRows[xRowIdx] || [];
-  const yPrimeRow = yPrimeRowIdx >= 0 && yPrimeRowIdx !== xRowIdx ? paddedRows[yPrimeRowIdx] : [];
-
-  const yRows: string[][] = [];
-  const handledIndices = new Set([xRowIdx, yPrimeRowIdx].filter((idx) => idx >= 0));
-  for (let i = 0; i < paddedRows.length; i++) {
-    if (!handledIndices.has(i)) {
-      yRows.push(paddedRows[i]);
-    }
-  }
-
-  if (yRows.length === 0 && paddedRows.length > 2) {
-    yRows.push(...paddedRows.slice(2));
-  }
+  const xRow = paddedRows[0] || [];
+  const yPrimeRow = paddedRows.length > 1 ? paddedRows[1] : [];
+  const yRows = paddedRows.slice(2);
 
   return { xRow, yPrimeRow, yRows, maxCols };
 }
