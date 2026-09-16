@@ -19,13 +19,13 @@ export function isVariationTable(table?: ParsedTableData | null): boolean {
   // 1. Chứa mũi tên biến thiên (\nearrow, \searrow, ↗, ↘, \uparrow, \downarrow)
   const hasArrows = /\\nearrow|\\searrow|↗|↘|\\uparrow|\\downarrow/i.test(allText);
 
-  // 2. Chứa vô cực (-\infty, +\infty, -∞, +∞)
-  const hasInfinity = /\\infty|[-+]\\infty|[-+]∞/i.test(allText);
+  // 2. Chứa vô cực (-\infty, +\infty, -∞, +∞, −∞)
+  const hasInfinity = /\\infty|[-+−–]\\infty|[-+−–]∞/i.test(allText);
 
   // 3. Cột đầu tiên chứa x, y', y hoặc f'(x), f(x)
   const firstColText = allRows.map((r) => (r[0] || '').trim()).join(' ');
   const hasX = /(?:^|\b|\$)x(?:\$|\b|$)/i.test(firstColText);
-  const hasYPrime = /(?:^|\b|\$)(?:y'|f'|f\(x\)'|f'\s*\(\s*x\s*\))(?:\$|\b|$)/i.test(firstColText);
+  const hasYPrime = /(?:^|\b|\$)(?:y|f)\s*(?:'|’|\^\s*\{?\s*\\prime\s*\}?)(?:\s*\([a-zA-Z]\))?(?:\$|\b|$)/i.test(firstColText);
   const hasY = /(?:^|\b|\$)(?:y|f|f\s*\(\s*x\s*\))(?:\$|\b|$)/i.test(firstColText);
 
   if ((hasX && (hasYPrime || hasY)) || (hasArrows && (hasInfinity || hasX || hasYPrime))) {
@@ -34,8 +34,8 @@ export function isVariationTable(table?: ParsedTableData | null): boolean {
 
   // 4. Có hàng dấu đạo hàm (+, -, 0)
   const hasSignsRow = allRows.some((r) => {
-    const signs = r.filter((c) => /^[+-0]$|^\\pm$/.test(c.trim().replace(/\$/g, '')));
-    return signs.length >= 3;
+    const signs = r.filter((c) => /^[+\-−–0]$|^\\pm$|^\|\|$/.test(c.trim().replace(/\$/g, '')));
+    return signs.length >= 2;
   });
 
   if (hasX && hasSignsRow) {
@@ -65,10 +65,10 @@ export function cleanVariationToken(cell: string): string {
   s = s.replace(/\\text\{([^}]+)\}/g, '$1');
 
   // Mũi tên tăng / giảm
-  if (/^\\*nearrow$|^↗$|^\\*rightarrow$|^->$/i.test(s) || s.includes('nearrow') || s.includes('↗')) {
+  if (/^\\*(?:nearrow|uparrow|rightarrow|->)$|^↗$/i.test(s) || s.includes('nearrow') || s.includes('↗')) {
     return '↗';
   }
-  if (/^\\*searrow$|^↘$/i.test(s) || s.includes('searrow') || s.includes('↘')) {
+  if (/^\\*(?:searrow|downarrow)$|^↘$/i.test(s) || s.includes('searrow') || s.includes('↘')) {
     return '↘';
   }
 
@@ -77,15 +77,20 @@ export function cleanVariationToken(cell: string): string {
     return '||';
   }
 
-  // Vô cực
+  // Vô cực: kiểm tra mọi loại dấu âm (ASCII -, Unicode minus −, en-dash –)
   if (s.includes('infty') || s.includes('∞')) {
-    const isNeg = s.includes('-');
+    const isNeg = /[-−–]/.test(s);
     return isNeg ? '−∞' : '+∞';
   }
 
   // Dấu trừ
-  if (s === '-' || s === '−') {
+  if (s === '-' || s === '−' || s === '–') {
     return '−';
+  }
+
+  // Dấu cộng
+  if (s === '+') {
+    return '+';
   }
 
   return s;
@@ -107,9 +112,13 @@ export function structureVariationTable(table: ParsedTableData): FormattedVariat
   for (let i = 0; i < allRows.length; i++) {
     const row = allRows[i];
     const firstCell = (row[0] || '').trim().toLowerCase().replace(/\$/g, '');
-    if (rawXRow.length === 0 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
+    const isXLabel = firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/i.test(firstCell);
+    const isYPrimeLabel = /(?:^|[^a-zA-Z])(?:y|f)\s*(?:'|’|\^\s*\{?\s*\\prime\s*\}?)(?:\s*\([a-zA-Z]\))?/i.test(firstCell);
+    const hasManySigns = row.filter((c) => /^[+\-−–0]$|^\\pm$|^\|\|$/.test(c.trim().replace(/\$/g, ''))).length >= 2;
+
+    if (rawXRow.length === 0 && (isXLabel || i === 0)) {
       rawXRow = row;
-    } else if (rawYPrimeRow.length === 0 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
+    } else if (rawYPrimeRow.length === 0 && (isYPrimeLabel || hasManySigns || i === 1)) {
       rawYPrimeRow = row;
     } else {
       rawYRows.push(row);
@@ -122,12 +131,25 @@ export function structureVariationTable(table: ParsedTableData): FormattedVariat
   if (rawYRows.length === 0 && allRows.length > 2) rawYRows.push(...allRows.slice(2));
 
   // Lấy danh sách các điểm x không rỗng (bỏ nhãn 'x')
-  const xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
-  // Lấy danh sách các dấu/số của y' không rỗng (bỏ nhãn 'y'')
-  const yPrimeItems = rawYPrimeRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  let xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  if (xPoints.length === 0) {
+    xPoints = rawXRow.map(cleanVariationToken).filter((c) => c.length > 0 && c !== 'x');
+  }
 
+  // Chuẩn hóa vô cực ở hai đầu của trục x
+  if (xPoints.length > 0) {
+    if (xPoints[0].includes('∞') && !xPoints[0].includes('+')) {
+      xPoints[0] = '−∞';
+    }
+    if (xPoints[xPoints.length - 1].includes('∞') && !xPoints[xPoints.length - 1].includes('-') && !xPoints[xPoints.length - 1].includes('−')) {
+      xPoints[xPoints.length - 1] = '+∞';
+    }
+  }
+
+  const yPrimeItems = rawYPrimeRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
   const N = xPoints.length;
-  if (N >= 2 && yPrimeItems.length >= N - 1) {
+
+  if (N >= 2) {
     const totalDataCols = 2 * N - 1;
 
     // Căn cột hàng x: điểm nằm ở các cột chẵn 0, 2, 4, 6...; cột lẻ là khoảng trống
@@ -141,69 +163,118 @@ export function structureVariationTable(table: ParsedTableData): FormattedVariat
     }
     const xRow = [rawXRow[0] || 'x', ...alignedXData];
 
+    // Lấy chiều biến thiên arrows (độ dài N-1)
+    const allYTokens = rawYRows.flatMap((r) =>
+      r.slice(r[0] && (r[0].includes('y') || r[0].includes('f')) ? 1 : 0)
+       .map(cleanVariationToken)
+       .filter((c) => c.length > 0)
+    );
+    const explicitArrows = allYTokens.filter((t) => t === '↗' || t === '↘');
+
+    const arrows: ('↗' | '↘')[] = [];
+    for (let i = 0; i < N - 1; i++) {
+      if (explicitArrows.length === N - 1) {
+        arrows.push(explicitArrows[i] as any);
+      } else {
+        const signs = yPrimeItems.filter((item) => item === '+' || item === '-' || item === '−' || item === '–');
+        if (signs.length >= N - 1) {
+          arrows.push(signs[i] === '+' ? '↗' : '↘');
+        } else {
+          arrows.push(i % 2 === 0 ? '↘' : '↗');
+        }
+      }
+    }
+
     // Căn cột hàng y':
     const alignedYPrimeData: string[] = Array(totalDataCols).fill('');
-    if (yPrimeItems.length === totalDataCols - 2) {
-      for (let i = 0; i < yPrimeItems.length; i++) {
-        alignedYPrimeData[i + 1] = yPrimeItems[i];
+    for (let i = 0; i < N; i++) {
+      if (i > 0 && i < N - 1) {
+        const isDouble = yPrimeItems.includes('||') || xPoints[i] === '||';
+        alignedYPrimeData[2 * i] = isDouble ? '||' : '0';
       }
-    } else if (yPrimeItems.length === totalDataCols) {
-      for (let i = 0; i < yPrimeItems.length; i++) {
-        alignedYPrimeData[i] = yPrimeItems[i];
-      }
-    } else {
-      let signIdx = 0;
-      for (let i = 0; i < totalDataCols; i++) {
-        if (signIdx < yPrimeItems.length) {
-          alignedYPrimeData[i] = yPrimeItems[signIdx++];
-        }
+      if (i < N - 1) {
+        alignedYPrimeData[2 * i + 1] = arrows[i] === '↗' ? '+' : '−';
       }
     }
     const yPrimeRow = [rawYPrimeRow[0] || "y'", ...alignedYPrimeData];
 
-    // Căn hàng y:
-    const allYItems = rawYRows.flatMap((r) => r.slice(1).map(cleanVariationToken).filter((c) => c.length > 0));
-    const arrows = allYItems.filter((c) => c === '↗' || c === '↘');
-    const values = allYItems.filter((c) => c !== '↗' && c !== '↘' && c !== 'y' && c !== 'f');
-
-    if (arrows.length === N - 1 && values.length === N) {
-      const topRow = Array(totalDataCols).fill('');
-      const midRow = Array(totalDataCols).fill('');
-      const botRow = Array(totalDataCols).fill('');
-
-      // Mũi tên luôn nằm ở các cột khoảng (cột lẻ 1, 3, 5...)
-      for (let i = 0; i < arrows.length; i++) {
-        midRow[2 * i + 1] = arrows[i];
-      }
-
-      // Giá trị luôn nằm ở các cột điểm (cột chẵn 0, 2, 4, 6...)
-      // Tự động xác định đỉnh (cực đại) hoặc đáy (cực tiểu) dựa trên hướng mũi tên
-      for (let i = 0; i < N; i++) {
-        const val = values[i];
-        let isTop = false;
-        if (i === 0) {
-          isTop = arrows[0] === '↘';
-        } else if (i === N - 1) {
-          isTop = arrows[arrows.length - 1] === '↗';
+    // Phân loại điểm cực trị: TOP (cực đại), BOT (cực tiểu), MID (điểm uốn)
+    const pointTypes: ('TOP' | 'BOT' | 'MID')[] = [];
+    for (let i = 0; i < N; i++) {
+      if (i === 0) {
+        pointTypes.push(arrows[0] === '↘' ? 'TOP' : 'BOT');
+      } else if (i === N - 1) {
+        pointTypes.push(arrows[arrows.length - 1] === '↗' ? 'TOP' : 'BOT');
+      } else {
+        const prevUp = arrows[i - 1] === '↗';
+        const nextUp = arrows[i] === '↗';
+        if (prevUp && !nextUp) {
+          pointTypes.push('TOP');
+        } else if (!prevUp && nextUp) {
+          pointTypes.push('BOT');
         } else {
-          isTop = arrows[i - 1] === '↗';
-        }
-
-        if (isTop) {
-          topRow[2 * i] = val;
-        } else {
-          botRow[2 * i] = val;
+          pointTypes.push('MID');
         }
       }
-
-      const yRows = [
-        ['y', ...topRow],
-        ['', ...midRow],
-        ['', ...botRow],
-      ];
-
-      return { xRow, yPrimeRow, yRows, maxCols: totalDataCols + 1 };
     }
+
+    // Lấy các giá trị y
+    const rowTokens = rawYRows.map((r) =>
+      r.slice(r[0] && (r[0].includes('y') || r[0].includes('f')) ? 1 : 0)
+       .map(cleanVariationToken)
+       .filter((c) => c.length > 0)
+    ).filter((r) => r.length > 0);
+
+    const nonArrowRows = rowTokens.filter((r) => !r.some((t) => t === '↗' || t === '↘'));
+    const finalYValues: string[] = Array(N).fill('');
+
+    if (nonArrowRows.length === 2) {
+      const topTokens = nonArrowRows[0];
+      const botTokens = nonArrowRows[1];
+      let topIdx = 0;
+      let botIdx = 0;
+      for (let i = 0; i < N; i++) {
+        if (pointTypes[i] === 'TOP') {
+          if (topIdx < topTokens.length) finalYValues[i] = topTokens[topIdx++];
+        } else {
+          if (botIdx < botTokens.length) finalYValues[i] = botTokens[botIdx++];
+        }
+      }
+    } else {
+      const valTokens = allYTokens.filter((t) => t !== '↗' && t !== '↘' && t !== 'y' && t !== 'f');
+      for (let i = 0; i < N; i++) {
+        if (i < valTokens.length) {
+          finalYValues[i] = valTokens[i];
+        }
+      }
+    }
+
+    const topRow = Array(totalDataCols).fill('');
+    const midRow = Array(totalDataCols).fill('');
+    const botRow = Array(totalDataCols).fill('');
+
+    for (let i = 0; i < arrows.length; i++) {
+      midRow[2 * i + 1] = arrows[i];
+    }
+
+    for (let i = 0; i < N; i++) {
+      const val = finalYValues[i];
+      if (pointTypes[i] === 'TOP') {
+        topRow[2 * i] = val;
+      } else if (pointTypes[i] === 'BOT') {
+        botRow[2 * i] = val;
+      } else {
+        midRow[2 * i] = val;
+      }
+    }
+
+    const yRows = [
+      ['y', ...topRow],
+      ['', ...midRow],
+      ['', ...botRow],
+    ];
+
+    return { xRow, yPrimeRow, yRows, maxCols: totalDataCols + 1 };
   }
 
   // Trường hợp dự phòng nếu cấu trúc không theo quy luật thông thường
@@ -239,156 +310,209 @@ export function generateVariationTableSvg(table: ParsedTableData): string | null
   for (let i = 0; i < allRows.length; i++) {
     const row = allRows[i];
     const firstCell = (row[0] || '').trim().toLowerCase().replace(/\$/g, '');
-    if (rawXRow.length === 0 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
+    const isXLabel = firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/i.test(firstCell);
+    const isYPrimeLabel = /(?:^|[^a-zA-Z])(?:y|f)\s*(?:'|’|\^\s*\{?\s*\\prime\s*\}?)(?:\s*\([a-zA-Z]\))?/i.test(firstCell);
+    const hasManySigns = row.filter((c) => /^[+\-−–0]$|^\\pm$|^\|\|$/.test(c.trim().replace(/\$/g, ''))).length >= 2;
+
+    if (rawXRow.length === 0 && (isXLabel || i === 0)) {
       rawXRow = row;
-    } else if (rawYPrimeRow.length === 0 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
+    } else if (rawYPrimeRow.length === 0 && (isYPrimeLabel || hasManySigns || i === 1)) {
       rawYPrimeRow = row;
     } else {
       rawYRows.push(row);
     }
   }
 
+  // Dự phòng nếu không tìm thấy theo tên nhãn:
   if (rawXRow.length === 0 && allRows.length > 0) rawXRow = allRows[0];
   if (rawYPrimeRow.length === 0 && allRows.length > 1) rawYPrimeRow = allRows[1];
   if (rawYRows.length === 0 && allRows.length > 2) rawYRows.push(...allRows.slice(2));
 
   // Lấy các điểm x
-  const xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  let xPoints = rawXRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
+  if (xPoints.length === 0) {
+    xPoints = rawXRow.map(cleanVariationToken).filter((c) => c.length > 0 && c !== 'x');
+  }
+
+  // Chuẩn hóa vô cực ở hai đầu của trục x
+  if (xPoints.length > 0) {
+    if (xPoints[0].includes('∞') && !xPoints[0].includes('+')) {
+      xPoints[0] = '−∞';
+    }
+    if (xPoints[xPoints.length - 1].includes('∞') && !xPoints[xPoints.length - 1].includes('-') && !xPoints[xPoints.length - 1].includes('−')) {
+      xPoints[xPoints.length - 1] = '+∞';
+    }
+  }
+
   const N = xPoints.length;
   if (N < 2) return null;
 
-  // Lấy dấu y'
+  // Lấy dấu và ký hiệu hàng y'
   const yPrimeItems = rawYPrimeRow.slice(1).map(cleanVariationToken).filter((c) => c.length > 0);
 
-  // Lấy giá trị và chiều biến thiên của y theo cột
-  const maxCols = Math.max(...allRows.map((r) => r.length));
-  
-  const colData: { val?: string; arrow?: string }[] = [];
-  for (let c = 1; c < maxCols; c++) {
-    let val: string | undefined;
-    let arrow: string | undefined;
-    for (const r of rawYRows) {
-      const token = cleanVariationToken(r[c] || '');
-      if (!token) continue;
-      if (token === '↗' || token === '↘') {
-        arrow = token;
-      } else if (token !== 'y' && token !== 'f') {
-        val = token;
+  // Lấy chiều biến thiên arrows (độ dài N-1)
+  const allYTokens = rawYRows.flatMap((r) =>
+    r.slice(r[0] && (r[0].includes('y') || r[0].includes('f')) ? 1 : 0)
+     .map(cleanVariationToken)
+     .filter((c) => c.length > 0)
+  );
+  const explicitArrows = allYTokens.filter((t) => t === '↗' || t === '↘');
+
+  const arrows: ('↗' | '↘')[] = [];
+  for (let i = 0; i < N - 1; i++) {
+    if (explicitArrows.length === N - 1) {
+      arrows.push(explicitArrows[i] as any);
+    } else {
+      const signs = yPrimeItems.filter((item) => item === '+' || item === '-' || item === '−' || item === '–');
+      if (signs.length >= N - 1) {
+        arrows.push(signs[i] === '+' ? '↗' : '↘');
+      } else {
+        arrows.push(i % 2 === 0 ? '↘' : '↗');
       }
     }
-    if (val !== undefined || arrow !== undefined) {
-      colData.push({ val, arrow });
-    }
   }
 
-  let yValues: string[] = colData.filter((d) => d.val !== undefined).map((d) => d.val!);
-  let arrows: ('↗' | '↘')[] = colData.filter((d) => d.arrow === '↗' || d.arrow === '↘').map((d) => d.arrow as any);
-
-  // Nếu arrows chưa đủ N-1, suy luận từ dấu y' (+ là ↗, - là ↘)
-  if (arrows.length < N - 1) {
-    const signs = yPrimeItems.filter((item) => item === '+' || item === '-' || item === '−');
-    if (signs.length >= N - 1) {
-      arrows = signs.slice(0, N - 1).map((s) => (s === '+' ? '↗' : '↘'));
-    }
-  }
-
-  // Nếu yValues chưa đủ N, lấy các giá trị từ rawYRows
-  if (yValues.length < N) {
-    const allTokens = rawYRows.flatMap((r) => r.slice(1).map(cleanVariationToken).filter((c) => c.length > 0 && c !== '↗' && c !== '↘' && c !== 'y' && c !== 'f'));
-    if (allTokens.length === N) {
-      yValues = allTokens;
-    } else {
-      return null;
-    }
-  }
-
-  if (arrows.length !== N - 1 || yValues.length !== N) {
-    return null;
-  }
-
-  // TÍNH TOÁN TOẠ ĐỘ SVG CHUẨN XÁC
-  const W = 560;
-  const H = 195;
-  const col1W = 70;
-  const plotW = W - col1W - 40;
-  const stepX = plotW / (N - 1);
-
-  const X_pts = xPoints.map((_, i) => col1W + 20 + i * stepX);
-
-  const isTopPoint: boolean[] = [];
+  // Phân loại điểm cực trị: TOP (cực đại), BOT (cực tiểu), MID (điểm uốn)
+  const pointTypes: ('TOP' | 'BOT' | 'MID')[] = [];
   for (let i = 0; i < N; i++) {
     if (i === 0) {
-      isTopPoint.push(arrows[0] === '↘');
+      pointTypes.push(arrows[0] === '↘' ? 'TOP' : 'BOT');
     } else if (i === N - 1) {
-      isTopPoint.push(arrows[arrows.length - 1] === '↗');
+      pointTypes.push(arrows[arrows.length - 1] === '↗' ? 'TOP' : 'BOT');
     } else {
-      isTopPoint.push(arrows[i - 1] === '↗');
+      const prevUp = arrows[i - 1] === '↗';
+      const nextUp = arrows[i] === '↗';
+      if (prevUp && !nextUp) {
+        pointTypes.push('TOP');
+      } else if (!prevUp && nextUp) {
+        pointTypes.push('BOT');
+      } else {
+        pointTypes.push('MID');
+      }
     }
   }
 
-  const Y_top = 118;
-  const Y_bot = 175;
+  // Lấy các giá trị y
+  const rowTokens = rawYRows.map((r) =>
+    r.slice(r[0] && (r[0].includes('y') || r[0].includes('f')) ? 1 : 0)
+     .map(cleanVariationToken)
+     .filter((c) => c.length > 0)
+  ).filter((r) => r.length > 0);
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" class="w-full max-w-[580px] h-auto select-none font-serif">`;
+  const nonArrowRows = rowTokens.filter((r) => !r.some((t) => t === '↗' || t === '↘'));
+  const finalYValues: string[] = Array(N).fill('');
+
+  if (nonArrowRows.length === 2) {
+    const topTokens = nonArrowRows[0];
+    const botTokens = nonArrowRows[1];
+    let topIdx = 0;
+    let botIdx = 0;
+    for (let i = 0; i < N; i++) {
+      if (pointTypes[i] === 'TOP') {
+        if (topIdx < topTokens.length) finalYValues[i] = topTokens[topIdx++];
+      } else {
+        if (botIdx < botTokens.length) finalYValues[i] = botTokens[botIdx++];
+      }
+    }
+  } else {
+    const valTokens = allYTokens.filter((t) => t !== '↗' && t !== '↘' && t !== 'y' && t !== 'f');
+    for (let i = 0; i < N; i++) {
+      if (i < valTokens.length) {
+        finalYValues[i] = valTokens[i];
+      }
+    }
+  }
+
+  // Kiểm tra tiệm cận đứng / điểm không xác định (||)
+  const isDoubleBar = (idx: number) => {
+    if (xPoints[idx] === '||') return true;
+    if (idx < yPrimeItems.length && yPrimeItems[idx] === '||') return true;
+    return false;
+  };
+
+  // TÍNH TOÁN TOẠ ĐỘ SVG CHUẨN XÁC
+  const W = Math.max(560, N * 135);
+  const H = 205;
+  const col1W = 70;
+  const plotW = W - col1W - 50;
+  const stepX = plotW / (N - 1);
+
+  const X_pts = xPoints.map((_, i) => col1W + 25 + i * stepX);
+  const Y_top = 118;
+  const Y_mid = 150;
+  const Y_bot = 182;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" class="w-full max-w-[620px] h-auto select-none font-serif">`;
   svg += `<defs>
-    <marker id="bbt-arrow-indigo" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4F46E5"/>
+    <marker id="bbt-arrow-indigo" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="#4F46E5"/>
     </marker>
   </defs>`;
 
-  svg += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>`;
+  svg += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>`;
   svg += `<line x1="${col1W}" y1="8" x2="${col1W}" y2="${H - 8}" stroke="#0F172A" stroke-width="2"/>`;
-  svg += `<line x1="8" y1="48" x2="${W - 8}" y2="48" stroke="#0F172A" stroke-width="1.5"/>`;
-  svg += `<line x1="8" y1="92" x2="${W - 8}" y2="92" stroke="#0F172A" stroke-width="1.5"/>`;
+  svg += `<line x1="8" y1="46" x2="${W - 8}" y2="46" stroke="#0F172A" stroke-width="1.5"/>`;
+  svg += `<line x1="8" y1="90" x2="${W - 8}" y2="90" stroke="#0F172A" stroke-width="1.5"/>`;
 
-  svg += `<text x="${col1W / 2}" y="33" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">x</text>`;
-  svg += `<text x="${col1W / 2}" y="76" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y'</text>`;
-  svg += `<text x="${col1W / 2}" y="146" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y</text>`;
+  svg += `<text x="${col1W / 2}" y="31" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">x</text>`;
+  svg += `<text x="${col1W / 2}" y="74" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y'</text>`;
+  svg += `<text x="${col1W / 2}" y="152" text-anchor="middle" font-family="serif" font-weight="bold" font-style="italic" font-size="16" fill="#0F172A">y</text>`;
 
   // 1. Điểm hàng x
   X_pts.forEach((x, i) => {
-    svg += `<text x="${x}" y="33" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${xPoints[i]}</text>`;
+    if (xPoints[i] !== '||') {
+      svg += `<text x="${x.toFixed(1)}" y="31" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${xPoints[i]}</text>`;
+    }
   });
 
-  // 2. Dấu và số 0 ở hàng y'
+  // 2. Dấu và số 0 ở hàng y', hoặc tiệm cận đứng ||
   for (let i = 0; i < N; i++) {
-    if (i > 0 && i < N - 1) {
-      svg += `<text x="${X_pts[i]}" y="76" text-anchor="middle" font-weight="bold" font-size="15" fill="#0F172A">0</text>`;
+    if (isDoubleBar(i)) {
+      // Hai vạch song song cho điểm không xác định
+      svg += `<line x1="${(X_pts[i] - 2.5).toFixed(1)}" y1="46" x2="${(X_pts[i] - 2.5).toFixed(1)}" y2="${H - 8}" stroke="#0F172A" stroke-width="1.2"/>`;
+      svg += `<line x1="${(X_pts[i] + 2.5).toFixed(1)}" y1="46" x2="${(X_pts[i] + 2.5).toFixed(1)}" y2="${H - 8}" stroke="#0F172A" stroke-width="1.2"/>`;
+    } else if (i > 0 && i < N - 1) {
+      svg += `<text x="${X_pts[i].toFixed(1)}" y="74" text-anchor="middle" font-weight="bold" font-size="15" fill="#0F172A">0</text>`;
     }
     if (i < N - 1) {
       const midX = (X_pts[i] + X_pts[i + 1]) / 2;
       const isUp = arrows[i] === '↗';
       const signText = isUp ? '+' : '−';
       const signColor = isUp ? '#047857' : '#E11D48';
-      svg += `<text x="${midX}" y="76" text-anchor="middle" font-weight="bold" font-size="17" fill="${signColor}">${signText}</text>`;
+      svg += `<text x="${midX.toFixed(1)}" y="74" text-anchor="middle" font-weight="bold" font-size="17" fill="${signColor}">${signText}</text>`;
     }
   }
 
   // 3. Giá trị hàng y
   X_pts.forEach((x, i) => {
-    const yVal = yValues[i];
-    const isTop = isTopPoint[i];
-    const yPos = isTop ? Y_top : Y_bot;
-    svg += `<text x="${x}" y="${yPos}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${yVal}</text>`;
+    const yVal = finalYValues[i];
+    const type = pointTypes[i];
+    const yPos = type === 'TOP' ? Y_top : (type === 'MID' ? Y_mid : Y_bot);
+    if (yVal && yVal !== '||') {
+      svg += `<text x="${x.toFixed(1)}" y="${yPos}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="15" fill="#0F172A">${yVal}</text>`;
+    }
   });
 
   // 4. Các đường mũi tên vector dài và chỉ đúng vị trí
   for (let i = 0; i < N - 1; i++) {
     const isUp = arrows[i] === '↗';
-    const x1 = X_pts[i] + 16;
-    const x2 = X_pts[i + 1] - 16;
+    const x1 = X_pts[i] + 18;
+    const x2 = X_pts[i + 1] - 18;
+    const startType = pointTypes[i];
+    const endType = pointTypes[i + 1];
+
     let y1: number;
     let y2: number;
 
     if (isUp) {
-      y1 = Y_bot - 8;
-      y2 = Y_top + 4;
+      y1 = (startType === 'BOT' ? Y_bot - 8 : (startType === 'MID' ? Y_mid - 6 : Y_top - 6));
+      y2 = (endType === 'TOP' ? Y_top + 4 : (endType === 'MID' ? Y_mid + 4 : Y_bot + 4));
     } else {
-      y1 = Y_top + 4;
-      y2 = Y_bot - 8;
+      y1 = (startType === 'TOP' ? Y_top + 6 : (startType === 'MID' ? Y_mid + 6 : Y_bot + 6));
+      y2 = (endType === 'BOT' ? Y_bot - 8 : (endType === 'MID' ? Y_mid - 8 : Y_top - 8));
     }
 
-    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#4F46E5" stroke-width="2.2" marker-end="url(#bbt-arrow-indigo)"/>`;
+    svg += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#4F46E5" stroke-width="2.2" marker-end="url(#bbt-arrow-indigo)"/>`;
   }
 
   svg += `</svg>`;
