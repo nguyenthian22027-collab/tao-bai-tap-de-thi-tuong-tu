@@ -9,6 +9,98 @@ export interface ParsedTableData {
 }
 
 /**
+ * Kiểm tra xem một bảng dữ liệu có phải là Bảng Biến Thiên (Toán THCS/THPT) hay không
+ */
+export function isVariationTable(table?: ParsedTableData | null): boolean {
+  if (!table || !table.headers) return false;
+  const allRows = [table.headers, ...(table.rows || [])];
+  const allText = allRows.flat().join(' ');
+
+  // 1. Chứa mũi tên biến thiên (\nearrow, \searrow, ↗, ↘, \uparrow, \downarrow)
+  const hasArrows = /\\nearrow|\\searrow|↗|↘|\\uparrow|\\downarrow/i.test(allText);
+
+  // 2. Chứa vô cực (-\infty, +\infty, -∞, +∞)
+  const hasInfinity = /\\infty|[-+]\\infty|[-+]∞/i.test(allText);
+
+  // 3. Cột đầu tiên chứa x, y', y hoặc f'(x), f(x)
+  const firstColText = allRows.map((r) => (r[0] || '').trim()).join(' ');
+  const hasX = /(?:^|\b|\$)x(?:\$|\b|$)/i.test(firstColText);
+  const hasYPrime = /(?:^|\b|\$)(?:y'|f'|f\(x\)'|f'\s*\(\s*x\s*\))(?:\$|\b|$)/i.test(firstColText);
+  const hasY = /(?:^|\b|\$)(?:y|f|f\s*\(\s*x\s*\))(?:\$|\b|$)/i.test(firstColText);
+
+  if ((hasX && (hasYPrime || hasY)) || (hasArrows && (hasInfinity || hasX || hasYPrime))) {
+    return true;
+  }
+
+  // 4. Có hàng dấu đạo hàm (+, -, 0)
+  const hasSignsRow = allRows.some((r) => {
+    const signs = r.filter((c) => /^[+-0]$|^\\pm$/.test(c.trim().replace(/\$/g, '')));
+    return signs.length >= 3;
+  });
+
+  if (hasX && hasSignsRow) {
+    return true;
+  }
+
+  return false;
+}
+
+export interface FormattedVariationTable {
+  xRow: string[];
+  yPrimeRow: string[];
+  yRows: string[][];
+  maxCols: number;
+}
+
+/**
+ * Chuẩn hóa và phân tách các dòng trong Bảng Biến Thiên:
+ * Dòng x, dòng y', và các dòng nhánh của y (chứa số và mũi tên ↗ ↘)
+ */
+export function structureVariationTable(table: ParsedTableData): FormattedVariationTable {
+  const allRows = [table.headers, ...(table.rows || [])];
+  const maxCols = Math.max(...allRows.map((r) => r.length), 1);
+
+  // Cân bằng số cột cho tất cả các hàng
+  const paddedRows = allRows.map((r) => {
+    const copy = [...r];
+    while (copy.length < maxCols) copy.push('');
+    return copy;
+  });
+
+  let xRowIdx = -1;
+  let yPrimeRowIdx = -1;
+
+  for (let i = 0; i < paddedRows.length; i++) {
+    const firstCell = (paddedRows[i][0] || '').trim().toLowerCase().replace(/\$/g, '');
+    if (xRowIdx === -1 && (firstCell === 'x' || /^(?:\\text\{)?x(?:\})?$/.test(firstCell))) {
+      xRowIdx = i;
+    } else if (yPrimeRowIdx === -1 && (firstCell.includes("y'") || firstCell.includes("f'"))) {
+      yPrimeRowIdx = i;
+    }
+  }
+
+  if (xRowIdx === -1) xRowIdx = 0;
+  if (yPrimeRowIdx === -1 && paddedRows.length > 1) yPrimeRowIdx = 1;
+
+  const xRow = paddedRows[xRowIdx] || [];
+  const yPrimeRow = yPrimeRowIdx >= 0 && yPrimeRowIdx !== xRowIdx ? paddedRows[yPrimeRowIdx] : [];
+
+  const yRows: string[][] = [];
+  const handledIndices = new Set([xRowIdx, yPrimeRowIdx].filter((idx) => idx >= 0));
+  for (let i = 0; i < paddedRows.length; i++) {
+    if (!handledIndices.has(i)) {
+      yRows.push(paddedRows[i]);
+    }
+  }
+
+  if (yRows.length === 0 && paddedRows.length > 2) {
+    yRows.push(...paddedRows.slice(2));
+  }
+
+  return { xRow, yPrimeRow, yRows, maxCols };
+}
+
+/**
  * Parses LaTeX \begin{tabular} ... \end{tabular} out of a text string.
  * Returns the cleaned text (without tabular) and the structured table data.
  */

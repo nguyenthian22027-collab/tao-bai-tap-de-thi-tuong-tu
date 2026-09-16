@@ -211,7 +211,7 @@ export function buildExamPrompt(
     • Hình cầu (sphere) → \\draw circle + \\draw[dashed] ellipse cho mặt cắt xích đạo
     • Hình chóp (pyramid) / Lăng trụ 3D → phối cảnh nghiêng, cạnh khuất là nét đứt [dashed]
     • Đồ thị hàm số → \\begin{axis}[...]...\\end{axis} (pgfplots); vẽ đúng domain hàm
-    • Bảng biến thiên → \\draw + \\node + dấu +/- và mũi tên tăng giảm
+    • Bảng biến thiên → Nếu câu hỏi đã có bảng biến thiên dạng \\begin{tabular} trong đề bài (trường NOI_DUNG) thì trường TIKZ BẮT BUỘC ĐỂ TRỐNG (TUYỆT ĐỐI KHÔNG vẽ thêm hình tròn hay hình học lạ). Nếu đề không có \\begin{tabular} mà vẽ TikZ thì vẽ đúng khung bảng biến thiên gồm \\draw + \\node + dấu +/- và mũi tên tăng giảm, TUYỆT ĐỐI KHÔNG vẽ hình tròn.
     • Tam giác / Đa giác phẳng → \\draw (A)--(B)--(C)--cycle; nhãn điểm đúng vị trí
   [B] TUYỆT ĐỐI KHÔNG sao chép cùng mã TikZ cho 2 câu khác nhau. Mỗi câu có mã TikZ ĐỘC LẬP, đúng số liệu riêng của câu đó.
   [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.

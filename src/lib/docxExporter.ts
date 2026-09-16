@@ -16,7 +16,7 @@ import {
 } from 'docx';
 import { ExamData, Question, QuestionType } from '../types';
 import { latexToOmml } from './latexToOmml';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from './tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, ParsedTableData } from './tableAndChartHelper';
 import { renderTikzToPng } from './tikzRenderer';
 
 export type ExportFormat = 'latex' | 'omml' | 'mathtype';
@@ -657,41 +657,102 @@ export async function exportExamToDocxLatex(
       // Render all Tabular Tables if question contains LaTeX \begin{tabular}
       if (parsedTables && parsedTables.length > 0) {
         for (const parsedTable of parsedTables) {
-          const headerCells = parsedTable.headers.map(
-            (h) =>
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER,
-                    children: [new TextRun({ text: h, bold: true, size: 20 })],
-                  }),
-                ],
-                shading: { fill: 'E2E8F0' },
+          if (isVariationTable(parsedTable)) {
+            const { xRow, yPrimeRow, yRows } = structureVariationTable(parsedTable);
+            const cleanLatexCell = (t: string) => {
+              if (!t) return '';
+              let s = t.trim();
+              s = s.replace(/\\nearrow|↗/g, '↗');
+              s = s.replace(/\\searrow|↘/g, '↘');
+              s = s.replace(/\\infty/g, '∞');
+              s = s.replace(/-\s*∞/g, '−∞');
+              s = s.replace(/\+\s*∞/g, '+∞');
+              s = s.replace(/\\pm/g, '±');
+              s = s.replace(/^\$+|\$+$/g, '').trim();
+              return s;
+            };
+
+            const buildWordRow = (cells: string[], hasBottomBorder: boolean) => {
+              return new TableRow({
+                children: cells.map((c, idx) => {
+                  const isFirstCol = idx === 0;
+                  const cleanText = cleanLatexCell(c);
+                  const isArrow = cleanText === '↗' || cleanText === '↘';
+                  return new TableCell({
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [
+                          new TextRun({
+                            text: cleanText,
+                            bold: isFirstCol || isArrow,
+                            italics: isFirstCol,
+                            size: 20,
+                            color: isArrow ? '4F46E5' : '0F172A',
+                          }),
+                        ],
+                      }),
+                    ],
+                    borders: {
+                      top: { style: BorderStyle.NONE },
+                      bottom: hasBottomBorder ? { style: BorderStyle.SINGLE, size: 6, color: '0F172A' } : { style: BorderStyle.NONE },
+                      left: { style: BorderStyle.NONE },
+                      right: isFirstCol ? { style: BorderStyle.SINGLE, size: 12, color: '0F172A' } : { style: BorderStyle.NONE },
+                    },
+                  });
+                }),
+              });
+            };
+
+            const tRows: TableRow[] = [];
+            if (xRow.length > 0) tRows.push(buildWordRow(xRow, true));
+            if (yPrimeRow.length > 0) tRows.push(buildWordRow(yPrimeRow, true));
+            yRows.forEach((r) => tRows.push(buildWordRow(r, false)));
+
+            children.push(
+              new Table({
+                rows: tRows,
+                alignment: AlignmentType.CENTER,
               })
-          );
-          const tRows = [new TableRow({ children: headerCells })];
-          parsedTable.rows.forEach((r) => {
-            const cells = r.map(
-              (c) =>
+            );
+            children.push(new Paragraph({ text: '' }));
+          } else {
+            const headerCells = parsedTable.headers.map(
+              (h) =>
                 new TableCell({
                   children: [
                     new Paragraph({
                       alignment: AlignmentType.CENTER,
-                      children: [new TextRun({ text: c, size: 20 })],
+                      children: [new TextRun({ text: h, bold: true, size: 20 })],
                     }),
                   ],
+                  shading: { fill: 'E2E8F0' },
                 })
             );
-            tRows.push(new TableRow({ children: cells }));
-          });
+            const tRows = [new TableRow({ children: headerCells })];
+            parsedTable.rows.forEach((r) => {
+              const cells = r.map(
+                (c) =>
+                  new TableCell({
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: c, size: 20 })],
+                      }),
+                    ],
+                  })
+              );
+              tRows.push(new TableRow({ children: cells }));
+            });
 
-          children.push(
-            new Table({
-              rows: tRows,
-              width: { size: 100, type: WidthType.PERCENTAGE },
-            })
-          );
-          children.push(new Paragraph({ text: '' }));
+            children.push(
+              new Table({
+                rows: tRows,
+                width: { size: 100, type: WidthType.PERCENTAGE },
+              })
+            );
+            children.push(new Paragraph({ text: '' }));
+          }
         }
       }
 
@@ -1308,6 +1369,68 @@ export async function exportExamToDocxOmml(
     return xml;
   };
 
+  // Helper tạo Bảng Biến Thiên chuẩn sách giáo khoa cho Word (OMML/MathType)
+  const createOmmlVariationTable = (parsedTable: ParsedTableData): string => {
+    const { xRow, yPrimeRow, yRows } = structureVariationTable(parsedTable);
+
+    const cleanWordText = (t: string) => {
+      if (!t) return '';
+      let s = t.trim();
+      s = s.replace(/\\nearrow|↗/g, '↗');
+      s = s.replace(/\\searrow|↘/g, '↘');
+      s = s.replace(/\\infty/g, '∞');
+      s = s.replace(/-\s*∞/g, '−∞');
+      s = s.replace(/\+\s*∞/g, '+∞');
+      s = s.replace(/\\pm/g, '±');
+      s = s.replace(/^\$+|\$+$/g, '').trim();
+      return s;
+    };
+
+    let xml = '<w:tbl>';
+    xml += '<w:tblPr>';
+    xml += '<w:tblW w:w="0" w:type="auto"/>';
+    xml += '<w:jc w:val="center"/>';
+    xml += '<w:tblBorders>';
+    xml += '<w:top w:val="none"/>';
+    xml += '<w:left w:val="none"/>';
+    xml += '<w:bottom w:val="none"/>';
+    xml += '<w:right w:val="none"/>';
+    xml += '<w:insideH w:val="none"/>';
+    xml += '<w:insideV w:val="none"/>';
+    xml += '</w:tblBorders>';
+    xml += '</w:tblPr>';
+
+    const renderOmmlRow = (row: string[], isBorderBottom: boolean) => {
+      let rXml = '<w:tr>';
+      row.forEach((cell, idx) => {
+        const isFirstCol = idx === 0;
+        let borders = '<w:tcBorders>';
+        borders += isFirstCol ? '<w:right w:val="single" w:sz="12" w:space="0" w:color="0F172A"/>' : '<w:right w:val="none"/>';
+        borders += isBorderBottom ? '<w:bottom w:val="single" w:sz="6" w:space="0" w:color="0F172A"/>' : '<w:bottom w:val="none"/>';
+        borders += '<w:top w:val="none"/><w:left w:val="none"/>';
+        borders += '</w:tcBorders>';
+
+        const clean = cleanWordText(cell);
+        const isArrow = clean === '↗' || clean === '↘';
+        const color = isArrow ? '4F46E5' : '0F172A';
+        const bold = isFirstCol || isArrow ? '<w:b/>' : '';
+        const italic = isFirstCol ? '<w:i/>' : '';
+        rXml += `<w:tc><w:tcPr>${borders}<w:tcMar><w:top w:w="60"/><w:bottom w:w="60"/><w:left w:w="120"/><w:right w:w="120"/></w:tcMar></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${bold}${italic}<w:color w:val="${color}"/><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${xmlEscape(clean)}</w:t></w:r></w:p></w:tc>`;
+      });
+      rXml += '</w:tr>';
+      return rXml;
+    };
+
+    if (xRow.length > 0) xml += renderOmmlRow(xRow, true);
+    if (yPrimeRow.length > 0) xml += renderOmmlRow(yPrimeRow, true);
+    yRows.forEach((yR) => {
+      xml += renderOmmlRow(yR, false);
+    });
+
+    xml += '</w:tbl>';
+    return xml;
+  };
+
   // Helper to create monospaced code blocks for TikZ LaTeX in Word
   const createCodeBlockXml = (code: string): string => {
     const lines = code.split('\n');
@@ -1398,7 +1521,11 @@ export async function exportExamToDocxOmml(
         // Render all Tabular Tables if question contains LaTeX \begin{tabular}
         if (parsedTables && parsedTables.length > 0) {
           for (const parsedTable of parsedTables) {
-            bodyXml += createOmmlTable(parsedTable.headers, parsedTable.rows);
+            if (isVariationTable(parsedTable)) {
+              bodyXml += createOmmlVariationTable(parsedTable);
+            } else {
+              bodyXml += createOmmlTable(parsedTable.headers, parsedTable.rows);
+            }
             bodyXml += '<w:p/>';
           }
         }

@@ -2,10 +2,81 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
 import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64 } from '../lib/tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
+
+/**
+ * Hiển thị ký hiệu trong ô của Bảng Biến Thiên chuẩn sách giáo khoa:
+ * - Mũi tên tăng giảm ↗ ↘ to rõ ràng, màu sắc chuyên nghiệp
+ * - Dấu +, -, 0 và vô cực -∞, +∞ định dạng toán học đẹp mắt
+ * - Ký hiệu không xác định ||
+ */
+function renderVariationTableCell(cell: string): React.ReactNode {
+  if (!cell || !cell.trim()) return <span>&nbsp;</span>;
+  const trimmed = cell.trim();
+
+  // Mũi tên tăng lên \nearrow hoặc ↗
+  if (/^(\\nearrow|↗|\\rightarrow|->)$/i.test(trimmed)) {
+    return (
+      <span className="inline-flex items-center justify-center text-base sm:text-lg text-indigo-600 font-bold select-none px-1">
+        ↗
+      </span>
+    );
+  }
+
+  // Mũi tên giảm xuống \searrow hoặc ↘
+  if (/^(\\searrow|↘)$/i.test(trimmed)) {
+    return (
+      <span className="inline-flex items-center justify-center text-base sm:text-lg text-indigo-600 font-bold select-none px-1">
+        ↘
+      </span>
+    );
+  }
+
+  // Ký hiệu không xác định (hai vạch đứng ||)
+  if (/^(\\|\\||\\||\/\/)$/.test(trimmed)) {
+    return (
+      <span className="inline-block font-bold text-slate-700 tracking-tighter text-sm px-0.5 select-none">
+        ||
+      </span>
+    );
+  }
+
+  // Dấu cộng +
+  if (trimmed === '+' || trimmed === '$+$') {
+    return <span className="text-emerald-700 font-bold text-sm select-none">+</span>;
+  }
+
+  // Dấu trừ -
+  if (trimmed === '-' || trimmed === '$-$' || trimmed === '−') {
+    return <span className="text-rose-700 font-bold text-sm select-none">−</span>;
+  }
+
+  // Số 0
+  if (trimmed === '0' || trimmed === '$0$') {
+    return <span className="text-slate-800 font-semibold select-none">0</span>;
+  }
+
+  // Vô cực -\infty hoặc +\infty
+  if (trimmed.includes('\\infty') || trimmed.includes('∞')) {
+    const isNeg = trimmed.includes('-');
+    return (
+      <span className="font-serif italic text-xs sm:text-sm font-semibold text-slate-800">
+        {isNeg ? '−∞' : '+∞'}
+      </span>
+    );
+  }
+
+  // Các số, chữ số hoặc biểu thức toán thông thường
+  const clean = trimmed.replace(/^\$+|\$+$/g, '').trim();
+  return (
+    <span className="font-serif italic text-xs sm:text-sm font-semibold text-slate-900">
+      {clean}
+    </span>
+  );
+}
 
 /**
  * Chuẩn hóa các công thức toán LaTeX hay bị lỗi hiển thị:
@@ -439,33 +510,109 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         {cleanPrompt}
       </div>
 
-      {/* Bảng dữ liệu số liệu (Bảng tần số, bảng phân bố...) — Hỗ trợ nhiều bảng */}
-      {parsedTables && parsedTables.length > 0 && parsedTables.map((parsedTable, tIdx) => (
-        <div key={tIdx} className="overflow-x-auto my-2 rounded-lg border border-slate-200 shadow-2xs">
-          <table className="min-w-full text-xs text-center border-collapse">
-            <thead>
-              <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-800 font-bold">
-                {parsedTable.headers.map((h, i) => (
-                  <th key={i} className="py-2 px-3 border-r last:border-r-0 border-slate-200 font-semibold">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {parsedTable.rows.map((row, rIdx) => (
-                <tr key={rIdx} className="border-b last:border-b-0 border-slate-200 hover:bg-slate-50/80">
-                  {row.map((cell, cIdx) => (
-                    <td key={cIdx} className="py-1.5 px-3 border-r last:border-r-0 border-slate-200 text-slate-700 font-medium">
-                      {cell}
-                    </td>
+      {/* Bảng dữ liệu: Nếu là Bảng Biến Thiên thì hiển thị theo chuẩn SGK, ngược lại hiển thị bảng thống kê */}
+      {parsedTables && parsedTables.length > 0 && parsedTables.map((parsedTable, tIdx) => {
+        const isBBT = isVariationTable(parsedTable);
+
+        if (isBBT) {
+          const { xRow, yPrimeRow, yRows } = structureVariationTable(parsedTable);
+          return (
+            <div key={tIdx} className="my-3 flex justify-center overflow-x-auto select-text">
+              <div className="inline-block bg-white border border-slate-300 rounded-xl p-3 sm:p-4 shadow-xs max-w-full">
+                <div className="text-[11px] font-semibold text-indigo-900/80 mb-2 flex items-center justify-between border-b border-slate-100 pb-1.5">
+                  <span className="flex items-center gap-1.5 font-sans">
+                    <span>📊</span> Bảng biến thiên
+                  </span>
+                </div>
+                <table className="border-collapse text-xs sm:text-sm font-serif">
+                  <tbody>
+                    {/* Dòng biến số x */}
+                    {xRow.length > 0 && (
+                      <tr className="border-b border-slate-800">
+                        <td className="w-12 sm:w-16 py-1.5 px-2 text-center font-bold italic text-slate-900 border-r-2 border-slate-800 bg-slate-50/60">
+                          {renderVariationTableCell(xRow[0] || 'x')}
+                        </td>
+                        {xRow.slice(1).map((cell, idx) => (
+                          <td key={idx} className="px-2.5 sm:px-4 py-1.5 text-center font-medium text-slate-900 min-w-[32px] sm:min-w-[44px]">
+                            {renderVariationTableCell(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+
+                    {/* Dòng đạo hàm y' */}
+                    {yPrimeRow.length > 0 && (
+                      <tr className="border-b border-slate-800">
+                        <td className="w-12 sm:w-16 py-1.5 px-2 text-center font-bold italic text-slate-900 border-r-2 border-slate-800 bg-slate-50/60">
+                          {renderVariationTableCell(yPrimeRow[0] || "y'")}
+                        </td>
+                        {yPrimeRow.slice(1).map((cell, idx) => (
+                          <td key={idx} className="px-2.5 sm:px-4 py-1.5 text-center font-medium text-slate-900 min-w-[32px] sm:min-w-[44px]">
+                            {renderVariationTableCell(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
+
+                    {/* Các dòng giá trị hàm số y (kèm các mũi tên tăng giảm ↗ ↘) */}
+                    {yRows.map((row, rIdx) => {
+                      const isFirstY = rIdx === 0;
+                      return (
+                        <tr key={rIdx} className="border-b-0">
+                          {isFirstY && (
+                            <td
+                              rowSpan={yRows.length}
+                              className="w-12 sm:w-16 py-2 px-2 text-center font-bold italic text-slate-900 border-r-2 border-slate-800 bg-slate-50/60 align-middle"
+                            >
+                              {renderVariationTableCell(row[0] || 'y')}
+                            </td>
+                          )}
+                          {row.slice(1).map((cell, idx) => (
+                            <td
+                              key={idx}
+                              className="px-2.5 sm:px-4 py-1 text-center font-medium text-slate-900 min-w-[32px] sm:min-w-[44px] border-b-0 align-middle"
+                            >
+                              {renderVariationTableCell(cell)}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+
+        // Bảng dữ liệu thống kê bình thường (giữ nguyên 100%)
+        return (
+          <div key={tIdx} className="overflow-x-auto my-2 rounded-lg border border-slate-200 shadow-2xs">
+            <table className="min-w-full text-xs text-center border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-800 font-bold">
+                  {parsedTable.headers.map((h, i) => (
+                    <th key={i} className="py-2 px-3 border-r last:border-r-0 border-slate-200 font-semibold">
+                      {h}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+              </thead>
+              <tbody>
+                {parsedTable.rows.map((row, rIdx) => (
+                  <tr key={rIdx} className="border-b last:border-b-0 border-slate-200 hover:bg-slate-50/80">
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx} className="py-1.5 px-3 border-r last:border-r-0 border-slate-200 text-slate-700 font-medium">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
 
 
       {/* Biểu đồ thống kê tần số tự động vẽ (như hình minh họa) */}
