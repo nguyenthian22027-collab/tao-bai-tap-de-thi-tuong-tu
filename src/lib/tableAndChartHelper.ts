@@ -739,6 +739,7 @@ export function generateBarChartSvg(
 
 /**
  * Converts an SVG string into a data:image/png;base64 string using client-side Canvas.
+ * Render ở tỷ lệ 2x (Retina / 300 DPI) để ảnh chèn vào Word sắc nét từng chi tiết.
  */
 export async function svgStringToPngBase64(svgString: string): Promise<string> {
   if (typeof window === 'undefined' || typeof document === 'undefined') return '';
@@ -753,8 +754,8 @@ export async function svgStringToPngBase64(svgString: string): Promise<string> {
         const vbW = parseFloat(vbMatch[3]);
         const vbH = parseFloat(vbMatch[4]);
         if (vbW > 0 && vbH > 0) {
-          targetW = Math.round(vbW * 1.5);
-          targetH = Math.round(vbH * 1.5);
+          targetW = Math.round(vbW * 2.0);
+          targetH = Math.round(vbH * 2.0);
         }
       }
 
@@ -771,8 +772,10 @@ export async function svgStringToPngBase64(svgString: string): Promise<string> {
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
-          const finalW = img.naturalWidth || img.width || targetW;
-          const finalH = img.naturalHeight || img.height || targetH;
+          const baseW = img.naturalWidth || img.width || (targetW / 2);
+          const baseH = img.naturalHeight || img.height || (targetH / 2);
+          const finalW = Math.max(targetW, baseW * 2);
+          const finalH = Math.max(targetH, baseH * 2);
           canvas.width = finalW;
           canvas.height = finalH;
           const ctx = canvas.getContext('2d');
@@ -802,4 +805,103 @@ export async function svgStringToPngBase64(svgString: string): Promise<string> {
       resolve('');
     }
   });
+}
+
+export interface ExtractedOptions {
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+  cleanNoiDung: string;
+}
+
+/**
+ * Trích xuất an toàn và tin cậy 4 phương án A, B, C, D của câu hỏi trắc nghiệm.
+ * Hỗ trợ mọi biến thể:
+ * - A. ... B. ... C. ... D. ... trên cùng 1 dòng
+ * - Các dòng riêng: A. ..., A) ..., **A.** ..., Phương án A: ...
+ * - Phương án bị AI nuốt vào trong tikzCode (sau \\end{tikzpicture})
+ * - Phương án bị AI nhét vào cuối noiDung
+ * - Đồng thời bóc tách làm sạch noiDung để không bị trùng lặp phương án trong đề bài
+ */
+export function extractQuestionOptions(q: {
+  noiDung?: string;
+  tikzCode?: string;
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+}): ExtractedOptions {
+  let optA = q.optionA?.trim();
+  let optB = q.optionB?.trim();
+  let optC = q.optionC?.trim();
+  let optD = q.optionD?.trim();
+  let cleanNoiDung = q.noiDung || '';
+
+  if (optA && optB) {
+    return {
+      optionA: optA,
+      optionB: optB,
+      optionC: optC,
+      optionD: optD,
+      cleanNoiDung,
+    };
+  }
+
+  const sources = [
+    { text: q.tikzCode || '', isTikz: true },
+    { text: q.noiDung || '', isTikz: false },
+  ];
+
+  for (const src of sources) {
+    if (!src.text) continue;
+    let textToSearch = src.text;
+    if (src.isTikz) {
+      const endTikzIdx = textToSearch.indexOf('\\end{tikzpicture}');
+      if (endTikzIdx !== -1) {
+        textToSearch = textToSearch.slice(endTikzIdx + '\\end{tikzpicture}'.length).trim();
+      }
+    }
+
+    // 1. Multi-option line: A. ... B. ... C. ... D. ...
+    const multiMatch = textToSearch.match(
+      /(?:^|\n)\s*[*\s]*A[.:\)]\s*(.*?)\s+[*\s]*B[.:\)]\s*(.*?)\s+[*\s]*C[.:\)]\s*(.*?)\s+[*\s]*D[.:\)]\s*(.*)$/im
+    );
+    if (multiMatch) {
+      optA = multiMatch[1].trim();
+      optB = multiMatch[2].trim();
+      optC = multiMatch[3].trim();
+      optD = multiMatch[4].trim();
+      if (!src.isTikz) {
+        cleanNoiDung = cleanNoiDung.replace(multiMatch[0], '').trim();
+      }
+      break;
+    }
+
+    // 2. Separate lines: A. ... \n B. ...
+    const optRegex = /(?:^|\n)\s*[-*]?\s*(?:Phương án\s+|Đáp án\s+)?([ABCD])[.:\)]\s*[*_]*(.+?)(?=(?:\n\s*[-*]?\s*(?:Phương án\s+|Đáp án\s+)?[ABCD][.:\)])|$)/gis;
+    const matches = [...textToSearch.matchAll(optRegex)];
+    if (matches.length >= 2) {
+      matches.forEach((m) => {
+        const k = m[1].toUpperCase();
+        const val = m[2].trim();
+        if (k === 'A') optA = val;
+        else if (k === 'B') optB = val;
+        else if (k === 'C') optC = val;
+        else if (k === 'D') optD = val;
+      });
+      if (!src.isTikz) {
+        cleanNoiDung = cleanNoiDung.replace(optRegex, '').trim();
+      }
+      break;
+    }
+  }
+
+  return {
+    optionA: optA || q.optionA,
+    optionB: optB || q.optionB,
+    optionC: optC || q.optionC,
+    optionD: optD || q.optionD,
+    cleanNoiDung,
+  };
 }

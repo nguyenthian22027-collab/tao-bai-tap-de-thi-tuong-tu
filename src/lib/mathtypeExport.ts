@@ -9,6 +9,7 @@
 import { ExamData, QuestionType, Question } from '../types';
 import JSZip from 'jszip';
 import { ensureQuestionImages, parseBase64Image, base64ToUint8Array, getImageDimensions } from './docxExporter';
+import { extractQuestionOptions } from './tableAndChartHelper';
 
 const MATHTYPE_PROXY = '/mathtype-api';
 
@@ -28,13 +29,30 @@ export interface MathTypeResult {
 export type MathTypeExportMode = 'exam_only' | 'both_in_one' | 'answers_only';
 
 /**
- * Chuyển đổi mã bảng LaTeX \begin{tabular} sang bảng Markdown chuẩn cho Pandoc
+ * Chuyển đổi mã bảng LaTeX \begin{tabular} sang bảng Markdown chuẩn cho Pandoc.
+ * ĐẶC BIỆT: Nếu là Bảng Biến Thiên (Toán THCS/THPT), KHÔNG chuyển thành bảng Markdown
+ * vì Pandoc sẽ sinh bảng lưới viền ô thô kệch và mũi tên bị gãy.
+ * Thay vào đó, trả về rỗng để nhúng ảnh PNG vector sắc nét qua [[IMG_PLACEHOLDER_Q_id]].
  */
 export function convertTabularToMarkdown(text: string): string {
   if (!text) return '';
   return text.replace(
-    /\\begin\{tabular\}\s*\{[^\}]*\}\s*([\s\S]*?)\\end\{tabular\}/gi,
+    /\\begin\{tabular\*?\}\s*\{[^\}]*\}\s*([\s\S]*?)\\end\{tabular\*?\}/gi,
     (_, body) => {
+      // Nhận diện Bảng Biến Thiên: chứa mũi tên biến thiên, vô cực hoặc dấu đạo hàm
+      const hasArrowsOrInf = /\\nearrow|\\searrow|↗|↘|[-+−–]\\infty|[-+−–]∞/i.test(body);
+      const isBBT = hasArrowsOrInf || /(?:^|\b|\$)(?:x|y|f)\s*(?:'|’|\^|\\prime)?(?:\$|\b|$)/i.test(body);
+      if (hasArrowsOrInf || (isBBT && /&/.test(body))) {
+        const rows = body.split(/\\\\|\\cr/).map((r: string) => r.trim()).filter((r: string) => r.length > 0);
+        const hasSigns = rows.some((r: string) => {
+          const cells = r.split('&').map((c: string) => c.trim().replace(/\$/g, ''));
+          return cells.filter((c: string) => /^[+\-−–0]$|^\|\|$/.test(c)).length >= 2;
+        });
+        if (hasSigns || hasArrowsOrInf) {
+          return ''; // Bảng Biến Thiên được nhúng qua ảnh PNG vector chuẩn SGK
+        }
+      }
+
       const rows = body
         .split(/\\\\|\\cr/)
         .map((r: string) => r.replace(/\\hline/g, '').trim())
@@ -154,7 +172,8 @@ export function examToMarkdown(
 
       const cauHoiList = phan.cauHoi || [];
       for (const q of cauHoiList) {
-        const noiDung = sanitizeMathText(q.noiDung);
+        const { optionA: expOptA, optionB: expOptB, optionC: expOptC, optionD: expOptD, cleanNoiDung: noiDungCleaned } = extractQuestionOptions(q);
+        const noiDung = sanitizeMathText(noiDungCleaned);
         lines.push(`**Câu ${q.stt || ''}.** ${noiDung}`);
         lines.push('');
 
@@ -166,13 +185,13 @@ export function examToMarkdown(
         if (
           q.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON ||
           q.loai === QuestionType.TRAC_NGHIEM ||
-          (!q.loai && (q.optionA || q.optionB))
+          (!q.loai && (expOptA || expOptB))
         ) {
           const opts = [
-            { key: 'A', text: sanitizeMathText(q.optionA || '') },
-            { key: 'B', text: sanitizeMathText(q.optionB || '') },
-            { key: 'C', text: sanitizeMathText(q.optionC || '') },
-            { key: 'D', text: sanitizeMathText(q.optionD || '') },
+            { key: 'A', text: sanitizeMathText(expOptA || '') },
+            { key: 'B', text: sanitizeMathText(expOptB || '') },
+            { key: 'C', text: sanitizeMathText(expOptC || '') },
+            { key: 'D', text: sanitizeMathText(expOptD || '') },
           ].filter((o) => o.text);
 
           const totalLen = opts.reduce((acc, o) => acc + o.text.length, 0);
@@ -212,10 +231,10 @@ export function examToMarkdown(
             lines.push(`*${sanitizeMathText(q.cauLenh)}*`);
             lines.push('');
           }
-          const propA = q.menhDeA || q.optionA;
-          const propB = q.menhDeB || q.optionB;
-          const propC = q.menhDeC || q.optionC;
-          const propD = q.menhDeD || q.optionD;
+          const propA = q.menhDeA || expOptA;
+          const propB = q.menhDeB || expOptB;
+          const propC = q.menhDeC || expOptC;
+          const propD = q.menhDeD || expOptD;
           if (propA) lines.push(`**a)** ${sanitizeMathText(propA)}`);
           if (propB) lines.push(`**b)** ${sanitizeMathText(propB)}`);
           if (propC) lines.push(`**c)** ${sanitizeMathText(propC)}`);
@@ -327,8 +346,9 @@ export function examToMarkdown(
         });
       }
 
-      // Xuất khối mã TikZ cho giáo viên tái sử dụng
-      if (q.tikzCode) {
+      // Xuất khối mã TikZ cho giáo viên tái sử dụng (bỏ qua nếu câu có Bảng Biến Thiên)
+      const hasBBT = /\\begin\{tabular\*?\}/i.test(q.noiDung) && (/\\nearrow|\\searrow|↗|↘|\\infty|∞/i.test(q.noiDung));
+      if (q.tikzCode && !hasBBT) {
         lines.push('**Mã nguồn TikZ (LaTeX Graphics):**');
         lines.push('```latex');
         lines.push(q.tikzCode);

@@ -1,4 +1,5 @@
 import { ApiKeyInfo, ConfigState, ExamData, Question, ExamSection, QuestionType } from '../types';
+import { extractAndParseTabular, isVariationTable, extractQuestionOptions } from './tableAndChartHelper';
 
 export const MODELS = [
   { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — Nhanh, phổ thông' },
@@ -593,8 +594,28 @@ export function parseExam(rawText: string): ExamData {
       let currentMultiLineKey: string | null = null;
 
       qLines.forEach((qLine) => {
-        const lineTrim = qLine.trim();
-        if (!lineTrim) return;
+        // 1. Nhận diện dòng chứa cả 4 phương án trên 1 dòng: A. ... B. ... C. ... D. ...
+        const multiOptMatch = lineTrim.match(/^[*\s]*A[.:\)]\s*(.*?)\s+[*\s]*B[.:\)]\s*(.*?)\s+[*\s]*C[.:\)]\s*(.*?)\s+[*\s]*D[.:\)]\s*(.*)$/i);
+        if (multiOptMatch) {
+          qObj.optionA = multiOptMatch[1].trim();
+          qObj.optionB = multiOptMatch[2].trim();
+          qObj.optionC = multiOptMatch[3].trim();
+          qObj.optionD = multiOptMatch[4].trim();
+          currentMultiLineKey = 'D';
+          return;
+        }
+
+        // 2. Nhận diện dòng bắt đầu bằng phương án: A., A), **A.**, **A:**, Phương án A:...
+        const singleOptMatch = lineTrim.match(/^[*\s]*(?:Phương án\s+|Đáp án\s+)?([ABCD])[.:\)]\s*[*_]*(.*)$/i);
+        if (singleOptMatch && !lineTrim.toLowerCase().startsWith('dap_an:')) {
+          const optKey = singleOptMatch[1].toUpperCase();
+          currentMultiLineKey = optKey;
+          if (optKey === 'A') qObj.optionA = singleOptMatch[2].trim();
+          else if (optKey === 'B') qObj.optionB = singleOptMatch[2].trim();
+          else if (optKey === 'C') qObj.optionC = singleOptMatch[2].trim();
+          else if (optKey === 'D') qObj.optionD = singleOptMatch[2].trim();
+          return;
+        }
 
         const cIdx = lineTrim.indexOf(':');
         if (cIdx !== -1) {
@@ -725,6 +746,27 @@ export function parseExam(rawText: string): ExamData {
         if (!qObj.dapAnB) qObj.dapAnB = 'S';
         if (!qObj.dapAnC) qObj.dapAnC = 'D';
         if (!qObj.dapAnD) qObj.dapAnD = 'S';
+      }
+
+      // ===== FALLBACK CHO CÂU 4 LỰA CHỌN =====
+      const is4LuaChonQ = qObj.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON || (qObj.loai as any) === 'trac_nghiem_4_lua_chon' || !qObj.loai;
+      if (is4LuaChonQ) {
+        const extracted = extractQuestionOptions(qObj as any);
+        if (extracted.optionA) {
+          qObj.optionA = extracted.optionA;
+          qObj.optionB = extracted.optionB;
+          qObj.optionC = extracted.optionC;
+          qObj.optionD = extracted.optionD;
+          qObj.noiDung = extracted.cleanNoiDung;
+        }
+      }
+
+      // 3. Nếu câu hỏi đã có Bảng Biến Thiên (\begin{tabular}) thì TUYỆT ĐỐI XÓA mã TikZ ảo giác
+      if (qObj.noiDung && /\\begin\{tabular\*?\}/i.test(qObj.noiDung)) {
+        const { tables } = extractAndParseTabular(qObj.noiDung);
+        if (tables && tables.some((t) => isVariationTable(t))) {
+          qObj.tikzCode = undefined;
+        }
       }
 
       if (qObj.noiDung && qObj.noiDung.trim()) {

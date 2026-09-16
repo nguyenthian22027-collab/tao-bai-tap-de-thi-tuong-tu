@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
 import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken, generateVariationTableSvg } from '../lib/tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken, generateVariationTableSvg, extractQuestionOptions } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
 import { generateTikzFromQuestion, detectShapeType } from '../lib/gemini';
 import { generateGeovizTikzFromQuestion } from '../lib/geoviz/geovizService';
@@ -184,6 +184,28 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     }
   };
 
+  // Trích xuất an toàn 4 phương án A, B, C, D (kèm làm sạch noiDung)
+  const {
+    optionA: resOptA,
+    optionB: resOptB,
+    optionC: resOptC,
+    optionD: resOptD,
+    cleanNoiDung: noiDungNoOpts,
+  } = extractQuestionOptions(question);
+
+  // Tự động đồng bộ lại vào câu hỏi nếu dữ liệu bị rỗng phương án
+  useEffect(() => {
+    if (!question.optionA && resOptA && onUpdateQuestion) {
+      onUpdateQuestion({
+        ...question,
+        optionA: resOptA,
+        optionB: resOptB,
+        optionC: resOptC,
+        optionD: resOptD,
+      });
+    }
+  }, [question, resOptA, resOptB, resOptC, resOptD, onUpdateQuestion]);
+
   const getRawLatexText = () => {
     let text = `Câu ${question.stt}: ${question.noiDung}\n`;
     if (question.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI || (question.loai as any) === 'dung_sai') {
@@ -192,10 +214,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       if (question.menhDeC) text += `c) ${question.menhDeC} (${question.dapAnC || ''})\n`;
       if (question.menhDeD) text += `d) ${question.menhDeD} (${question.dapAnD || ''})\n`;
     } else if (question.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON || (question.loai as any) === 'trac_nghiem') {
-      if (question.optionA) text += `A. ${question.optionA}\n`;
-      if (question.optionB) text += `B. ${question.optionB}\n`;
-      if (question.optionC) text += `C. ${question.optionC}\n`;
-      if (question.optionD) text += `D. ${question.optionD}\n`;
+      if (resOptA) text += `A. ${resOptA}\n`;
+      if (resOptB) text += `B. ${resOptB}\n`;
+      if (resOptC) text += `C. ${resOptC}\n`;
+      if (resOptD) text += `D. ${resOptD}\n`;
       text += `Đáp án: ${question.dapAn}\n`;
     } else {
       text += `Đáp án / Lời giải: ${question.dapAn}\n`;
@@ -242,16 +264,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       // Ghép toàn bộ nội dung, câu lệnh và các phương án để AI có đầy đủ dữ kiện hình học
       // Bọc bằng dấu phân cách rõ ràng để AI KHÔNG đọc nhầm sang câu hỏi khác
       const questionBody = [
-        question.noiDung,
+        noiDungNoOpts,
         question.cauLenh,
         question.menhDeA ? `a) ${question.menhDeA}` : '',
         question.menhDeB ? `b) ${question.menhDeB}` : '',
         question.menhDeC ? `c) ${question.menhDeC}` : '',
         question.menhDeD ? `d) ${question.menhDeD}` : '',
-        question.optionA ? `A. ${question.optionA}` : '',
-        question.optionB ? `B. ${question.optionB}` : '',
-        question.optionC ? `C. ${question.optionC}` : '',
-        question.optionD ? `D. ${question.optionD}` : '',
+        resOptA ? `A. ${resOptA}` : '',
+        resOptB ? `B. ${resOptB}` : '',
+        resOptC ? `C. ${resOptC}` : '',
+        resOptD ? `D. ${resOptD}` : '',
       ].filter(Boolean).join('\n');
 
       const fullQuestionPrompt =
@@ -295,8 +317,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   };
 
   // 1. Bóc tách TikZ khỏi nội dung câu hỏi
-  const { cleanText: textNoTikz, tikzCode: extractedTikz } = extractAndCleanTikz(question.noiDung);
-  const activeTikz = question.tikzCode || extractedTikz;
+  const { cleanText: textNoTikz, tikzCode: extractedTikz } = extractAndCleanTikz(noiDungNoOpts);
 
   // 2. Tự động nhận diện số liệu thống kê ghép nhóm để vẽ biểu đồ
   const { cleanText: textNoChart, chartSvg } = extractAndGenerateStatisticalChart(textNoTikz);
@@ -304,7 +325,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   // 3. Bóc tách bảng dữ liệu LaTeX \begin{tabular} để hiển thị thành bảng HTML chuẩn (hỗ trợ nhiều bảng)
   const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(textNoChart);
 
-  // 4. Nội dung đề bài sạch sẽ, không còn mã LaTeX thô
+  // 4. Kiểm tra câu hỏi có Bảng Biến Thiên hay không
+  const hasVariationTable = Boolean(parsedTables && parsedTables.length > 0 && parsedTables.some(isVariationTable));
+
+  // 5. Nếu câu hỏi đã có Bảng Biến Thiên thì TUYỆT ĐỐI KHÔNG kích hoạt TikZ (vì TikZ chỉ là ảo giác AI như hai hình tròn đồng tâm)
+  const activeTikz = hasVariationTable ? undefined : (question.tikzCode || extractedTikz);
+
+  // 6. Nội dung đề bài sạch sẽ, không còn mã LaTeX thô
   const cleanPrompt = normalizeMathLatex(
     promptTextNoTable
       .replace(/\\begin\{center\}/gi, '')
@@ -326,29 +353,30 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Tự động chuyển đổi vector SVG Bảng Biến Thiên thành ảnh PNG để nhúng vào file Word
   useEffect(() => {
-    if (parsedTables && parsedTables.length > 0 && !question.hinhAnh) {
-      for (const t of parsedTables) {
-        if (isVariationTable(t)) {
-          const svg = generateVariationTableSvg(t);
-          if (svg) {
-            svgStringToPngBase64(svg).then((png) => {
-              if (png) {
-                question.hinhAnh = png;
+    if (hasVariationTable && parsedTables) {
+      const varTable = parsedTables.find(isVariationTable);
+      if (varTable) {
+        const svg = generateVariationTableSvg(varTable);
+        if (svg) {
+          svgStringToPngBase64(svg).then((png) => {
+            if (png && question.hinhAnh !== png) {
+              question.hinhAnh = png;
+              if (onUpdateQuestion) {
+                onUpdateQuestion({ ...question, hinhAnh: png, tikzCode: undefined });
               }
-            });
-            break;
-          }
+            }
+          });
         }
       }
     }
-  }, [parsedTables, question]);
+  }, [hasVariationTable, parsedTables, question, onUpdateQuestion]);
 
   const [renderedTikzSvg, setRenderedTikzSvg] = useState<string>('');
   const [isRenderingTikz, setIsRenderingTikz] = useState<boolean>(false);
 
-  // Kích hoạt render TikZ sang SVG sắc nét
+  // Kích hoạt render TikZ sang SVG sắc nét (chỉ chạy khi câu hỏi KHÔNG có Bảng Biến Thiên)
   useEffect(() => {
-    if (!activeTikz) {
+    if (!activeTikz || hasVariationTable) {
       setRenderedTikzSvg('');
       return;
     }
@@ -664,8 +692,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       )}
 
-      {/* Question Illustration Image (chỉ render nếu đề gốc có ảnh và câu KHÔNG có TikZ) */}
-      {(question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]) && !activeTikz && !chartSvg && (
+      {/* Question Illustration Image (chỉ render nếu đề gốc có ảnh và câu KHÔNG có TikZ và KHÔNG có Bảng Biến Thiên) */}
+      {(question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]) && !activeTikz && !chartSvg && !hasVariationTable && (
         <div className="flex justify-center p-2 bg-slate-50/80 border border-slate-100 rounded-xl overflow-hidden">
           <img
             src={question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]}
@@ -679,10 +707,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       {is4LuaChon && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
           {[
-            { key: 'A', text: question.optionA },
-            { key: 'B', text: question.optionB },
-            { key: 'C', text: question.optionC },
-            { key: 'D', text: question.optionD },
+            { key: 'A', text: resOptA },
+            { key: 'B', text: resOptB },
+            { key: 'C', text: resOptC },
+            { key: 'D', text: resOptD },
           ].map((opt) => {
             if (!opt.text) return null;
             const isCorrect = (question.dapAn || '').trim().toUpperCase() === opt.key;

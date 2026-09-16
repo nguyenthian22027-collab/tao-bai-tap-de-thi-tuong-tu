@@ -16,7 +16,7 @@ import {
 } from 'docx';
 import { ExamData, Question, QuestionType } from '../types';
 import { latexToOmml } from './latexToOmml';
-import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, ParsedTableData } from './tableAndChartHelper';
+import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, generateVariationTableSvg, extractQuestionOptions, ParsedTableData } from './tableAndChartHelper';
 import { renderTikzToPng } from './tikzRenderer';
 
 export type ExportFormat = 'latex' | 'omml' | 'mathtype';
@@ -183,6 +183,26 @@ export function svgToPngBase64(svgString: string, defaultW = 500, defaultH = 350
  * Ensures images for a question: checks q.hinhAnh, markdown images, and DOM-rendered TikZ SVGs
  */
 export async function ensureQuestionImages(q: Question): Promise<string[]> {
+  // 0. Nếu câu hỏi chứa Bảng Biến Thiên, Bảng Biến Thiên CHÍNH LÀ hình minh họa duy nhất
+  // Mọi mã TikZ ảo giác do AI sinh (như hình tròn đồng tâm) đều phải loại bỏ hoàn toàn
+  const { tables: detectedTables } = extractAndParseTabular(q.noiDung || '');
+  const varTable = detectedTables?.find(isVariationTable);
+  if (varTable) {
+    q.tikzCode = undefined;
+    const bbtSvg = generateVariationTableSvg(varTable);
+    if (bbtSvg) {
+      try {
+        const pngBase64 = await svgStringToPngBase64(bbtSvg);
+        if (pngBase64) {
+          q.hinhAnh = pngBase64;
+          return [pngBase64];
+        }
+      } catch (err) {
+        console.warn('Failed to render variation table SVG to PNG for question', q.stt, err);
+      }
+    }
+  }
+
   const images = extractQuestionImages(q);
   if (images.length > 0) return images;
 
@@ -589,8 +609,11 @@ export async function exportExamToDocxLatex(
         const isTuLuan = q.loai === QuestionType.TU_LUAN || (q.loai as any) === 'tu_luan';
         const is4LuaChon = !isDungSai && !isTraLoiNgan && !isTuLuan;
 
+        // Trích xuất an toàn phương án A, B, C, D và làm sạch noiDung
+        const { optionA: expOptA, optionB: expOptB, optionC: expOptC, optionD: expOptD, cleanNoiDung: noiDungCleaned } = extractQuestionOptions(q);
+
         // Extract TikZ from prompt if present so raw TikZ does not clutter the question text
-        const { cleanText, tikzCode: extractedTikz } = extractAndCleanTikz(q.noiDung);
+        const { cleanText, tikzCode: extractedTikz } = extractAndCleanTikz(noiDungCleaned);
         if (extractedTikz && !q.tikzCode) {
           q.tikzCode = extractedTikz;
         }
@@ -658,64 +681,9 @@ export async function exportExamToDocxLatex(
       if (parsedTables && parsedTables.length > 0) {
         for (const parsedTable of parsedTables) {
           if (isVariationTable(parsedTable)) {
-            const { xRow, yPrimeRow, yRows } = structureVariationTable(parsedTable);
-            const cleanLatexCell = (t: string) => {
-              if (!t) return '';
-              let s = t.trim();
-              s = s.replace(/\\nearrow|↗/g, '↗');
-              s = s.replace(/\\searrow|↘/g, '↘');
-              s = s.replace(/\\infty/g, '∞');
-              s = s.replace(/-\s*∞/g, '−∞');
-              s = s.replace(/\+\s*∞/g, '+∞');
-              s = s.replace(/\\pm/g, '±');
-              s = s.replace(/^\$+|\$+$/g, '').trim();
-              return s;
-            };
-
-            const buildWordRow = (cells: string[], hasBottomBorder: boolean) => {
-              return new TableRow({
-                children: cells.map((c, idx) => {
-                  const isFirstCol = idx === 0;
-                  const cleanText = cleanLatexCell(c);
-                  const isArrow = cleanText === '↗' || cleanText === '↘';
-                  return new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [
-                          new TextRun({
-                            text: cleanText,
-                            bold: isFirstCol || isArrow,
-                            italics: isFirstCol,
-                            size: 20,
-                            color: isArrow ? '4F46E5' : '0F172A',
-                          }),
-                        ],
-                      }),
-                    ],
-                    borders: {
-                      top: { style: BorderStyle.NONE },
-                      bottom: hasBottomBorder ? { style: BorderStyle.SINGLE, size: 6, color: '0F172A' } : { style: BorderStyle.NONE },
-                      left: { style: BorderStyle.NONE },
-                      right: isFirstCol ? { style: BorderStyle.SINGLE, size: 12, color: '0F172A' } : { style: BorderStyle.NONE },
-                    },
-                  });
-                }),
-              });
-            };
-
-            const tRows: TableRow[] = [];
-            if (xRow.length > 0) tRows.push(buildWordRow(xRow, true));
-            if (yPrimeRow.length > 0) tRows.push(buildWordRow(yPrimeRow, true));
-            yRows.forEach((r) => tRows.push(buildWordRow(r, false)));
-
-            children.push(
-              new Table({
-                rows: tRows,
-                alignment: AlignmentType.CENTER,
-              })
-            );
-            children.push(new Paragraph({ text: '' }));
+            // Bảng Biến Thiên đã được xuất thành ảnh vector PNG sắc nét qua ensureQuestionImages
+            // Bỏ qua tạo Table lưới Word thô kệch
+            continue;
           } else {
             const headerCells = parsedTable.headers.map(
               (h) =>
@@ -789,12 +757,12 @@ export async function exportExamToDocxLatex(
       }
 
       // 1. 4 Options — compact inline layout (auto 4-col / 2-col / 1-col based on length)
-      if (is4LuaChon && q.optionA) {
+      if (is4LuaChon && expOptA) {
         const options = [
-          { key: 'A', text: q.optionA ?? '' },
-          { key: 'B', text: q.optionB ?? '' },
-          { key: 'C', text: q.optionC ?? '' },
-          { key: 'D', text: q.optionD ?? '' },
+          { key: 'A', text: expOptA ?? '' },
+          { key: 'B', text: expOptB ?? '' },
+          { key: 'C', text: expOptC ?? '' },
+          { key: 'D', text: expOptD ?? '' },
         ];
         renderOptionsBlock(options).forEach((el) => children.push(el as any));
       }
@@ -1501,8 +1469,11 @@ export async function exportExamToDocxOmml(
         const isTuLuan = q.loai === QuestionType.TU_LUAN || (q.loai as any) === 'tu_luan';
         const is4LuaChon = !isDungSai && !isTraLoiNgan && !isTuLuan;
 
+        // Trích xuất an toàn phương án A, B, C, D và làm sạch noiDung
+        const { optionA: expOptA, optionB: expOptB, optionC: expOptC, optionD: expOptD, cleanNoiDung: noiDungCleaned } = extractQuestionOptions(q);
+
         // Extract TikZ from prompt if present so raw TikZ does not clutter the question prompt
-        const { cleanText, tikzCode: extractedTikz } = extractAndCleanTikz(q.noiDung);
+        const { cleanText, tikzCode: extractedTikz } = extractAndCleanTikz(noiDungCleaned);
         if (extractedTikz && !q.tikzCode) {
           q.tikzCode = extractedTikz;
         }
@@ -1522,7 +1493,9 @@ export async function exportExamToDocxOmml(
         if (parsedTables && parsedTables.length > 0) {
           for (const parsedTable of parsedTables) {
             if (isVariationTable(parsedTable)) {
-              bodyXml += createOmmlVariationTable(parsedTable);
+              // Bảng Biến Thiên đã được xuất thành ảnh vector PNG sắc nét qua ensureQuestionImages
+              // Bỏ qua tạo OMML table thô kệch
+              continue;
             } else {
               bodyXml += createOmmlTable(parsedTable.headers, parsedTable.rows);
             }
@@ -1565,12 +1538,12 @@ export async function exportExamToDocxOmml(
       }
 
       // 1. 4 Options — inline compact layout (2 per row if short, 1 per row if long)
-      if (is4LuaChon && q.optionA) {
+      if (is4LuaChon && expOptA) {
         const options = [
-          { key: 'A', text: q.optionA ?? '' },
-          { key: 'B', text: q.optionB ?? '' },
-          { key: 'C', text: q.optionC ?? '' },
-          { key: 'D', text: q.optionD ?? '' },
+          { key: 'A', text: expOptA ?? '' },
+          { key: 'B', text: expOptB ?? '' },
+          { key: 'C', text: expOptC ?? '' },
+          { key: 'D', text: expOptD ?? '' },
         ].filter((o) => o.text);
 
         const avgLen = options.reduce((acc, o) => acc + o.text.length, 0) / (options.length || 1);
