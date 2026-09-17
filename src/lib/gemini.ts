@@ -594,6 +594,9 @@ export function parseExam(rawText: string): ExamData {
       let currentMultiLineKey: string | null = null;
 
       qLines.forEach((qLine) => {
+        const lineTrim = qLine.trim();
+        if (!lineTrim) return;
+
         // 1. Nhận diện dòng chứa cả 4 phương án trên 1 dòng: A. ... B. ... C. ... D. ...
         const multiOptMatch = lineTrim.match(/^[*\s]*A[.:\)]\s*(.*?)\s+[*\s]*B[.:\)]\s*(.*?)\s+[*\s]*C[.:\)]\s*(.*?)\s+[*\s]*D[.:\)]\s*(.*)$/i);
         if (multiOptMatch) {
