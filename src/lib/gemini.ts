@@ -245,7 +245,14 @@ QUY TẮC BẮT BUỘC VỀ TRÌNH BÀY:
 1. Tất cả công thức Toán, Lý, Hóa, Sinh... BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
 2. ${mathTypeNote}
 3. Đảm bảo tính chính xác tuyệt đối về mặt toán học, số liệu đẹp, kết quả tính đúng đắn.
-4. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
+4. NHẬN DIỆN LOẠI CÂU HỎI GỐC và sinh ra bài tương tự CÙNG LOẠI (tự luận, đúng/sai, 4 lựa chọn, trả lời ngắn).
+5. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
+
+QUY TẮC QUAN TRỌNG VỀ LOẠI CÂU HỎI:
+- Nếu bài gốc là câu TỰ LUẬN → dùng LOAI: tu_luan, có NOI_DUNG và DAP_AN.
+- Nếu bài gốc là câu TRẮC NGHIỆM ĐÚNG/SAI (có 4 mệnh đề a/b/c/d) → dùng LOAI: trac_nghiem_dung_sai, BẮT BUỘC có CAU_LENH và 4 trường MENH_DE_A/B/C/D + DAP_AN_A/B/C/D (D=Đúng, S=Sai).
+- Nếu bài gốc là câu TRẮC NGHIỆM 4 LỰA CHỌN → dùng LOAI: trac_nghiem_4_lua_chon, có A/B/C/D và DAP_AN.
+- Nếu bài gốc là câu TRẢ LỜI NGẮN → dùng LOAI: trac_nghiem_tra_loi_ngan, có NOI_DUNG và DAP_AN ngắn.
 
 ===DE===
 TIEU_DE: BỘ BÀI TẬP TƯƠNG TỰ
@@ -255,14 +262,46 @@ TEN: CÁC BÀI TOÁN TƯƠNG TỰ (${config.soBai} bài)
 LOAI: tu_luan
 ===CAU===
 STT: 1
+[--- VÍ DỤ NẾU LÀ CÂU TỰ LUẬN ---]
 LOAI: tu_luan
-NOI_DUNG: [Nội dung đề bài toán tương tự 1, LaTeX trong $...]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
+NOI_DUNG: [Nội dung đề bài toán tương tự, LaTeX trong $...]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị. Để trống nếu không có hình]
 DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
 MUC_DO: thong_hieu
 DIEM: 1.0
+
+[--- VÍ DỤ NẾU LÀ CÂU ĐÚNG/SAI ---]
+LOAI: trac_nghiem_dung_sai
+NOI_DUNG: [Đề dẫn bài toán — KHÔNG liệt kê mệnh đề ở đây]
+TIKZ: [Mã TikZ nếu có hình. Để trống nếu không có hình]
+CAU_LENH: Trong các mệnh đề sau, mệnh đề nào đúng?
+MENH_DE_A: [Nội dung mệnh đề a — LaTeX trong $...$]
+DAP_AN_A: D
+MENH_DE_B: [Nội dung mệnh đề b]
+DAP_AN_B: S
+MENH_DE_C: [Nội dung mệnh đề c]
+DAP_AN_C: D
+MENH_DE_D: [Nội dung mệnh đề d]
+DAP_AN_D: S
+HUONG_DAN_GIAI: [Giải thích từng mệnh đề]
+MUC_DO: thong_hieu
+DIEM: 1.0
+
+[--- VÍ DỤ NẾU LÀ CÂU 4 LỰA CHỌN ---]
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: [Nội dung câu hỏi]
+TIKZ: [Mã TikZ nếu có hình. Để trống nếu không có hình]
+A: [Phương án A]
+B: [Phương án B]
+C: [Phương án C]
+D: [Phương án D]
+DAP_AN: [A/B/C/D]
+HUONG_DAN_GIAI: [Lời giải chi tiết]
+MUC_DO: thong_hieu
+DIEM: 0.25
+
 ===CAU===
-... (Tiếp tục sinh đủ ${config.soBai} bài)
+... (Tiếp tục sinh đủ ${config.soBai} bài — dùng đúng template tương ứng loại câu gốc)
 ===DE===
 
 NỘI DUNG / HÌNH ẢNH BÀI GỐC CẦN TẠO TƯƠNG TỰ:
