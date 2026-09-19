@@ -198,8 +198,24 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
 
 [NHÓM 1] KHOA HỌC TỰ NHIÊN — Toán, Vật lý, Hóa học, Sinh học:
 • BẮT BUỘC dùng LaTeX $...$ (inline) hoặc $$...$$ (display) cho mọi công thức, ký hiệu, đơn vị đo.
-• Có thể sinh TikZ nếu câu có hình vẽ hình học, đồ thị, bảng biến thiên.
+• Có thể sinh TikZ nếu câu có hình vẽ hình học, đồ thị hàm số (pgfplots), hình không gian.
 • Bảng số liệu (bảng tần số, giá trị hàm số): dùng \\begin{tabular}...\\end{tabular}.
+• QUY TẮC BẢNG BIẾN THIÊN (TUYỆT ĐỐI TUÂN THỦ):
+  - Khi đề bài có Bảng biến thiên: BẮT BUỘC viết bằng \\begin{tabular} trong trường NOI_DUNG, TIKZ để TRỐNG.
+  - Hệ thống sẽ tự động vẽ Bảng biến thiên chuẩn SGK đẹp từ dữ liệu \\begin{tabular}.
+  - TUYỆT ĐỐI CẤM dùng bảng Markdown (|x|y'|y|) hoặc mã TikZ \\begin{tikzpicture} để vẽ bảng biến thiên.
+  - Mẫu cú pháp chuẩn (thay số liệu theo đề bài):
+    \\begin{tabular}{|c|ccccccc|}
+    \\hline
+    $x$ & $-\\infty$ & & $-1$ & & $2$ & & $+\\infty$ \\\\
+    \\hline
+    $y'$ & & $+$ & $0$ & $-$ & $0$ & $+$ & \\\\
+    \\hline
+    $y$ & & & $3$ & & & & $+\\infty$ \\\\
+     & $-\\infty$ & $\\nearrow$ & & $\\searrow$ & & $\\nearrow$ & \\\\
+     & & & & & $-1$ & & \\\\
+    \\hline
+    \\end{tabular}
 • Câu Đúng/Sai: mỗi câu gồm đề dẫn chung + 4 mệnh đề a/b/c/d (MENH_DE_A/B/C/D) chứa khẳng định toán/khtn.
 • TUYỆT ĐỐI KHÔNG xuất hiện từ vựng tiếng Anh hay cấu trúc bài đọc reading của môn ngoại ngữ.
 
@@ -313,8 +329,14 @@ ${tikzShapeGuide}`;
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
   if (config.mode === 'cau_le') {
+    // Xây dựng chỉ thị targetQuestionType
+    const targetType = config.targetQuestionType ?? 'auto';
+    const targetTypeInstruction = targetType === 'auto'
+      ? '2. Nhận diện loại câu hỏi gốc và sinh ra bài tương tự CÙNG LOẠI (tự luận, đúng/sai, 4 lựa chọn, trả lời ngắn, v.v.).'
+      : `2. DẠNG CÂU HỎI MỤC TIÊU: Giáo viên yêu cầu BẮT BUỘC chuyển đổi sang dạng "${targetType === 'trac_nghiem_4_lua_chon' ? 'TRẮC NGHIỆM 4 LỰA CHỌN (A, B, C, D)' : targetType === 'trac_nghiem_dung_sai' ? 'TRẮC NGHIỆM ĐÚNG/SAI 4 MỆNH ĐỀ (GDPT 2025)' : targetType === 'trac_nghiem_tra_loi_ngan' ? 'TRẮC NGHIỆM TRẢ LỜI NGẮN — Điền đáp số (GDPT 2025)' : 'TỰ LUẬN — Trình bày bài giải chi tiết'}". TUYỆT ĐỐI dùng đúng template tương ứng dưới đây dù bài gốc là dạng khác.`;
+
     return `Bạn là chuyên gia sư phạm & giáo viên dạy giỏi hàng đầu Việt Nam, am hiểu TẤT CẢ CÁC MÔN HỌC.
-NHIỆM VỤ: Dựa vào ảnh/văn bản bài tập gốc dưới đây, hãy sinh ra ${config.soBai} bài/câu hỏi tương tự chất lượng cao, CÙNG MÔN HỌC và CÙNG DẠNG CÂU HỎI với bài gốc.
+NHIỆM VỤ: Dựa vào ảnh/văn bản bài tập gốc dưới đây, hãy sinh ra ${config.soBai} bài/câu hỏi tương tự chất lượng cao, CÙNG MÔN HỌC với bài gốc.
 
 YÊU CẦU CẤU HÌNH:
 - Số bài cần sinh: ${config.soBai} bài
@@ -327,7 +349,7 @@ ${buildSubjectRules()}
 
 QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG:
 1. Nhận diện môn học từ bài gốc, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
-2. Nhận diện loại câu hỏi gốc (tự luận, đúng/sai, 4 lựa chọn, trả lời ngắn, đọc hiểu, rewrite...) và sinh ra bài tương tự CÙNG LOẠI.
+${targetTypeInstruction}
 3. ${mathTypeNote || 'Đảm bảo tính chính xác về nội dung, số liệu đẹp, kết quả đúng đắn.'}
 4. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
 
@@ -335,10 +357,13 @@ QUY TẮC LOẠI CÂU HỎI:
 - Câu TỰ LUẬN → LOAI: tu_luan, có NOI_DUNG và DAP_AN.
 - Câu ĐÚNG/SAI (4 mệnh đề) → LOAI: trac_nghiem_dung_sai, BẮT BUỘC có CAU_LENH và MENH_DE_A/B/C/D + DAP_AN_A/B/C/D (D=Đúng, S=Sai).
 - Câu 4 LỰA CHỌN → LOAI: trac_nghiem_4_lua_chon, có A/B/C/D và DAP_AN.
-- Câu TRẢ LỜI NGẮN → LOAI: trac_nghiem_tra_loi_ngan, DAP_AN là kết quả ngắn gọn.
+- Câu TRẢ LỜI NGẮN → LOAI: trac_nghiem_tra_loi_ngan, DAP_AN là kết quả ngắn gọn (số nguyên, số thập phân, hoặc phân số tối giản). KHÔNG liệt kê A/B/C/D.
 - Câu READING PASSAGE (Tiếng Anh) → LOAI: trac_nghiem_4_lua_chon, NOI_DUNG chứa toàn bộ đoạn văn rồi mới đến câu hỏi.
 - Câu REWRITE / SENTENCE TRANSFORMATION → LOAI: tu_luan, NOI_DUNG là câu gốc cần viết lại, DAP_AN là câu đã viết lại.
 - Câu ĐỌC HIỂU VĂN BẢN (Ngữ văn) → LOAI: tu_luan, NOI_DUNG chứa đoạn trích rồi mới đến câu hỏi, DAP_AN là gợi ý trả lời.
+- Câu WORD FORM (Tiếng Anh) → LOAI: tu_luan, NOI_DUNG là câu văn có chỗ trống __________ kèm từ gốc in hoa trong ngoặc, DAP_AN là dạng đúng của từ.
+- Câu NGỮ ÂM/TRỌNG ÂM (Tiếng Anh Phonetics/Stress) → LOAI: trac_nghiem_4_lua_chon, các phương án A/B/C/D là các từ tiếng Anh.
+- Câu TÌM LỖI SAI (Error Identification) → LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu tiếng Anh có 4 phần gạch chân (A)(B)(C)(D), DAP_AN là chữ cái phần sai.
 
 ===DE===
 TIEU_DE: BÀI TẬP TƯƠNG TỰ
@@ -348,20 +373,20 @@ TEN: CÁC BÀI/CÂU HỎI TƯƠNG TỰ (${config.soBai} bài)
 LOAI: tu_luan
 ===CAU===
 STT: 1
-[Dùng đúng template bên dưới tương ứng với dạng câu gốc:]
+[Dùng đúng template bên dưới tương ứng với dạng câu gốc${targetType !== 'auto' ? ` — PHẢI dùng dạng "${targetType}"` : ''}:]
 
 [--- DẠNG: TỰ LUẬN (Toán/Lý/Hóa/Sinh/Văn/Sử/Địa...) ---]
 LOAI: tu_luan
 NOI_DUNG: [Nội dung đề bài tương tự — LaTeX nếu là KHTN, văn bản thuần nếu là KHXH/Ngữ văn]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ. Để trống nếu không có hình hoặc là môn Ngoại ngữ/KHXH]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ hình học/đồ thị. TUYỆT ĐỐI để trống nếu câu có Bảng biến thiên \\begin{tabular}]
 DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
 MUC_DO: thong_hieu
 DIEM: 1.0
 
-[--- DẠNG: TRẮC NGHIỆM ĐÚNG/SAI (mọi môn) ---]
+[--- DẠNG: TRẮC NGHIỆM ĐÚNG/SAI (mọi môn — GDPT 2025) ---]
 LOAI: trac_nghiem_dung_sai
 NOI_DUNG: [Đề dẫn/bối cảnh chung — KHÔNG liệt kê mệnh đề ở đây]
-TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống nếu không có hình]
+TIKZ: [Mã TikZ nếu câu KHTN có hình hình học/đồ thị. Để trống nếu có BBT hoặc môn khác]
 CAU_LENH: [Câu lệnh hỏi phù hợp môn — VD: "Trong các mệnh đề sau, mệnh đề nào đúng?" hoặc "Xét các phát biểu sau:"]
 MENH_DE_A: [Nội dung mệnh đề a]
 DAP_AN_A: D
@@ -386,6 +411,43 @@ D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ
 DAP_AN: [A/B/C/D]
 HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: thong_hieu
+DIEM: 0.25
+
+[--- DẠNG: TRẮC NGHIỆM TRẢ LỜI NGẮN — Điền đáp số (GDPT 2025, Toán/KHTN Phần III) ---]
+LOAI: trac_nghiem_tra_loi_ngan
+NOI_DUNG: [Nội dung câu hỏi — dạng tính toán/điền số, LaTeX đầy đủ. Nếu có Bảng biến thiên hãy dùng \\begin{tabular} theo mẫu KHTN]
+TIKZ: [Mã TikZ nếu câu có hình hình học/đồ thị. TUYỆT ĐỐI để trống nếu có \\begin{tabular}]
+DAP_AN: [Đáp số cuối cùng dạng số ngắn gọn — số nguyên VD: 7 | số thập phân VD: 3.5 | phân số tối giản VD: 2/3]
+HUONG_DAN_GIAI: [Các bước lập luận và tính toán dẫn đến đáp số]
+MUC_DO: van_dung
+DIEM: 0.5
+
+[--- DẠNG: TIẾNG ANH — WORD FORMATION (Cho dạng đúng của từ trong ngoặc) ---]
+LOAI: tu_luan
+NOI_DUNG: [Câu tiếng Anh có chỗ trống: "She gave a very __________ performance." kèm từ gốc viết hoa: (IMPRESS)]
+DAP_AN: [Dạng đúng của từ + giải thích từ loại — VD: impressive (tính từ, sau "very" dùng tính từ)]
+DIEM: 0.5
+
+[--- DẠNG: TIẾNG ANH — NGỮ ÂM & TRỌNG ÂM (Phonetics / Stress) ---]
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: [Pronunciation — ghi rõ loại: phát âm âm gạch chân hoặc trọng âm]
+A: [Từ tiếng Anh đầy đủ — dùng [] đánh dấu âm cần so sánh nếu là phát âm: m[o]ther]
+B: [Từ tiếng Anh đầy đủ]
+C: [Từ tiếng Anh đầy đủ]
+D: [Từ tiếng Anh đầy đủ]
+DAP_AN: [A/B/C/D]
+HUONG_DAN_GIAI: [Phiên âm IPA của 4 từ, giải thích tại sao đáp án khác biệt]
+DIEM: 0.25
+
+[--- DẠNG: TIẾNG ANH — TÌM LỖI SAI (Error Identification) ---]
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: [Câu tiếng Anh có 4 phần gạch chân đánh dấu (A)(B)(C)(D) — VD: She (A)go to school (B)every day (C)by bicycle (D)yesterday.]
+A: go
+B: every day
+C: by bicycle
+D: yesterday
+DAP_AN: [A/B/C/D — chữ cái của phần bị sai]
+HUONG_DAN_GIAI: [Giải thích lỗi sai và cách sửa đúng ngữ pháp]
 DIEM: 0.25
 
 [--- DẠNG: TIẾNG ANH — READING PASSAGE (đoạn văn + câu hỏi) ---]

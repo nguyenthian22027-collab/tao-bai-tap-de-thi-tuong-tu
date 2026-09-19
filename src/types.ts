@@ -79,6 +79,16 @@ export interface ExamData {
   phan: ExamSection[];
 }
 
+// Dạng câu hỏi mục tiêu khi mode === 'cau_le' (Tạo câu lẻ)
+// 'auto': Tự động nhận diện theo câu gốc (mặc định)
+// Các giá trị khác: Ép AI sinh đúng dạng câu hỏi mục tiêu dù bài gốc là dạng khác
+export type TargetQuestionType =
+  | 'auto'                      // Tự động nhận diện và sinh cùng dạng câu gốc
+  | 'trac_nghiem_4_lua_chon'    // Ép sang Trắc nghiệm 4 lựa chọn A, B, C, D
+  | 'trac_nghiem_dung_sai'      // Ép sang Đúng / Sai 4 mệnh đề (GDPT 2025)
+  | 'trac_nghiem_tra_loi_ngan'  // Ép sang Trả lời ngắn (Điền đáp số — GDPT 2025)
+  | 'tu_luan';                  // Ép sang Tự luận có lời giải chi tiết
+
 export interface ConfigState {
   // Mode: 'nguyen_de' (Toàn bộ đề thi) vs 'cau_le' (Tạo bài tương tự từ ảnh/câu lẻ)
   mode: 'nguyen_de' | 'cau_le';
@@ -116,9 +126,13 @@ export interface ConfigState {
   tikzMode: 'auto' | 'yes' | 'no';
   extraPrompt: string; // Yêu cầu thêm từ giáo viên
 
+  // Tùy chọn chỉ dành cho mode === 'cau_le'
+  targetQuestionType?: TargetQuestionType; // Dạng câu hỏi mục tiêu, mặc định 'auto'
+
   // Tùy chọn chung
   includeAnswers: boolean;
 }
+
 
 export interface ImageFileItem {
   id: string;

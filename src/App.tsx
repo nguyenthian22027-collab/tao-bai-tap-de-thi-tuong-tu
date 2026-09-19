@@ -87,8 +87,10 @@ export function App() {
     namHoc: '2025 - 2026',
     soBai: 3,
     extraPrompt: '',
+    targetQuestionType: 'auto',
     includeAnswers: true,
   });
+
 
   // Exam undo/redo state stack (max 50)
   const {

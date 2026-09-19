@@ -1,6 +1,7 @@
 import React from 'react';
-import { ConfigState } from '../types';
+import { ConfigState, TargetQuestionType } from '../types';
 import { Sliders, Copy, Clock, Sparkles, FileSpreadsheet, Wand2, ShieldCheck, Compass, Code } from 'lucide-react';
+
 
 interface ConfigPanelProps {
   config: ConfigState;
@@ -568,6 +569,30 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
             </div>
           </div>
 
+          {/* Dạng câu hỏi mục tiêu */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-700 flex items-center space-x-1">
+              <Wand2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Dạng câu hỏi mục tiêu:</span>
+            </label>
+            <select
+              value={config.targetQuestionType ?? 'auto'}
+              onChange={(e) => onChangeConfig({ ...config, targetQuestionType: e.target.value as TargetQuestionType })}
+              className="w-full px-2.5 py-1.5 text-xs font-medium border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="auto">✨ Tự động nhận diện theo đề gốc (Mặc định)</option>
+              <option value="trac_nghiem_4_lua_chon">🔘 Trắc nghiệm 4 lựa chọn (A, B, C, D)</option>
+              <option value="trac_nghiem_dung_sai">☑️ Trắc nghiệm Đúng / Sai 4 mệnh đề (GDPT 2025)</option>
+              <option value="trac_nghiem_tra_loi_ngan">🔢 Trắc nghiệm Trả lời ngắn (Điền đáp số — GDPT 2025)</option>
+              <option value="tu_luan">✍️ Tự luận (Trình bày bài giải chi tiết)</option>
+            </select>
+            {(config.targetQuestionType && config.targetQuestionType !== 'auto') && (
+              <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                ⚡ AI sẽ chuyển đổi kiến thức/ngữ cảnh từ bài gốc sang đúng dạng câu bạn chọn.
+              </p>
+            )}
+          </div>
+
           {/* Yêu cầu thêm (Textarea theo ảnh người dùng) */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700 block">
@@ -583,6 +608,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
           </div>
         </div>
       )}
+
 
       {/* Kèm lời giải checkbox */}
       <div className="pt-2 border-t border-slate-100">
