@@ -231,10 +231,10 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
   2. PHẦN II. USE OF ENGLISH (Từ vựng, Ngữ pháp, Giao tiếp, Biển báo, Word form, Từ điển):
      - TUYỆT ĐỐI KHÔNG TÁCH phần này thành "USE OF ENGLISH - WORD FORM & DICTIONARY". Toàn bộ đều thuộc "II. USE OF ENGLISH".
      - Trắc nghiệm 4 lựa chọn: A, B, C, D là các từ/cụm từ tiếng Anh hoàn chỉnh (vd: A: What, B: Who, C: Where, D: How many).
-     - Tình huống giao tiếp (Exchanges): Tom: "..." – Bob: "..." với A, B, C, D là các câu đối thoại.
-     - Biển báo (Signs): Nếu đề gốc có hình/mô tả biển báo, NOI_DUNG ghi ngắn gọn mô tả biển báo, A, B, C, D là các câu giải thích ý nghĩa biển báo.
-     - Word form (vd: VISIT -> visitors): LOAI: trac_nghiem_tra_loi_ngan hoặc tu_luan, NOI_DUNG chứa câu có chỗ trống và từ in hoa trong ngoặc, DAP_AN là dạng đúng.
-     - Mục từ điển (Dictionary entry): Đặt đoạn trích từ điển vào NOI_DUNG câu hỏi đầu tiên, câu tiếp theo hoàn thành câu dựa vào mục từ điển.
+     - Tình huống giao tiếp (Exchanges): Tom: "..." – Bob: "..." với A, B, C, D là các câu đối thoại phù hợp ngữ cảnh.
+     - Biển báo (Signs): NOI_DUNG ghi câu hỏi tiếng Anh chuẩn: "What does the sign / picture say?" hoặc "What does this sign mean?". TUYỆT ĐỐI KHÔNG ghi giải thích hay đáp án tiếng Việt trong ngoặc như "(Biển báo cấm hút thuốc - No Smoking)". Nếu mô tả biển báo thì ghi ngắn gọn: "[SIGN: NO SMOKING]" hoặc "[SIGN: CYCLE ROUTE AHEAD]".
+     - Word form (vd: VISIT -> visitors): LOAI: trac_nghiem_tra_loi_ngan hoặc tu_luan, NOI_DUNG chứa câu có chỗ trống và từ in hoa trong ngoặc (vd: (COMPETE)), DAP_AN là dạng đúng của từ.
+     - Mục từ điển (Dictionary entry): Đặt định nghĩa từ điển vào đầu câu 21 dưới dạng "[DICTIONARY: sport /spɔːt/ (noun)...]" rồi xuống dòng đến câu điền từ của học sinh. TUYỆT ĐỐI KHÔNG thêm chữ "Câu hỏi:" hay lặp lại toàn bộ câu hỏi. Câu 22 là câu điền từ tiếp theo.
   3. PHẦN III. READING (ĐẶC BIỆT QUAN TRỌNG - GIỐNG 100% ĐỀ GỐC):
      DUY NHẤT 1 PHẦN LỚN "TEN: III. READING", TUYỆT ĐỐI KHÔNG TÁCH THÀNH 2 PHẦN RIÊNG. BÀI ĐỌC CHUNG BẮT BUỘC ĐẶT TRONG TRƯỜNG GHI_CHU CỦA PHẦN. TUYỆT ĐỐI KHÔNG LẶP LẠI BÀI ĐỌC VÀO TỪNG CÂU HỎI CON!
      * Đặt vào trường GHI_CHU của ===PHAN=== cả 2 phần đọc:

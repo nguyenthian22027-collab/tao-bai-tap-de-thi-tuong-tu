@@ -627,6 +627,60 @@ function renderEnglishGhiChuXml(text: string): string {
   return xml;
 }
 
+/**
+ * Loại bỏ chú thích tiếng Việt trong ngoặc như (Biển báo...) để tránh lộ đáp án
+ */
+export function cleanEnglishSignsPrompt(prompt: string): string {
+  if (!prompt) return '';
+  return prompt.replace(/\s*\((?:biển báo|hình ảnh|sign)[^)]*\)/gi, '').trim();
+}
+
+/**
+ * Trích xuất sạch định nghĩa từ điển và câu hỏi điền từ của học sinh
+ */
+export function cleanEnglishPromptAndExtractDict(rawPrompt: string): {
+  cleanSentence: string;
+  boxDefLines: string[];
+  instructionLead: string;
+} {
+  const lines = rawPrompt.split('\n').map((l) => l.trim()).filter(Boolean);
+  let instructionLead = '';
+  let cleanSentence = '';
+  const boxDefLines: string[] = [];
+
+  for (const line of lines) {
+    if (/look at the entry/i.test(line) || /in a dictionary/i.test(line)) {
+      instructionLead = line;
+    } else if (/^(?:câu hỏi\s*:|\d+[\.:\s]*câu hỏi\s*:)/i.test(line) || line.includes('__________') || line.includes('_____')) {
+      cleanSentence = line.replace(/^(?:câu hỏi\s*:\s*|câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+    } else if (
+      line.includes('/') ||
+      /\b(?:noun|verb|adj|adjective|adverb)\b/i.test(line) ||
+      line.includes('1.') ||
+      line.includes('2.') ||
+      line.includes('3.') ||
+      line.toLowerCase().includes('an activity')
+    ) {
+      boxDefLines.push(line);
+    } else {
+      if (!cleanSentence && (line.includes('___') || line.endsWith('.'))) {
+        cleanSentence = line.replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+      } else {
+        boxDefLines.push(line);
+      }
+    }
+  }
+
+  if (!cleanSentence) {
+    cleanSentence = rawPrompt
+      .replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '')
+      .replace(/Look at the entry[^\n]*\n*/i, '')
+      .trim();
+  }
+
+  return { cleanSentence, boxDefLines, instructionLead };
+}
+
 // --------------------------------------------------------------------------------------
 // 1. LATEX EXPORT (Standard docx.js with LaTeX font formatting + Image Embedding)
 // --------------------------------------------------------------------------------------
@@ -725,6 +779,11 @@ export async function exportExamToDocxLatex(
     let hasPrintedReadingHeaderLatex = false;
     let hasPrintedPronunciationInstLatex = false;
     let hasPrintedStressInstLatex = false;
+    let hasPrintedExchangesInstLatex = false;
+    let hasPrintedSignsInstLatex = false;
+    let hasPrintedWordFormInstLatex = false;
+    let hasPrintedDictInstLatex = false;
+    let hasRenderedDictBoxLatex = false;
     let hasPrintedTfHeaderLatex = false;
     let hasRenderedTfBlockLatex = false;
     let pendingPart2GhiChuLatex = '';
@@ -1013,27 +1072,91 @@ export async function exportExamToDocxLatex(
           });
         } else {
           // General MCQ or Word Form or Dictionary
+          // In lời dẫn tự động theo đúng cấu trúc đề gốc
+          if (!hasPrintedExchangesInstLatex && (q.stt === 13 || (q.stt === 14 && !hasPrintedExchangesInstLatex))) {
+            hasPrintedExchangesInstLatex = true;
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Mark the letter A, B, C, or D to indicate the most suitable response to complete each of the following exchanges.',
+                    italics: true,
+                    bold: true,
+                    size: 21,
+                    color: '1E293B',
+                  }),
+                ],
+                spacing: { before: 100, after: 40 },
+              })
+            );
+          } else if (!hasPrintedSignsInstLatex && (q.stt === 15 || (q.stt <= 16 && q.stt >= 15 && !hasPrintedSignsInstLatex))) {
+            hasPrintedSignsInstLatex = true;
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Look at the sign or the notice. Choose the best answer (A, B, C or D) for these questions.',
+                    italics: true,
+                    bold: true,
+                    size: 21,
+                    color: '1E293B',
+                  }),
+                ],
+                spacing: { before: 100, after: 40 },
+              })
+            );
+          } else if (!hasPrintedWordFormInstLatex && (q.stt === 17 || (q.stt >= 17 && q.stt <= 20 && !hasPrintedWordFormInstLatex))) {
+            hasPrintedWordFormInstLatex = true;
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Write the correct form of the words in brackets.',
+                    italics: true,
+                    bold: true,
+                    size: 21,
+                    color: '1E293B',
+                  }),
+                ],
+                spacing: { before: 100, after: 40 },
+              })
+            );
+          } else if (!hasPrintedDictInstLatex && (q.stt === 21 || (q.stt <= 22 && q.stt >= 21 && !hasPrintedDictInstLatex))) {
+            hasPrintedDictInstLatex = true;
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: 'Look at the entry of the word in a dictionary. Use what you can get from the entry to complete the sentences with no more than three words.',
+                    italics: true,
+                    bold: true,
+                    size: 21,
+                    color: '1E293B',
+                  }),
+                ],
+                spacing: { before: 100, after: 40 },
+              })
+            );
+          }
+
           let promptForDisplay = promptTextEng;
-          if (promptForDisplay.toLowerCase().includes('look at the entry of the word') || promptForDisplay.toLowerCase().includes('in a dictionary')) {
-            const rawLines = promptForDisplay.split('\n').map((l) => l.trim()).filter(Boolean);
-            let leadText = '';
-            let sentenceText = '';
-            const boxLines: string[] = [];
 
-            for (const l of rawLines) {
-              if (l.toLowerCase().includes('look at the entry') || l.toLowerCase().includes('in a dictionary')) {
-                leadText = l;
-              } else if (l.toLowerCase().includes('câu hỏi:') || l.includes('__________') || l.includes('____')) {
-                sentenceText = l;
-              } else {
-                boxLines.push(l);
-              }
-            }
+          // Xử lý làm sạch câu hỏi Biển báo 15 & 16
+          if (q.stt === 15 || q.stt === 16) {
+            promptForDisplay = cleanEnglishSignsPrompt(promptForDisplay);
+          }
 
-            if (leadText) {
-              children.push(new Paragraph({ children: [new TextRun({ text: leadText, italics: true, bold: true, size: 21, color: '1E293B' })], spacing: { before: 80, after: 40 } }));
-            }
-            if (boxLines.length > 0) {
+          // Xử lý câu Word Form 17 - 20: Dấu điền từ chuẩn __________________
+          if (q.stt >= 17 && q.stt <= 20) {
+            promptForDisplay = promptForDisplay.replace(/\.{4,}/g, '__________________');
+          }
+
+          // Xử lý bóc tách định nghĩa Từ Điển và câu hỏi sạch cho câu 21 & 22
+          const isDictQ = q.stt === 21 || q.stt === 22 || /in a dictionary|entry of the word/i.test(promptForDisplay);
+          if (isDictQ) {
+            const parsedDict = cleanEnglishPromptAndExtractDict(promptForDisplay);
+            if (!hasRenderedDictBoxLatex && parsedDict.boxDefLines.length > 0) {
+              hasRenderedDictBoxLatex = true;
               children.push(
                 new Table({
                   width: { size: 9638, type: WidthType.DXA },
@@ -1044,7 +1167,7 @@ export async function exportExamToDocxLatex(
                           width: { size: 9638, type: WidthType.DXA },
                           shading: { fill: 'F8FAFC' },
                           margins: { top: 120, bottom: 120, left: 180, right: 180 },
-                          children: boxLines.map((bl) => new Paragraph({ children: [new TextRun({ text: bl, size: 21 })] })),
+                          children: parsedDict.boxDefLines.map((bl) => new Paragraph({ children: [new TextRun({ text: bl, size: 21 })] })),
                         }),
                       ],
                     }),
@@ -1053,12 +1176,7 @@ export async function exportExamToDocxLatex(
               );
               children.push(new Paragraph({ text: '' }));
             }
-            if (sentenceText) {
-              sentenceText = sentenceText.replace(/^(?:câu hỏi\s*:\s*|câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
-              promptForDisplay = sentenceText;
-            } else {
-              promptForDisplay = '';
-            }
+            promptForDisplay = parsedDict.cleanSentence || promptForDisplay;
           }
 
           // Embed images if any (e.g. Signs)
@@ -1104,25 +1222,25 @@ export async function exportExamToDocxLatex(
             const avgLen = options.reduce((sum, o) => sum + o.text.length, 0) / (options.length || 1);
             const maxLen = Math.max(...options.map((o) => o.text.length));
 
-            if (avgLen <= 26 && maxLen <= 35 && options.length === 4) {
-              const runs: TextRun[] = [];
-              options.forEach((opt, idx) => {
-                if (idx > 0) runs.push(new TextRun({ text: '\t' }));
-                runs.push(new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }));
-                runs.push(new TextRun({ text: opt.text, size: 22 }));
+            const isExchangeQuestion = q.stt === 13 || q.stt === 14;
+            const isReadingCompQuestion = q.stt === 31 || q.stt === 32;
+
+            if (isReadingCompQuestion || avgLen > 55 || maxLen > 65 || options.length !== 4) {
+              // 1 phương án / dòng (cho câu đọc hiểu hoặc câu dài)
+              options.forEach((opt) => {
+                children.push(
+                  new Paragraph({
+                    indent: { left: 360 },
+                    children: [
+                      new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }),
+                      new TextRun({ text: opt.text, size: 22 }),
+                    ],
+                    spacing: { after: 20 },
+                  })
+                );
               });
-              children.push(
-                new Paragraph({
-                  tabStops: [
-                    { type: TabStopType.LEFT, position: 3402 },
-                    { type: TabStopType.LEFT, position: 5669 },
-                    { type: TabStopType.LEFT, position: 7937 },
-                  ],
-                  children: runs,
-                  spacing: { after: 60 },
-                })
-              );
-            } else if (avgLen <= 55 && maxLen <= 65 && options.length === 4) {
+            } else if (isExchangeQuestion || avgLen > 26 || maxLen > 35) {
+              // 2 cột / 2 dòng (câu hội thoại đối đáp 13, 14 hoặc câu độ dài vừa phải)
               const runs1: TextRun[] = [
                 new TextRun({ text: 'A. ', bold: true, size: 22 }),
                 new TextRun({ text: options[0].text, size: 22 }),
@@ -1140,18 +1258,24 @@ export async function exportExamToDocxLatex(
               children.push(new Paragraph({ tabStops: [{ type: TabStopType.LEFT, position: 4819 }], children: runs1, spacing: { after: 20 } }));
               children.push(new Paragraph({ tabStops: [{ type: TabStopType.LEFT, position: 4819 }], children: runs2, spacing: { after: 60 } }));
             } else {
-              options.forEach((opt) => {
-                children.push(
-                  new Paragraph({
-                    indent: { left: 360 },
-                    children: [
-                      new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }),
-                      new TextRun({ text: opt.text, size: 22 }),
-                    ],
-                    spacing: { after: 20 },
-                  })
-                );
+              // 4 cột / 1 dòng (cho các câu trắc nghiệm ngắn câu 5-12, 23-27)
+              const runs: TextRun[] = [];
+              options.forEach((opt, idx) => {
+                if (idx > 0) runs.push(new TextRun({ text: '\t' }));
+                runs.push(new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }));
+                runs.push(new TextRun({ text: opt.text, size: 22 }));
               });
+              children.push(
+                new Paragraph({
+                  tabStops: [
+                    { type: TabStopType.LEFT, position: 3402 },
+                    { type: TabStopType.LEFT, position: 5669 },
+                    { type: TabStopType.LEFT, position: 7937 },
+                  ],
+                  children: runs,
+                  spacing: { after: 60 },
+                })
+              );
             }
           }
         }
@@ -1429,25 +1553,120 @@ export async function exportExamToDocxLatex(
         const secQuestions = sec.cauHoi || [];
         if (secQuestions.length === 0) return;
 
+        const secName = (sec.ten || `PHẦN ${sIdx + 1}`).trim();
         children.push(
           new Paragraph({
             children: [
               new TextRun({
-                text: `${sec.ten || `PHẦN ${sIdx + 1}`}:`,
+                text: `${secName}:`,
                 bold: true,
                 size: 22,
                 color: '1E3A8A',
               }),
             ],
+            spacing: { before: 80, after: 40 },
           })
         );
 
-        const isWritingSec = sec.ten?.toLowerCase().includes('writing');
-        const mcqQuestions = isWritingSec ? [] : secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
-        const essayQuestions = isWritingSec ? secQuestions : secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
+        if (secName.toUpperCase().includes('USE OF ENGLISH')) {
+          // Bảng 1: Câu 5 đến 14 (10 câu trắc nghiệm lựa chọn)
+          const q5to14 = secQuestions.filter((q) => q.stt >= 5 && q.stt <= 14).sort((a, b) => a.stt - b.stt);
+          if (q5to14.length > 0) {
+            const headerCells = [
+              new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Câu', bold: true, size: 20 })] })],
+                shading: { fill: 'E2E8F0' },
+              }),
+              ...q5to14.map(
+                (q) =>
+                  new TableCell({
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(q.stt), bold: true, size: 20 })] })],
+                    shading: { fill: 'E2E8F0' },
+                  })
+              ),
+            ];
+            const rowCells = [
+              new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Đáp án', bold: true, size: 20, color: '1E3A8A' })] })],
+              }),
+              ...q5to14.map((q) => {
+                const ans = (q.dapAn || '-').trim();
+                return new TableCell({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: ans, bold: true, size: 20, color: '16A34A' })],
+                    }),
+                  ],
+                });
+              }),
+            ];
+            children.push(
+              new Table({
+                rows: [new TableRow({ children: headerCells }), new TableRow({ children: rowCells })],
+                width: { size: 100, type: WidthType.PERCENTAGE },
+              })
+            );
+            children.push(new Paragraph({ text: '' }));
+          }
 
-        if (mcqQuestions.length > 0) {
-          const chunks = chunkArray(mcqQuestions, 10);
+          // Bảng 2: Câu 15 đến 22 (8 câu: 15, 16, 17, 18, 19, 20, 21, 22 liên tục theo đúng thứ tự tăng dần!)
+          const q15to22 = secQuestions.filter((q) => q.stt >= 15 && q.stt <= 22).sort((a, b) => a.stt - b.stt);
+          if (q15to22.length > 0) {
+            const headerCells = [
+              new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Câu', bold: true, size: 20 })] })],
+                shading: { fill: 'E2E8F0' },
+              }),
+              ...q15to22.map(
+                (q) =>
+                  new TableCell({
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(q.stt), bold: true, size: 20 })] })],
+                    shading: { fill: 'E2E8F0' },
+                  })
+              ),
+            ];
+            const rowCells = [
+              new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Đáp án', bold: true, size: 20, color: '1E3A8A' })] })],
+              }),
+              ...q15to22.map((q) => {
+                const ans = (q.dapAn || '-').trim();
+                return new TableCell({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: ans, bold: true, size: 20, color: '16A34A' })],
+                    }),
+                  ],
+                });
+              }),
+            ];
+            children.push(
+              new Table({
+                rows: [new TableRow({ children: headerCells }), new TableRow({ children: rowCells })],
+                width: { size: 100, type: WidthType.PERCENTAGE },
+              })
+            );
+            children.push(new Paragraph({ text: '' }));
+          }
+        } else if (secName.toUpperCase().includes('WRITING')) {
+          secQuestions.forEach((q) => {
+            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Câu ${q.stt}: `, bold: true, size: 21, color: '1E3A8A' }),
+                  new TextRun({ text: cleanAns, size: 21, color: '0F172A' }),
+                ],
+                spacing: { after: 30 },
+              })
+            );
+          });
+          children.push(new Paragraph({ text: '' }));
+        } else {
+          // Các phần khác (Phonetics câu 1-4, Reading câu 23-32)
+          const chunks = chunkArray(secQuestions, 10);
           chunks.forEach((chunk) => {
             const headerCells = [
               new TableCell({
@@ -1462,7 +1681,6 @@ export async function exportExamToDocxLatex(
                   })
               ),
             ];
-
             const rowCells = [
               new TableCell({
                 children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Đáp án', bold: true, size: 20, color: '1E3A8A' })] })],
@@ -1481,7 +1699,6 @@ export async function exportExamToDocxLatex(
                 });
               }),
             ];
-
             children.push(
               new Table({
                 rows: [new TableRow({ children: headerCells }), new TableRow({ children: rowCells })],
@@ -1490,22 +1707,6 @@ export async function exportExamToDocxLatex(
             );
             children.push(new Paragraph({ text: '' }));
           });
-        }
-
-        if (essayQuestions.length > 0) {
-          essayQuestions.forEach((q) => {
-            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({ text: `Câu ${q.stt}: `, bold: true, size: 21, color: '1E3A8A' }),
-                  new TextRun({ text: cleanAns, size: 21, color: '0F172A' }),
-                ],
-                spacing: { after: 30 },
-              })
-            );
-          });
-          children.push(new Paragraph({ text: '' }));
         }
       });
     } else {
@@ -2126,6 +2327,11 @@ export async function exportExamToDocxOmml(
     let hasPrintedReadingHeaderOmml = false;
     let hasPrintedPronunciationInstOmml = false;
     let hasPrintedStressInstOmml = false;
+    let hasPrintedExchangesInstOmml = false;
+    let hasPrintedSignsInstOmml = false;
+    let hasPrintedWordFormInstOmml = false;
+    let hasPrintedDictInstOmml = false;
+    let hasRenderedDictBoxOmml = false;
     let hasPrintedTfHeaderOmml = false;
     let hasRenderedTfBlockOmml = false;
     let pendingPart2GhiChuOmml = '';
@@ -2328,27 +2534,39 @@ export async function exportExamToDocxOmml(
           });
         } else {
           // General MCQ or Word Form or Dictionary
+          // In lời dẫn tự động theo đúng cấu trúc đề gốc
+          if (!hasPrintedExchangesInstOmml && (q.stt === 13 || (q.stt === 14 && !hasPrintedExchangesInstOmml))) {
+            hasPrintedExchangesInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="100" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Mark the letter A, B, C, or D to indicate the most suitable response to complete each of the following exchanges.</w:t></w:r></w:p>`;
+          } else if (!hasPrintedSignsInstOmml && (q.stt === 15 || (q.stt <= 16 && q.stt >= 15 && !hasPrintedSignsInstOmml))) {
+            hasPrintedSignsInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="100" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Look at the sign or the notice. Choose the best answer (A, B, C or D) for these questions.</w:t></w:r></w:p>`;
+          } else if (!hasPrintedWordFormInstOmml && (q.stt === 17 || (q.stt >= 17 && q.stt <= 20 && !hasPrintedWordFormInstOmml))) {
+            hasPrintedWordFormInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="100" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Write the correct form of the words in brackets.</w:t></w:r></w:p>`;
+          } else if (!hasPrintedDictInstOmml && (q.stt === 21 || (q.stt <= 22 && q.stt >= 21 && !hasPrintedDictInstOmml))) {
+            hasPrintedDictInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="100" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Look at the entry of the word in a dictionary. Use what you can get from the entry to complete the sentences with no more than three words.</w:t></w:r></w:p>`;
+          }
+
           let promptForDisplay = promptTextEng;
-          if (promptForDisplay.toLowerCase().includes('look at the entry of the word') || promptForDisplay.toLowerCase().includes('in a dictionary')) {
-            const rawLines = promptForDisplay.split('\n').map((l) => l.trim()).filter(Boolean);
-            let leadText = '';
-            let sentenceText = '';
-            const boxLines: string[] = [];
 
-            for (const l of rawLines) {
-              if (l.toLowerCase().includes('look at the entry') || l.toLowerCase().includes('in a dictionary')) {
-                leadText = l;
-              } else if (l.toLowerCase().includes('câu hỏi:') || l.includes('__________') || l.includes('____')) {
-                sentenceText = l;
-              } else {
-                boxLines.push(l);
-              }
-            }
+          // Xử lý làm sạch câu hỏi Biển báo 15 & 16
+          if (q.stt === 15 || q.stt === 16) {
+            promptForDisplay = cleanEnglishSignsPrompt(promptForDisplay);
+          }
 
-            if (leadText) {
-              bodyXml += `<w:p><w:pPr><w:spacing w:before="80" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">${xmlEscape(leadText)}</w:t></w:r></w:p>`;
-            }
-            if (boxLines.length > 0) {
+          // Xử lý câu Word Form 17 - 20: Dấu điền từ chuẩn __________________
+          if (q.stt >= 17 && q.stt <= 20) {
+            promptForDisplay = promptForDisplay.replace(/\.{4,}/g, '__________________');
+          }
+
+          // Xử lý bóc tách định nghĩa Từ Điển và câu hỏi sạch cho câu 21 & 22
+          const isDictQ = q.stt === 21 || q.stt === 22 || /in a dictionary|entry of the word/i.test(promptForDisplay);
+          if (isDictQ) {
+            const parsedDict = cleanEnglishPromptAndExtractDict(promptForDisplay);
+            if (!hasRenderedDictBoxOmml && parsedDict.boxDefLines.length > 0) {
+              hasRenderedDictBoxOmml = true;
               bodyXml += `<w:tbl>
                 <w:tblPr>
                   <w:tblW w:w="9638" w:type="dxa"/>
@@ -2364,17 +2582,12 @@ export async function exportExamToDocxOmml(
                 <w:tr>
                   <w:tc>
                     <w:tcPr><w:tcW w:w="9638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/><w:tcMar><w:top w:w="120"/><w:bottom w:w="120"/><w:left w:w="180"/><w:right w:w="180"/></w:tcMar></w:tcPr>`;
-              boxLines.forEach((bl) => {
+              parsedDict.boxDefLines.forEach((bl) => {
                 bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(bl)}</w:t></w:r></w:p>`;
               });
               bodyXml += `</w:tc></w:tr></w:tbl><w:p/>`;
             }
-            if (sentenceText) {
-              sentenceText = sentenceText.replace(/^(?:câu hỏi\s*:\s*|câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
-              promptForDisplay = sentenceText;
-            } else {
-              promptForDisplay = '';
-            }
+            promptForDisplay = parsedDict.cleanSentence || promptForDisplay;
           }
 
           // Embed images if any (e.g. Signs)
@@ -2414,16 +2627,19 @@ export async function exportExamToDocxOmml(
             const avgLen = options.reduce((sum, o) => sum + o.text.length, 0) / (options.length || 1);
             const maxLen = Math.max(...options.map((o) => o.text.length));
 
-            if (avgLen <= 26 && maxLen <= 35 && options.length === 4) {
-              let pXml = `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="3402"/><w:tab w:val="left" w:pos="5669"/><w:tab w:val="left" w:pos="7937"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
-              options.forEach((opt, idx) => {
-                if (idx > 0) pXml += '<w:r><w:tab/></w:r>';
-                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>`;
-                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>`;
+            const isExchangeQuestion = q.stt === 13 || q.stt === 14;
+            const isReadingCompQuestion = q.stt === 31 || q.stt === 32;
+
+            if (isReadingCompQuestion || avgLen > 55 || maxLen > 65 || options.length !== 4) {
+              // 1 phương án / dòng (cho câu đọc hiểu hoặc câu dài)
+              options.forEach((opt) => {
+                bodyXml += `<w:p><w:pPr><w:ind w:left="360"/><w:spacing w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>
+                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>
+                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>
+                </w:p>`;
               });
-              pXml += '</w:p>';
-              bodyXml += pXml;
-            } else if (avgLen <= 55 && maxLen <= 65 && options.length === 4) {
+            } else if (isExchangeQuestion || avgLen > 26 || maxLen > 35) {
+              // 2 cột / 2 dòng (câu hội thoại đối đáp 13, 14 hoặc câu độ dài vừa phải)
               bodyXml += `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="4819"/></w:tabs><w:spacing w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>
                 <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">A. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[0].text)}</w:t></w:r>
                 <w:r><w:tab/></w:r>
@@ -2435,12 +2651,15 @@ export async function exportExamToDocxOmml(
                 <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">D. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[3].text)}</w:t></w:r>
               </w:p>`;
             } else {
-              options.forEach((opt) => {
-                bodyXml += `<w:p><w:pPr><w:ind w:left="360"/><w:spacing w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>
-                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>
-                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>
-                </w:p>`;
+              // 4 cột / 1 dòng (cho các câu trắc nghiệm ngắn câu 5-12, 23-27)
+              let pXml = `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="3402"/><w:tab w:val="left" w:pos="5669"/><w:tab w:val="left" w:pos="7937"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
+              options.forEach((opt, idx) => {
+                if (idx > 0) pXml += '<w:r><w:tab/></w:r>';
+                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>`;
+                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>`;
               });
+              pXml += '</w:p>';
+              bodyXml += pXml;
             }
           }
         }
@@ -2629,14 +2848,39 @@ export async function exportExamToDocxOmml(
         const secQuestions = sec.cauHoi || [];
         if (secQuestions.length === 0) return;
 
-        bodyXml += createSimpleTextParagraph(`${sec.ten || `PHẦN ${sIdx + 1}`}:`, true, false, '1E3A8A');
+        const secName = (sec.ten || `PHẦN ${sIdx + 1}`).trim();
+        bodyXml += createSimpleTextParagraph(`${secName}:`, true, false, '1E3A8A');
 
-        const isWritingSec = sec.ten?.toLowerCase().includes('writing');
-        const mcqQuestions = isWritingSec ? [] : secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
-        const essayQuestions = isWritingSec ? secQuestions : secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
+        if (secName.toUpperCase().includes('USE OF ENGLISH')) {
+          // Bảng 1: Câu 5 đến 14 (10 câu trắc nghiệm lựa chọn)
+          const q5to14 = secQuestions.filter((q) => q.stt >= 5 && q.stt <= 14).sort((a, b) => a.stt - b.stt);
+          if (q5to14.length > 0) {
+            const headers = ['Câu', ...q5to14.map((q) => String(q.stt))];
+            const rowData = ['Đáp án', ...q5to14.map((q) => (q.dapAn || '-').trim())];
+            bodyXml += createOmmlTable(headers, [rowData]);
+            bodyXml += '<w:p/>';
+          }
 
-        if (mcqQuestions.length > 0) {
-          const chunks = chunkArray(mcqQuestions, 10);
+          // Bảng 2: Câu 15 đến 22 (8 câu: 15, 16, 17, 18, 19, 20, 21, 22 liên tục theo đúng thứ tự tăng dần!)
+          const q15to22 = secQuestions.filter((q) => q.stt >= 15 && q.stt <= 22).sort((a, b) => a.stt - b.stt);
+          if (q15to22.length > 0) {
+            const headers = ['Câu', ...q15to22.map((q) => String(q.stt))];
+            const rowData = ['Đáp án', ...q15to22.map((q) => (q.dapAn || '-').trim())];
+            bodyXml += createOmmlTable(headers, [rowData]);
+            bodyXml += '<w:p/>';
+          }
+        } else if (secName.toUpperCase().includes('WRITING')) {
+          secQuestions.forEach((q) => {
+            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
+            bodyXml += `<w:p><w:pPr><w:spacing w:after="30" w:line="240" w:lineRule="auto"/></w:pPr>
+              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">Câu ${q.stt}: </w:t></w:r>
+              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:color w:val="0F172A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(cleanAns)}</w:t></w:r>
+            </w:p>`;
+          });
+          bodyXml += '<w:p/>';
+        } else {
+          // Các phần khác (Phonetics câu 1-4, Reading câu 23-32)
+          const chunks = chunkArray(secQuestions, 10);
           chunks.forEach((chunk) => {
             const headers = ['Câu', ...chunk.map((q) => String(q.stt))];
             const rowData = [
@@ -2651,17 +2895,6 @@ export async function exportExamToDocxOmml(
             bodyXml += createOmmlTable(headers, [rowData]);
             bodyXml += '<w:p/>';
           });
-        }
-
-        if (essayQuestions.length > 0) {
-          essayQuestions.forEach((q) => {
-            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
-            bodyXml += `<w:p><w:pPr><w:spacing w:after="30" w:line="240" w:lineRule="auto"/></w:pPr>
-              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">Câu ${q.stt}: </w:t></w:r>
-              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:color w:val="0F172A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(cleanAns)}</w:t></w:r>
-            </w:p>`;
-          });
-          bodyXml += '<w:p/>';
         }
       });
     } else {

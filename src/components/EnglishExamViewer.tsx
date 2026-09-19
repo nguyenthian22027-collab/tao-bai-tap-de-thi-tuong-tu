@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ExamData, Question, QuestionType } from '../types';
-import { parseUnderlineTokens } from '../lib/docxExporter';
+import { parseUnderlineTokens, cleanEnglishSignsPrompt, cleanEnglishPromptAndExtractDict } from '../lib/docxExporter';
 import { extractQuestionOptions } from '../lib/tableAndChartHelper';
 import { Search, Eye, EyeOff, Printer, Edit3, BookOpen } from 'lucide-react';
 
@@ -441,7 +441,7 @@ export const EnglishExamViewer: React.FC<EnglishExamViewerProps> = ({
                       <div key={q.id} className="group py-1 space-y-1.5 hover:bg-slate-50 rounded px-1 -mx-1">
                         <div className="flex items-baseline">
                           <span className="font-bold mr-1.5 shrink-0">{q.stt}.</span>
-                          <span className="flex-1">{cleanQuestionPrompt(cleanNoiDung)}</span>
+                          <span className="flex-1">{cleanEnglishSignsPrompt(cleanQuestionPrompt(cleanNoiDung))}</span>
                           {onEditQuestion && (
                             <button
                               onClick={() => onEditQuestion(q)}
@@ -493,11 +493,12 @@ export const EnglishExamViewer: React.FC<EnglishExamViewerProps> = ({
                 <div className="space-y-2">
                   {useOfEnglishQuestions.filter((q) => q.stt >= 17 && q.stt <= 20).map((q) => {
                     if (!matchesSearch(q.noiDung)) return null;
+                    const cleanPrompt = cleanQuestionPrompt(q.noiDung).replace(/\.{4,}/g, '__________________');
                     return (
                       <div key={q.id} className="group py-0.5 space-y-1 hover:bg-slate-50 rounded px-1 -mx-1">
                         <div className="flex items-baseline">
                           <span className="font-bold mr-1.5 shrink-0">{q.stt}.</span>
-                          <span className="flex-1">{cleanQuestionPrompt(q.noiDung)}</span>
+                          <span className="flex-1">{cleanPrompt}</span>
                           {onEditQuestion && (
                             <button
                               onClick={() => onEditQuestion(q)}
@@ -521,55 +522,63 @@ export const EnglishExamViewer: React.FC<EnglishExamViewerProps> = ({
             )}
 
             {/* Lời dẫn 5: Dictionary Entry & Câu 21 - 22 */}
-            {useOfEnglishQuestions.some((q) => q.stt >= 21 && q.stt <= 22) && (
-              <>
-                <div className="italic text-[13.5px] text-slate-800 leading-normal pt-2">
-                  Look at the entry of the word in a dictionary. Use what you can get from the entry to complete the sentences with no more than three words.
-                </div>
+            {useOfEnglishQuestions.some((q) => q.stt >= 21 && q.stt <= 22) && (() => {
+              const q21 = useOfEnglishQuestions.find((q) => q.stt === 21);
+              const parsedDict21 = q21 ? cleanEnglishPromptAndExtractDict(q21.noiDung) : null;
+              const dictDefContent = useGhiChu || (parsedDict21 && parsedDict21.boxDefLines.length > 0 ? parsedDict21.boxDefLines.join('\n') : '');
 
-                {/* Khung Từ Điển (Dictionary Box) */}
-                {useGhiChu ? (
-                  <div className="my-2 p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-[13.5px] text-slate-800 whitespace-pre-wrap font-serif leading-relaxed shadow-2xs">
-                    {useGhiChu}
+              return (
+                <>
+                  <div className="italic text-[13.5px] text-slate-800 leading-normal pt-2">
+                    Look at the entry of the word in a dictionary. Use what you can get from the entry to complete the sentences with no more than three words.
                   </div>
-                ) : (
-                  <div className="my-2 p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-[13.5px] text-slate-800 font-serif leading-relaxed italic shadow-2xs">
-                    game /ɡeɪm/ noun<br />
-                    1. [C] an activity or sport with rules in which people or teams compete against each other: a board game • computer games<br />
-                    2. [U] the equipment used for playing a game: a set of games<br />
-                    3. [U] video gaming as an entertainment: Playing games is popular among teenagers.
-                  </div>
-                )}
 
-                <div className="space-y-2">
-                  {useOfEnglishQuestions.filter((q) => q.stt >= 21 && q.stt <= 22).map((q) => {
-                    if (!matchesSearch(q.noiDung)) return null;
-                    return (
-                      <div key={q.id} className="group py-0.5 space-y-1 hover:bg-slate-50 rounded px-1 -mx-1">
-                        <div className="flex items-baseline">
-                          <span className="font-bold mr-1.5 shrink-0">{q.stt}.</span>
-                          <span className="flex-1">{cleanQuestionPrompt(q.noiDung)}</span>
-                          {onEditQuestion && (
-                            <button
-                              onClick={() => onEditQuestion(q)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 p-1 text-slate-400 hover:text-indigo-600 no-print"
-                              title="Chỉnh sửa câu hỏi"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
+                  {/* Khung Từ Điển (Dictionary Box) */}
+                  {dictDefContent ? (
+                    <div className="my-2 p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-[13.5px] text-slate-800 whitespace-pre-wrap font-serif leading-relaxed shadow-2xs">
+                      {dictDefContent}
+                    </div>
+                  ) : (
+                    <div className="my-2 p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-[13.5px] text-slate-800 font-serif leading-relaxed italic shadow-2xs">
+                      game /ɡeɪm/ noun<br />
+                      1. [C] an activity or sport with rules in which people or teams compete against each other: a board game • computer games<br />
+                      2. [U] the equipment used for playing a game: a set of games<br />
+                      3. [U] video gaming as an entertainment: Playing games is popular among teenagers.
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {useOfEnglishQuestions.filter((q) => q.stt >= 21 && q.stt <= 22).map((q) => {
+                      if (!matchesSearch(q.noiDung)) return null;
+                      const parsedQ = cleanEnglishPromptAndExtractDict(q.noiDung);
+                      const promptText = parsedQ.cleanSentence || cleanQuestionPrompt(q.noiDung);
+                      return (
+                        <div key={q.id} className="group py-0.5 space-y-1 hover:bg-slate-50 rounded px-1 -mx-1">
+                          <div className="flex items-baseline">
+                            <span className="font-bold mr-1.5 shrink-0">{q.stt}.</span>
+                            <span className="flex-1">{promptText}</span>
+                            {onEditQuestion && (
+                              <button
+                                onClick={() => onEditQuestion(q)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 p-1 text-slate-400 hover:text-indigo-600 no-print"
+                                title="Chỉnh sửa câu hỏi"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          {showAnswer && q.dapAn && (
+                            <div className="pl-6 text-[13px] text-emerald-800 font-semibold">
+                              → Đáp án: <span className="underline">{q.dapAn}</span>
+                            </div>
                           )}
                         </div>
-                        {showAnswer && q.dapAn && (
-                          <div className="pl-6 text-[13px] text-emerald-800 font-semibold">
-                            → Đáp án: <span className="underline">{q.dapAn}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -736,7 +745,7 @@ export const EnglishExamViewer: React.FC<EnglishExamViewerProps> = ({
                           </button>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-5 sm:pl-6">
+                      <div className="grid grid-cols-1 gap-1.5 pl-5 sm:pl-6">
                         {opts.map((opt) => {
                           const isCorrect = showAnswer && q.dapAn?.toUpperCase() === opt.key;
                           return (
@@ -861,10 +870,10 @@ export const EnglishExamViewer: React.FC<EnglishExamViewerProps> = ({
                   II. USE OF ENGLISH
                 </div>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[13px]">
-                  {useOfEnglishQuestions.map((q) => (
+                  {useOfEnglishQuestions.slice().sort((a, b) => a.stt - b.stt).map((q) => (
                     <div key={q.id} className="flex items-center space-x-1 truncate">
                       <span className="font-bold shrink-0">{q.stt}.</span>
-                      <span className="text-emerald-800 font-semibold truncate">
+                      <span className="text-emerald-800 font-semibold truncate" title={q.dapAn || '...'}>
                         {q.dapAn || '...'}
                       </span>
                     </div>
