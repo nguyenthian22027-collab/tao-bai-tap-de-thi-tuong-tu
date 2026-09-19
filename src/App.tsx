@@ -72,10 +72,15 @@ export function App() {
     mucDoTuongTu: 'cung_dang',
     doKho: 'tuong_duong',
     tikzMode: 'auto',
+    loaiMaTran: 'toan_khtn',
     numPart1: 12,
     numPart2: 4,
     numPart3: 6,
     numPart4: 0,
+    numEngPhonetics: 4,
+    numEngUse: 18,
+    numEngReading: 10,
+    numEngWriting: 8,
     thoiGian: 90,
     tieuDe: 'ĐỀ KIỂM TRA TƯƠNG TỰ',
     truong: 'SỞ GIÁO DỤC VÀ ĐÀO TẠO',
@@ -284,6 +289,22 @@ export function App() {
 
     return true;
   }, [currentUser, userProfile, handleLoginGoogle]);
+
+  // Handler for source change with intelligent subject detection
+  const handleChangeSource = (newSource: SourceState) => {
+    setSource(newSource);
+    const text = (newSource.textContent || '').toLowerCase();
+    const hasEnglishKeywords =
+      text.includes('phonetics') ||
+      text.includes('use of english') ||
+      text.includes('tiếng anh') ||
+      text.includes('english') ||
+      text.includes('reading passage') ||
+      (newSource.fileData && newSource.fileData.some((f) => /anh|english/i.test(f.fileName)));
+    if (hasEnglishKeywords && config.loaiMaTran !== 'tieng_anh') {
+      setConfig((prev) => ({ ...prev, loaiMaTran: 'tieng_anh' }));
+    }
+  };
 
   // Primary Exam Generation Dispatcher
   const handleGenerateExam = async () => {
@@ -586,7 +607,7 @@ export function App() {
           <div className="lg:col-span-5 xl:col-span-5 space-y-3.5 no-print">
             <SourcePanel
               source={source}
-              onChangeSource={setSource}
+              onChangeSource={handleChangeSource}
               onAddToast={addToast}
             />
 

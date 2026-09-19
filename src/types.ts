@@ -91,10 +91,20 @@ export interface ConfigState {
   // Khi mode === 'nguyen_de'
   soDeCanTao: number; // 1 - 5 đề
   mucDoTuongTu: 'doi_so_lieu' | 'cung_dang' | 'hoan_toan_moi';
+  
+  // Ma trận môn Toán / KHTN (GDPT 2025)
+  loaiMaTran?: 'toan_khtn' | 'tieng_anh';
   numPart1: number; // Phần I: 4 lựa chọn (mặc định 12 câu)
   numPart2: number; // Phần II: Đúng/Sai (mặc định 4 câu)
   numPart3: number; // Phần III: Trả lời ngắn (mặc định 6 câu)
   numPart4: number; // Phần IV: Tự luận (mặc định 0 câu)
+
+  // Ma trận môn Tiếng Anh (4 phần chuẩn)
+  numEngPhonetics?: number; // I. Phonetics (mặc định 4 câu)
+  numEngUse?: number;       // II. Use of English (mặc định 18 câu)
+  numEngReading?: number;   // III. Reading (mặc định 10 câu)
+  numEngWriting?: number;   // IV. Writing (mặc định 8 câu)
+
   thoiGian: number;
   tieuDe: string;
   truong?: string;

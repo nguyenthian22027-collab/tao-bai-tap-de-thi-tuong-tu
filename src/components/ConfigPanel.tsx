@@ -232,101 +232,220 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
           {/* BẢNG TÙY CHỈNH SỐ CÂU (Chỉ hiện khi chọn cautrucDe === 'ma_tran_tuy_chinh') */}
           {config.cautrucDe === 'ma_tran_tuy_chinh' ? (
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
+              {/* Chọn nhóm môn ma trận & Tổng số câu */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <label className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                   <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Số câu từng dạng (Cấu hình thủ công):</span>
+                  <span>Ma trận cấu hình:</span>
                 </label>
-                <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                  Tổng: {config.numPart1 + config.numPart2 + config.numPart3 + config.numPart4} câu
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {/* Dạng 1: 4 lựa chọn */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-800 block leading-tight">
-                    Phần I: 4 Lựa chọn
+                <div className="flex items-center space-x-2">
+                  <div className="flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => onChangeConfig({ ...config, loaiMaTran: 'toan_khtn' })}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        config.loaiMaTran !== 'tieng_anh'
+                          ? 'bg-white text-indigo-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      📐 Toán / KHTN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChangeConfig({ ...config, loaiMaTran: 'tieng_anh' })}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                        config.loaiMaTran === 'tieng_anh'
+                          ? 'bg-white text-indigo-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      🇬🇧 Tiếng Anh
+                    </button>
+                  </div>
+                  <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                    Tổng: {config.loaiMaTran === 'tieng_anh'
+                      ? (config.numEngPhonetics ?? 4) + (config.numEngUse ?? 18) + (config.numEngReading ?? 10) + (config.numEngWriting ?? 8)
+                      : config.numPart1 + config.numPart2 + config.numPart3 + config.numPart4} câu
                   </span>
-                  <span className="text-[10px] text-slate-500 block">Chọn 1 trong A, B, C, D</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={60}
-                    value={config.numPart1}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        ...config,
-                        numPart1: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
-                  />
-                </div>
-
-                {/* Dạng 2: Đúng / Sai */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-800 block leading-tight">
-                    Phần II: Đúng / Sai
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">1 đề chung + 4 ý a,b,c,d</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={config.numPart2}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        ...config,
-                        numPart2: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
-                  />
-                </div>
-
-                {/* Dạng 3: Trả lời ngắn */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-800 block leading-tight">
-                    Phần III: Trả lời ngắn
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">Điền số / phân số</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={config.numPart3}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        ...config,
-                        numPart3: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
-                  />
-                </div>
-
-                {/* Dạng 4: Tự luận */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-800 block leading-tight">
-                    Phần IV: Tự luận
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">Trình bày lời giải</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={config.numPart4}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        ...config,
-                        numPart4: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
-                  />
                 </div>
               </div>
+
+              {config.loaiMaTran === 'tieng_anh' ? (
+                /* MA TRẬN MÔN TIẾNG ANH (4 PHẦN CHUẨN) */
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* I. Phonetics */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      I. Phonetics
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Phát âm & Trọng âm</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={config.numEngPhonetics ?? 4}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numEngPhonetics: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* II. Use of English */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      II. Use of English
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Trắc nghiệm, Biển báo, Word form</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={50}
+                      value={config.numEngUse ?? 18}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numEngUse: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* III. Reading */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      III. Reading
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Cloze + Đọc hiểu T/F & MCQ</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={config.numEngReading ?? 10}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numEngReading: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* IV. Writing */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      IV. Writing
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Viết lại câu (Rewrite)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={config.numEngWriting ?? 8}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numEngWriting: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* MA TRẬN MÔN TOÁN / KHTN (GDPT 2025 CHUẨN) */
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* Dạng 1: 4 lựa chọn */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      Phần I: 4 Lựa chọn
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Chọn 1 trong A, B, C, D</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={config.numPart1}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numPart1: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* Dạng 2: Đúng / Sai */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      Phần II: Đúng / Sai
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">1 đề chung + 4 ý a,b,c,d</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={config.numPart2}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numPart2: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* Dạng 3: Trả lời ngắn */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      Phần III: Trả lời ngắn
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Điền số / phân số</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={config.numPart3}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numPart3: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+
+                  {/* Dạng 4: Tự luận */}
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-800 block leading-tight">
+                      Phần IV: Tự luận
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Trình bày lời giải</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={config.numPart4}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          numPart4: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start space-x-2">

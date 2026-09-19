@@ -206,28 +206,49 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
 [NHÓM 2] NGOẠI NGỮ — Tiếng Anh, Tiếng Pháp, Tiếng Trung, Tiếng Nhật...:
 • TUYỆT ĐỐI không dùng LaTeX hay ký hiệu Toán ($...$) vô nghĩa.
 • TUYỆT ĐỐI không sinh TikZ.
-• CẤU TRÚC ĐỀ THI TIẾNG ANH CHUẨN (GIỮ CHÍNH XÁC NHƯ ĐỀ GỐC):
-  1. PHẦN I. PHONETICS:
-     - Pronunciation (phát âm âm gạch chân): A/B/C/D là 4 từ tiếng Anh, có phần phát âm khác nhau được gạch chân hoặc đặt trong ngoặc vuông (vd: cr[ow]d, t[ow]n, sn[ow], h[ou]se).
-     - Stress (trọng âm): 4 từ tiếng Anh, hỏi từ có vị trí trọng âm khác.
-  2. PHẦN II. USE OF ENGLISH (Vocabulary, Grammar, Exchanges, Signs, Word Form):
-     - Trắc nghiệm 4 lựa chọn A, B, C, D về ngữ pháp, từ vựng, tình huống giao tiếp (Exchanges), biển báo/thông báo (Signs/Notices).
-     - Word form (Dạng đúng của từ, vd: VISIT -> visitors): LOAI: tu_luan hoặc trac_nghiem_tra_loi_ngan, NOI_DUNG chứa câu và từ trong ngoặc (VD: (VISIT)), DAP_AN là dạng đúng.
-     - Mục từ điển (Dictionary entry, nếu có): Cho đoạn trích mục từ điển ở GHI_CHU hoặc câu hỏi đầu, các câu sau điền từ hoàn thành câu.
+• QUY TẮC BẮT BUỘC VỀ PHƯƠNG ÁN TRẮC NGHIỆM:
+  - MỌI phương án A:, B:, C:, D: BẮT BUỘC PHẢI CHỨA TỪ NGỮ, CỤM TỪ HOẶC CÂU TIẾNG ANH ĐẦY ĐỦ.
+  - TUYỆT ĐỐI CẤM xuất các phương án rỗng là chữ cái A, B, C, D (ví dụ CẤM: "A: A", "B: B", "C: C", "D: D").
+  - Với câu True / False: BẮT BUỘC là "A: True", "B: False" (DAP_AN là A nếu True, B nếu False).
+• CẤU TRÚC ĐỀ THI TIẾNG ANH CHUẨN (GIỮ CHÍNH XÁC NHƯ ĐỀ GỐC, KHÔNG ĐƯỢC TỰ Ý TÁCH THÊM PHẦN MỚI):
+  1. PHẦN I. PHONETICS (Chỉ gồm 4 câu):
+     - Pronunciation (phát âm âm gạch chân): 
+       NOI_DUNG: Pronunciation
+       A: m[o]ther
+       B: h[ea]lthy
+       C: f[a]ther
+       D: th[ei]r
+       DAP_AN: B
+       (Âm cần kiểm tra đặt trong ngoặc vuông [...] hoặc gạch chân).
+     - Stress (trọng âm):
+       NOI_DUNG: Stress
+       A: landmark
+       B: famous
+       C: museum
+       D: palace
+       DAP_AN: C
+       (TUYỆT ĐỐI KHÔNG dán câu lệnh dài "Mark the letter..." vào đề bài từng câu!).
+  2. PHẦN II. USE OF ENGLISH (Từ vựng, Ngữ pháp, Giao tiếp, Biển báo, Word form, Từ điển):
+     - TUYỆT ĐỐI KHÔNG TÁCH phần này thành "USE OF ENGLISH - WORD FORM & DICTIONARY". Toàn bộ đều thuộc "II. USE OF ENGLISH".
+     - Trắc nghiệm 4 lựa chọn: A, B, C, D là các từ/cụm từ tiếng Anh hoàn chỉnh (vd: A: What, B: Who, C: Where, D: How many).
+     - Tình huống giao tiếp (Exchanges): Tom: "..." – Bob: "..." với A, B, C, D là các câu đối thoại.
+     - Biển báo (Signs): Nếu đề gốc có hình/mô tả biển báo, NOI_DUNG ghi ngắn gọn mô tả biển báo, A, B, C, D là các câu giải thích ý nghĩa biển báo.
+     - Word form (vd: VISIT -> visitors): LOAI: trac_nghiem_tra_loi_ngan hoặc tu_luan, NOI_DUNG chứa câu có chỗ trống và từ in hoa trong ngoặc, DAP_AN là dạng đúng.
+     - Mục từ điển (Dictionary entry): Đặt đoạn trích từ điển vào NOI_DUNG câu hỏi đầu tiên, câu tiếp theo hoàn thành câu dựa vào mục từ điển.
   3. PHẦN III. READING (ĐẶC BIỆT QUAN TRỌNG - GIỐNG 100% ĐỀ GỐC):
      GỒM 2 PHẦN RIÊNG BIỆT. BÀI ĐỌC CHUNG BẮT BUỘC ĐẶT TRONG TRƯỜNG GHI_CHU CỦA PHẦN. TUYỆT ĐỐI KHÔNG LẶP LẠI BÀI ĐỌC VÀO TỪNG CÂU HỎI CON!
      * PART 1: CLOZE TEST (Điền từ vào đoạn văn có chỗ trống):
        - Đặt TOÀN BỘ đoạn văn bài đọc có các chỗ trống đánh số (23) _______, (24) _______, (25) _______... vào trường GHI_CHU của ===PHAN===.
-       - Các câu hỏi con phía dưới (STT: 23, 24, 25...) chỉ gồm số thứ tự, NOI_DUNG: (23) và 4 phương án A, B, C, D để chọn từ điền vào.
+       - Các câu hỏi con phía dưới (STT: 23, 24, 25...) chỉ gồm số thứ tự, NOI_DUNG: (23) và 4 phương án từ vựng A, B, C, D (vd: A: go, B: do, C: play, D: make).
      * PART 2: READING COMPREHENSION (Bài đọc hiểu hoàn chỉnh):
-       - Đặt TOÀN BỘ đoạn văn đọc hiểu hoàn chỉnh (về danh lam thắng cảnh, thành phố như Hollywood, Hội An, người nổi tiếng...) vào trường GHI_CHU của ===PHAN===.
+       - Đặt TOÀN BỘ đoạn văn đọc hiểu hoàn chỉnh (về thành phố, du lịch, lịch sử, văn hóa...) vào trường GHI_CHU của ===PHAN===.
        - Các câu hỏi con phía dưới dùng chung bài đọc này:
          + Các câu True / False: LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu khẳng định, A: True, B: False, DAP_AN: A (nếu True) hoặc B (nếu False).
-         + Các câu 4 lựa chọn (Main idea, Detail, EXCEPT...): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu hỏi, 4 phương án A, B, C, D.
+         + Các câu 4 lựa chọn (Main idea, Detail, EXCEPT...): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu hỏi, 4 phương án A, B, C, D đầy đủ từ ngữ.
   4. PHẦN IV. WRITING (Viết lại câu - Sentence Rewriting):
      - LOAI: tu_luan
-     - NOI_DUNG: Rewrite each of the following sentences in another way so that it means almost the same as the sentence printed before it:\n"[Câu gốc]"
-     - DAP_AN: [Câu đã viết lại hoàn chỉnh]
+     - NOI_DUNG: [Câu gốc cần viết lại]\n→ [Từ gợi ý bắt đầu câu viết lại] __________________________.
+     - DAP_AN: [Toàn bộ câu viết lại hoàn chỉnh]
 
 [NHÓM 3] NGỮ VĂN — Văn học, Tiếng Việt:
 • TUYỆT ĐỐI không dùng LaTeX hay công thức Toán.
@@ -356,10 +377,10 @@ DIEM: 1.0
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi phù hợp môn học]
 TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống nếu không có hình]
-A: [Phương án A]
-B: [Phương án B]
-C: [Phương án C]
-D: [Phương án D]
+A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ]
+B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ]
+C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ]
+D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ]
 DAP_AN: [A/B/C/D]
 HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: thong_hieu
@@ -370,10 +391,10 @@ LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Toàn bộ đoạn văn Reading tương tự — tự nhiên, phù hợp trình độ]
 
 Question 1: [Câu hỏi về đoạn văn]
-A: [A]
-B: [B]
-C: [C]
-D: [D]
+A: [Nội dung phương án A bằng tiếng Anh]
+B: [Nội dung phương án B bằng tiếng Anh]
+C: [Nội dung phương án C bằng tiếng Anh]
+D: [Nội dung phương án D bằng tiếng Anh]
 DAP_AN: A
 DIEM: 0.25
 
@@ -426,8 +447,9 @@ QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức, ký hiệu. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
 2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn phù hợp môn học (VD Toán: "Trong các mệnh đề sau, mệnh đề nào đúng?"; VD Sử: "Xét các phát biểu sau về sự kiện lịch sử:"; VD Anh: "Which of the following statements is true?"). KHÔNG được bỏ trống CAU_LENH.
 3. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài. TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
-4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
-5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
+4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \begin{tabular}{|c|c|...} ... \end{tabular} chuẩn ngoài dấu $.
+5. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức, câu đầy đủ). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D".
+6. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
 1. Nhận diện chính xác môn học, tên từng Phần, loại câu hỏi (Tự luận, Đọc hiểu, Phonetics, Trắc nghiệm 4 lựa chọn, Trắc nghiệm Đúng/Sai, Trả lời ngắn, Rewrite...) và số lượng câu hỏi trong từng phần của đề gốc.
@@ -460,11 +482,11 @@ DIEM_MOI_CAU: 0.25
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi đúng môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa. KHÔNG chứa mã TikZ]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
-A: [Phương án A]
-B: [Phương án B]
-C: [Phương án C]
-D: [Phương án D]
+TIKZ: [Mã \begin{tikzpicture}...\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
+A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ]
+B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ]
+C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ]
+D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ]
 DAP_AN: [A/B/C/D]
 HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: nhan_biet
@@ -602,11 +624,118 @@ ${sourceContent}
 `;
   }
 
-  // 1B. Chế độ: TÙY CHỈNH SỐ CÂU THEO MA TRẬN GDPT 2025 (4 phần)
+  // 1B-ENG. Chế độ: TÙY CHỈNH MA TRẬN MÔN TIẾNG ANH (4 phần chuẩn: Phonetics, Use of English, Reading, Writing)
+  if (config.loaiMaTran === 'tieng_anh') {
+    const numPhonetics = config.numEngPhonetics ?? 4;
+    const numUse = config.numEngUse ?? 18;
+    const numReading = config.numEngReading ?? 10;
+    const numWriting = config.numEngWriting ?? 8;
+
+    return `Bạn là chuyên gia khảo thí môn Tiếng Anh bậc THCS & THPT tại Việt Nam.
+
+NHIỆM VỤ: Tạo 1 đề thi Tiếng Anh hoàn chỉnh (Mã đề: ${deIndex}) từ nội dung đề thi gốc dưới đây theo ĐÚNG MA TRẬN TÙY CHỈNH.
+
+${buildSubjectRules()}
+
+CẤU TRÚC ĐỀ THI TIẾNG ANH THEO MA TRẬN YÊU CẦU:
+- Tiêu đề: ${deTitle}
+- Thời gian làm bài: ${config.thoiGian} phút
+- Độ khó đề thi: ${doKhoMap[config.doKho]}
+- Mức độ tương tự: ${modeTextMap[config.mucDoTuongTu]}
+${config.truong ? `- Tên trường/đơn vị: ${config.truong}` : ''}
+${config.namHoc ? `- Năm học: ${config.namHoc}` : ''}
+${config.extraPrompt ? `- Yêu cầu thêm từ giáo viên: "${config.extraPrompt}"` : ''}
+
+CÁC PHẦN TRONG ĐỀ THI:
+${numPhonetics > 0 ? `1. I. PHONETICS (${numPhonetics} câu): Phát âm (Pronunciation) & Trọng âm (Stress).` : ''}
+${numUse > 0 ? `2. II. USE OF ENGLISH (${numUse} câu): Trắc nghiệm ngữ pháp/từ vựng, giao tiếp, biển báo, Word form, mục từ điển.` : ''}
+${numReading > 0 ? `3. III. READING (${numReading} câu): Gồm Part 1 (Cloze test điền từ) và Part 2 (Đọc hiểu True/False & Trắc nghiệm).` : ''}
+${numWriting > 0 ? `4. IV. WRITING (${numWriting} câu): Viết lại câu không đổi nghĩa (Sentence Rewriting).` : ''}
+
+QUY TẮC BẮT BUỘC:
+1. TUYỆT ĐỐI KHÔNG dùng LaTeX ($...$), không sinh TikZ.
+2. VỚI MỌI CÂU TRẮC NGHIỆM: Các phương án A:, B:, C:, D: BẮT BUỘC chứa từ ngữ/câu tiếng Anh đầy đủ. TUYỆT ĐỐI CẤM xuất chữ cái rỗng như "A: A", "B: B", "C: C", "D: D".
+3. Với câu True/False: BẮT BUỘC "A: True", "B: False", DAP_AN là A hoặc B.
+4. Với bài đọc Reading: Đặt bài đọc vào GHI_CHU của ===PHAN===, các câu hỏi con đặt bên dưới.
+5. Với câu Writing: NOI_DUNG chứa câu gốc và gợi ý đầu câu viết lại: "→ [Từ gợi ý] __________________________.", DAP_AN chứa toàn bộ câu viết lại hoàn chỉnh.
+
+===DE===
+TIEU_DE: ${deTitle}
+THOI_GIAN: ${config.thoiGian}
+TRUONG: ${config.truong || 'THCS LÊ QUÝ ĐÔN'}
+NAM_HOC: ${config.namHoc || '2025 - 2026'}
+DE_SO: ${deIndex}
+TONG_SO_DE: ${config.soDeCanTao}
+
+${numPhonetics > 0 ? `===PHAN===
+TEN: I. PHONETICS
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Mark the letter A, B, C or D on your answer sheet to indicate the word whose underlined part differs from the other three in pronunciation, or differs in the position of primary stress.
+===CAU===
+STT: 1
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: Pronunciation
+A: m[o]ther
+B: h[ea]lthy
+C: f[a]ther
+D: th[ei]r
+DAP_AN: B
+HUONG_DAN_GIAI: Phần gạch chân trong "healthy" phát âm là /e/, các từ còn lại phát âm là /i:/.
+DIEM: 0.25
+===CAU===
+... (Sinh đủ ${numPhonetics} câu: nửa đầu là phát âm, nửa sau là trọng âm)
+` : ''}
+
+${numUse > 0 ? `===PHAN===
+TEN: II. USE OF ENGLISH
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Choose the best answer A, B, C or D, or write the correct form of words.
+===CAU===
+... (Sinh đủ ${numUse} câu bao gồm trắc nghiệm 4 lựa chọn, tình huống giao tiếp, biển báo, word form, từ điển như đề gốc)
+` : ''}
+
+${numReading > 0 ? `===PHAN===
+TEN: III. READING - PART 1
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Choose the word (A, B, C or D) that best fits each space in the following passage.\n\n[Đoạn văn đọc điền từ có các chỗ trống đánh số (STT) _______]
+===CAU===
+... (Sinh các câu hỏi con điền từ của Part 1)
+
+===PHAN===
+TEN: III. READING - PART 2
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Read the passage. Decide whether the statements are True or False and choose the best answer.\n\n[Đoạn văn đọc hiểu hoàn chỉnh về chủ đề du lịch, thành phố, văn hóa...]
+===CAU===
+... (Sinh các câu True/False với A: True, B: False, và các câu trắc nghiệm 4 lựa chọn)
+` : ''}
+
+${numWriting > 0 ? `===PHAN===
+TEN: IV. WRITING
+LOAI: tu_luan
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Rewrite each of the following sentences in another way so that it means almost the same as the sentence printed before it.
+===CAU===
+... (Sinh đủ ${numWriting} câu viết lại câu)
+` : ''}
+
+===DE===
+
+QUAN TRỌNG: TUÂN THỦ ĐÚNG SỐ LƯỢNG CÂU CHO TỪNG PHẦN THEO MA TRẬN TRÊN.
+
+NỘI DUNG ĐỀ GỐC CẦN THAM KHẢO CHỦ ĐỀ VÀ KIẾN THỨC:
+${sourceContent}
+`;
+  }
+
+  // 1B-TOAN/KHTN. Chế độ: TÙY CHỈNH SỐ CÂU THEO MA TRẬN GDPT 2025 (Toán / KHTN)
   return `Bạn là chuyên gia khảo thí và ra đề thi chuẩn chương trình GDPT 2025 của Bộ Giáo dục & Đào tạo Việt Nam, am hiểu TẤT CẢ CÁC MÔN HỌC.
 
 NHIỆM VỤ: Tạo 1 đề thi tương tự (Mã đề: ${deIndex}) từ đề thi gốc dưới đây theo ĐÚNG MA TRẬN CẤU HÌNH TÙY CHỈNH.
-LƯU Ý: Nhận diện môn học từ đề gốc và sinh nội dung đúng môn đó (Toán, Anh, Văn, Sử, Địa, Lý, Hóa, Sinh, Tin học, GDCD...).
+LƯU Ý: Nhận diện môn học từ đề gốc và sinh nội dung đúng môn đó (Toán, Lý, Hóa, Sinh, Tin học, GDCD...).
 
 ${buildSubjectRules()}
 
@@ -632,7 +761,8 @@ QUY TẮC BẮT BUỘC:
 3. Ở Phần II (Đúng/Sai), BẮT BUỘC có CAU_LENH và cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề. Nội dung mệnh đề phải phù hợp môn học.
 4. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG.
 5. Nếu câu hỏi có bảng số liệu: Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
-6. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
+6. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức, câu đầy đủ). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D".
+7. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
 
 ===DE===
 TIEU_DE: ${deTitle}
@@ -651,10 +781,10 @@ STT: 1
 LOAI: trac_nghiem_4_lua_chon
 NOI_DUNG: [Nội dung câu hỏi phù hợp môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
-A: [Nội dung phương án A]
-B: [Nội dung phương án B]
-C: [Nội dung phương án C]
-D: [Nội dung phương án D]
+A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ]
+B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ]
+C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ]
+D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ]
 DAP_AN: A
 MUC_DO: nhan_biet
 DIEM: 0.25
