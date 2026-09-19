@@ -236,18 +236,20 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
      - Word form (vd: VISIT -> visitors): LOAI: trac_nghiem_tra_loi_ngan hoặc tu_luan, NOI_DUNG chứa câu có chỗ trống và từ in hoa trong ngoặc, DAP_AN là dạng đúng.
      - Mục từ điển (Dictionary entry): Đặt đoạn trích từ điển vào NOI_DUNG câu hỏi đầu tiên, câu tiếp theo hoàn thành câu dựa vào mục từ điển.
   3. PHẦN III. READING (ĐẶC BIỆT QUAN TRỌNG - GIỐNG 100% ĐỀ GỐC):
-     GỒM 2 PHẦN RIÊNG BIỆT. BÀI ĐỌC CHUNG BẮT BUỘC ĐẶT TRONG TRƯỜNG GHI_CHU CỦA PHẦN. TUYỆT ĐỐI KHÔNG LẶP LẠI BÀI ĐỌC VÀO TỪNG CÂU HỎI CON!
-     * PART 1: CLOZE TEST (Điền từ vào đoạn văn có chỗ trống):
-       - Đặt TOÀN BỘ đoạn văn bài đọc có các chỗ trống đánh số (23) _______, (24) _______, (25) _______... vào trường GHI_CHU của ===PHAN===.
-       - Các câu hỏi con phía dưới (STT: 23, 24, 25...) chỉ gồm số thứ tự, NOI_DUNG: (23) và 4 phương án từ vựng A, B, C, D (vd: A: go, B: do, C: play, D: make).
-     * PART 2: READING COMPREHENSION (Bài đọc hiểu hoàn chỉnh):
-       - Đặt TOÀN BỘ đoạn văn đọc hiểu hoàn chỉnh (về thành phố, du lịch, lịch sử, văn hóa...) vào trường GHI_CHU của ===PHAN===.
-       - Các câu hỏi con phía dưới dùng chung bài đọc này:
-         + Các câu True / False: LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu khẳng định, A: True, B: False, DAP_AN: A (nếu True) hoặc B (nếu False).
-         + Các câu 4 lựa chọn (Main idea, Detail, EXCEPT...): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu hỏi, 4 phương án A, B, C, D đầy đủ từ ngữ.
+     DUY NHẤT 1 PHẦN LỚN "TEN: III. READING", TUYỆT ĐỐI KHÔNG TÁCH THÀNH 2 PHẦN RIÊNG. BÀI ĐỌC CHUNG BẮT BUỘC ĐẶT TRONG TRƯỜNG GHI_CHU CỦA PHẦN. TUYỆT ĐỐI KHÔNG LẶP LẠI BÀI ĐỌC VÀO TỪNG CÂU HỎI CON!
+     * Đặt vào trường GHI_CHU của ===PHAN=== cả 2 phần đọc:
+       Part 1. Choose the word (A, B, C or D) that best fits each space in the following passage.
+       [Toàn bộ đoạn văn điền từ có các chỗ trống đánh số (23) _______, (24) _______, (25) _______...]
+
+       Part 2. Read the following passage. Decide whether the statements from 28 to 30 are True or False and choose the correct answer (A, B, C or D) to complete the statements in question 31 and 32.
+       [Toàn bộ đoạn văn đọc hiểu hoàn chỉnh về thành phố, du lịch, lịch sử, văn hóa...]
+     * Các câu hỏi con phía dưới (23 đến 32) thuộc cùng 1 phần "III. READING":
+       - Câu 23 - 27 (Cloze): STT: 23..27, NOI_DUNG: (23), 4 phương án từ vựng A, B, C, D (vd: A: go, B: do, C: play, D: make).
+       - Câu 28 - 30 (True/False): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu khẳng định, A: True, B: False, DAP_AN: A (nếu True) hoặc B (nếu False).
+       - Câu 31 - 32 (Trắc nghiệm đọc hiểu): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu hỏi, 4 phương án A, B, C, D đầy đủ từ ngữ.
   4. PHẦN IV. WRITING (Viết lại câu - Sentence Rewriting):
      - LOAI: tu_luan
-     - NOI_DUNG: [Câu gốc cần viết lại]\n→ [Từ gợi ý bắt đầu câu viết lại] __________________________.
+     - NOI_DUNG: [Câu gốc cần viết lại]\n→ [Từ gợi ý bắt đầu câu viết lại] ............................................................................
      - DAP_AN: [Toàn bộ câu viết lại hoàn chỉnh]
 
 [NHÓM 3] NGỮ VĂN — Văn học, Tiếng Việt:
@@ -554,12 +556,16 @@ DIEM: 1.0
 
 [--- ĐẶC BIỆT: Ví dụ môn TIẾNG ANH - PHẦN III. READING (PART 1 VÀ PART 2) ---]
 ===PHAN===
-TEN: III. READING - PART 1
+TEN: III. READING
 LOAI: trac_nghiem_4_lua_chon
 DIEM_MOI_CAU: 0.25
-GHI_CHU: Choose the word (A, B, C or D) that best fits each space in the following passage.
+GHI_CHU: Part 1. Choose the word (A, B, C or D) that best fits each space in the following passage.
 
 Playing sports regularly brings fantastic benefits to both body and mind. When students (23) _______ exercise or play sports, they become stronger and more energetic. (24) _______ like badminton, table tennis, and tennis help improve speed and coordination. They also teach important values like fair play and respect for (25) _______. Many famous sportspeople started their careers when they were (26) _______. They practiced hard every day at the gym or in the (27) _______ to become champions. Their success stories inspire others to take part in sports and competitions.
+
+Part 2. Read the following passage. Decide whether the statements from 28 to 30 are True or False and choose the correct answer (A, B, C or D) to complete the statements in question 31 and 32.
+
+Hoi An is an ancient town in Vietnam that attracts visitors with its well-preserved architecture and peaceful atmosphere. The Old Town area has narrow streets lined with yellow buildings and colorful lanterns. Visitors can rent bicycles to explore the town or take a boat trip along the river. Many people enjoy taking photos of the beautiful pagodas and traditional houses that reflect Vietnam's rich cultural heritage.
 ===CAU===
 STT: 23
 LOAI: trac_nghiem_4_lua_chon
@@ -581,13 +587,6 @@ D: Sports
 DAP_AN: D
 DIEM: 0.25
 
-===PHAN===
-TEN: III. READING - PART 2
-LOAI: trac_nghiem_4_lua_chon
-DIEM_MOI_CAU: 0.25
-GHI_CHU: Read the following passage. Decide whether the statements from 28 to 30 are True or False and choose the correct answer (A, B, C or D) to complete the statements in question 31 and 32.
-
-Hoi An is an ancient town in Vietnam that attracts visitors with its well-preserved architecture and peaceful atmosphere. The Old Town area has narrow streets lined with yellow buildings and colorful lanterns. Visitors can rent bicycles to explore the town or take a boat trip along the river. Many people enjoy taking photos of the beautiful pagodas and traditional houses that reflect Vietnam's rich cultural heritage.
 ===CAU===
 STT: 28
 LOAI: trac_nghiem_4_lua_chon
@@ -657,7 +656,7 @@ QUY TẮC BẮT BUỘC:
 2. VỚI MỌI CÂU TRẮC NGHIỆM: Các phương án A:, B:, C:, D: BẮT BUỘC chứa từ ngữ/câu tiếng Anh đầy đủ. TUYỆT ĐỐI CẤM xuất chữ cái rỗng như "A: A", "B: B", "C: C", "D: D".
 3. Với câu True/False: BẮT BUỘC "A: True", "B: False", DAP_AN là A hoặc B.
 4. Với bài đọc Reading: Đặt bài đọc vào GHI_CHU của ===PHAN===, các câu hỏi con đặt bên dưới.
-5. Với câu Writing: NOI_DUNG chứa câu gốc và gợi ý đầu câu viết lại: "→ [Từ gợi ý] __________________________.", DAP_AN chứa toàn bộ câu viết lại hoàn chỉnh.
+5. Với câu Writing: NOI_DUNG chứa câu gốc và gợi ý đầu câu viết lại: "→ [Từ gợi ý] ............................................................................", DAP_AN chứa toàn bộ câu viết lại hoàn chỉnh.
 
 ===DE===
 TIEU_DE: ${deTitle}

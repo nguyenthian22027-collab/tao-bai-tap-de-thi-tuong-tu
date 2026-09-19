@@ -13,6 +13,7 @@ import {
   BorderStyle,
   ImageRun,
   PageBreak,
+  TabStopType,
 } from 'docx';
 import { ExamData, Question, QuestionType } from '../types';
 import { latexToOmml } from './latexToOmml';
@@ -530,6 +531,32 @@ function parseBlockToParagraphs(rawText: string, defaultColorHex?: string): Pars
 }
 
 /**
+ * Trích xuất các token văn bản và đánh dấu gạch chân cho phần trong ngoặc vuông [...] hoặc <u>...</u>
+ * Ví dụ: m[o]ther -> [{ text: 'm', underline: false }, { text: 'o', underline: true }, { text: 'ther', underline: false }]
+ */
+export function parseUnderlineTokens(text: string): { text: string; underline: boolean }[] {
+  if (!text) return [];
+  const result: { text: string; underline: boolean }[] = [];
+  const regex = /\[(.*?)\]|<u>(.*?)<\/u>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push({ text: text.substring(lastIndex, match.index), underline: false });
+    }
+    const underlinedPart = match[1] ?? match[2];
+    if (underlinedPart) {
+      result.push({ text: underlinedPart, underline: true });
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    result.push({ text: text.substring(lastIndex), underline: false });
+  }
+  return result;
+}
+
+/**
  * Nhận diện đề thi Tiếng Anh để xuất định dạng Header và Bảng đáp án chuyên biệt
  */
 export function isEnglishExamData(exam: ExamData): boolean {
@@ -540,6 +567,64 @@ export function isEnglishExamData(exam: ExamData): boolean {
   }
   const sectionNames = (exam.phan || []).map((p) => (p.ten || '').toLowerCase()).join(' ');
   return sectionNames.includes('phonetics') || sectionNames.includes('use of english') || sectionNames.includes('reading');
+}
+
+/**
+ * Render paragraphs for English reading passages / section notes with proper font styling
+ */
+function renderEnglishGhiChuParagraphs(text: string): Paragraph[] {
+  const result: Paragraph[] = [];
+  const lines = text.split('\n');
+  for (const pText of lines) {
+    const trimmed = pText.trim();
+    if (!trimmed) {
+      result.push(new Paragraph({ text: '', spacing: { before: 40, after: 40 } }));
+      continue;
+    }
+    const isInst = /^(?:Part \d+|Choose the best|Mark the letter|Read the following|Look at the|Rewrite each|Use the correct)/i.test(trimmed);
+    result.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: trimmed,
+            bold: isInst,
+            italics: isInst,
+            size: isInst ? 21 : 22,
+            color: isInst ? '1E293B' : '0F172A',
+          }),
+        ],
+        spacing: { before: isInst ? 80 : 40, after: isInst ? 40 : 60 },
+        indent: isInst ? undefined : { firstLine: 360 },
+      })
+    );
+  }
+  return result;
+}
+
+/**
+ * Render OMML XML for English reading passages / section notes with proper font styling
+ */
+function renderEnglishGhiChuXml(text: string): string {
+  let xml = '';
+  const lines = text.split('\n');
+  for (const pText of lines) {
+    const trimmed = pText.trim();
+    if (!trimmed) {
+      xml += '<w:p/>';
+      continue;
+    }
+    const isInst = /^(?:Part \d+|Choose the best|Mark the letter|Read the following|Look at the|Rewrite each|Use the correct)/i.test(trimmed);
+    const bTag = isInst ? '<w:b/>' : '';
+    const iTag = isInst ? '<w:i/>' : '';
+    const szVal = isInst ? '21' : '22';
+    const colorVal = isInst ? '1E293B' : '0F172A';
+    const indTag = isInst ? '' : '<w:ind w:firstLine="360"/>';
+    const spaceBefore = isInst ? '80' : '40';
+    const spaceAfter = isInst ? '40' : '60';
+
+    xml += `<w:p><w:pPr>${indTag}<w:spacing w:before="${spaceBefore}" w:after="${spaceAfter}" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>${bTag}${iTag}<w:sz w:val="${szVal}"/><w:szCs w:val="${szVal}"/><w:color w:val="${colorVal}"/></w:rPr><w:t xml:space="preserve">${xmlEscape(trimmed)}</w:t></w:r></w:p>`;
+  }
+  return xml;
 }
 
 // --------------------------------------------------------------------------------------
@@ -561,44 +646,87 @@ export async function exportExamToDocxLatex(
   // ====================================================================================
   if (mode !== 'answers_only') {
     // Header Title
-    children.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({
-            text: exam.meta.truong ? `${exam.meta.truong.toUpperCase()}\n` : '',
-            bold: true,
-            size: 22,
-          }),
-          new TextRun({
-            text: (exam.meta.tieuDe || 'ĐỀ KIỂM TRA ĐỊNH DẠNG GDPT 2025').toUpperCase(),
-            bold: true,
-            size: 28,
-            color: '1E3A8A',
-          }),
-          new TextRun({
-            text: `\nThời gian làm bài: ${exam.meta.thoiGian || 90} phút (Không kể thời gian phát đề)`,
-            italics: true,
-            size: 22,
-          }),
-        ],
-      })
-    );
-
-    children.push(new Paragraph({ text: '' })); // Spacer
-
-    // Thêm dòng điền thông tin học sinh đối với môn Tiếng Anh
     if (isEnglishExamData(exam)) {
+      const truongText = exam.meta.truong ? exam.meta.truong.toUpperCase() : 'TRƯỜNG THCS LÊ QUÝ ĐÔN';
+      const tieuDeText = (exam.meta.tieuDe || 'KIỂM TRA GIỮA HỌC KÌ II').toUpperCase();
+      const namHocText = exam.meta.namHoc ? `NĂM HỌC ${exam.meta.namHoc}` : 'NĂM HỌC 2025-2026';
+      const thoiGianText = `Thời gian: ${exam.meta.thoiGian || 60} phút`;
+      const lopText = exam.meta.khoi ? `Lớp ${exam.meta.khoi}...` : 'Lớp 6...';
+      const maDeText = exam.meta.maDe ? ` - MÃ ĐỀ ${exam.meta.maDe}` : '';
+
       children.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Họ và tên học sinh: ............................................................................', italics: true, size: 21 }),
-            new TextRun({ text: '        Lớp: .....................', italics: true, size: 21 }),
+        new Table({
+          width: { size: 9638, type: WidthType.DXA },
+          borders: {
+            top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            insideH: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            insideV: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 4077, type: WidthType.DXA },
+                  borders: NO_BORDER_STYLE,
+                  children: [
+                    new Paragraph({ children: [new TextRun({ text: 'UBND PHƯỜNG / PHÒNG GD&ĐT', size: 21 })] }),
+                    new Paragraph({ children: [new TextRun({ text: truongText, bold: true, size: 21 })] }),
+                    new Paragraph({ children: [new TextRun({ text: 'Tên: …………………………………', bold: true, size: 21 })] }),
+                    new Paragraph({ children: [new TextRun({ text: lopText, bold: true, size: 21 })] }),
+                  ],
+                }),
+                new TableCell({
+                  width: { size: 5561, type: WidthType.DXA },
+                  borders: NO_BORDER_STYLE,
+                  children: [
+                    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${tieuDeText}${maDeText}`, bold: true, size: 21 })] }),
+                    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: namHocText, bold: true, size: 21 })] }),
+                    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Môn: Tiếng Anh - Lớp ${exam.meta.khoi || '6'}`, bold: true, size: 21 })] }),
+                    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: thoiGianText, bold: true, size: 21 })] }),
+                    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '(Không kể thời gian giao phát đề)', italics: true, size: 19 })] }),
+                  ],
+                }),
+              ],
+            }),
           ],
         })
       );
       children.push(new Paragraph({ text: '' }));
+    } else {
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new TextRun({
+              text: exam.meta.truong ? `${exam.meta.truong.toUpperCase()}\n` : '',
+              bold: true,
+              size: 22,
+            }),
+            new TextRun({
+              text: (exam.meta.tieuDe || 'ĐỀ KIỂM TRA ĐỊNH DẠNG GDPT 2025').toUpperCase(),
+              bold: true,
+              size: 28,
+              color: '1E3A8A',
+            }),
+            new TextRun({
+              text: `\nThời gian làm bài: ${exam.meta.thoiGian || 90} phút (Không kể thời gian phát đề)`,
+              italics: true,
+              size: 22,
+            }),
+          ],
+        })
+      );
+      children.push(new Paragraph({ text: '' })); // Spacer
     }
+
+    let hasPrintedReadingHeaderLatex = false;
+    let hasPrintedPronunciationInstLatex = false;
+    let hasPrintedStressInstLatex = false;
+    let hasPrintedTfHeaderLatex = false;
+    let pendingPart2GhiChuLatex = '';
 
     // Process sections
     for (const section of exam.phan) {
@@ -615,42 +743,79 @@ export async function exportExamToDocxLatex(
         }
       }
 
-      children.push(
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [
-            new TextRun({
-              text: sectionTitle,
-              bold: true,
-              size: 24,
-              color: '0F172A',
-            }),
-          ],
-        })
-      );
+      if (isEnglishExamData(exam) && sectionTitle.toUpperCase().includes('READING')) {
+        if (!hasPrintedReadingHeaderLatex) {
+          hasPrintedReadingHeaderLatex = true;
+          children.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              children: [
+                new TextRun({
+                  text: 'III. READING',
+                  bold: true,
+                  size: 24,
+                  color: '0F172A',
+                }),
+              ],
+            })
+          );
+        }
+      } else {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [
+              new TextRun({
+                text: sectionTitle,
+                bold: true,
+                size: 24,
+                color: '0F172A',
+              }),
+            ],
+          })
+        );
+      }
+
+      if (isEnglishExamData(exam)) {
+        if (section.ten?.toLowerCase().includes('use of english') && (!section.ghiChu || !section.ghiChu.trim())) {
+          children.push(...renderEnglishGhiChuParagraphs('Choose the best answer A, B, C or D.'));
+        } else if (section.ten?.toLowerCase().includes('writing') && (!section.ghiChu || !section.ghiChu.trim())) {
+          children.push(...renderEnglishGhiChuParagraphs('Rewrite each of the following sentences in another way so that it means almost the same as the sentence printed before it.'));
+        }
+      }
 
       // Xuất bài đọc đọc hiểu / đoạn văn chung / hướng dẫn phần thi vào file Word
       if (section.ghiChu) {
-        const noteParagraphs = section.ghiChu.split('\n');
-        for (const pText of noteParagraphs) {
-          const trimmed = pText.trim();
-          if (trimmed) {
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: trimmed,
-                    italics: true,
-                    size: 22,
-                    color: '1E293B',
-                  }),
-                ],
-                spacing: { before: 80, after: 80 },
-                indent: { left: 240 },
-              })
-            );
-          } else {
-            children.push(new Paragraph({ text: '', spacing: { before: 40, after: 40 } }));
+        if (isEnglishExamData(exam)) {
+          let noteToPrint = section.ghiChu;
+          const part2Idx = section.ghiChu.search(/Part 2[.:]/i);
+          if (part2Idx !== -1) {
+            noteToPrint = section.ghiChu.substring(0, part2Idx).trim();
+            pendingPart2GhiChuLatex = section.ghiChu.substring(part2Idx).trim();
+          }
+          children.push(...renderEnglishGhiChuParagraphs(noteToPrint));
+        } else {
+          const noteParagraphs = section.ghiChu.split('\n');
+          for (const pText of noteParagraphs) {
+            const trimmed = pText.trim();
+            if (trimmed) {
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: trimmed,
+                      italics: true,
+                      size: 22,
+                      color: '1E293B',
+                    }),
+                  ],
+                  spacing: { before: 80, after: 80 },
+                  indent: { left: 240 },
+                })
+              );
+            } else {
+              children.push(new Paragraph({ text: '', spacing: { before: 40, after: 40 } }));
+            }
           }
         }
       }
@@ -673,190 +838,485 @@ export async function exportExamToDocxLatex(
         // Extract LaTeX tabular from prompt (hỗ trợ nhiều bảng)
         const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(cleanText);
 
-        // Render Question Prompt Paragraphs
-        const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
-        const parsedPromptParas = parseBlockToParagraphs(cleanPrompt);
-        parsedPromptParas.forEach((p, pIdx) => {
-        const runs: TextRun[] = [];
-        if (pIdx === 0) {
-          runs.push(
-            new TextRun({
-              text: `Câu ${q.stt}: `,
-              bold: true,
-              size: 22,
-            })
-          );
+      if (isEnglishExamData(exam)) {
+        const isPhonetics = (section.ten?.toLowerCase().includes('phonetics') || (q.stt <= 4 && (cleanText.toLowerCase().includes('pronunciation') || cleanText.toLowerCase().includes('stress'))));
+        const isStress = isPhonetics && (q.stt >= 3 || cleanText.toLowerCase().includes('stress'));
+        const isCloze = (section.ten?.toLowerCase().includes('reading') || q.stt >= 23) && (cleanText.trim().startsWith('(') || cleanText.trim() === '' || cleanText.trim() === `(${q.stt})`) && is4LuaChon;
+        const isTrueFalse = is4LuaChon && ((expOptA?.toLowerCase() === 'true' && expOptB?.toLowerCase() === 'false') || (expOptA?.toLowerCase() === 't' && expOptB?.toLowerCase() === 'f'));
+        const isWriting = isTuLuan || (section.ten?.toLowerCase().includes('writing') ?? false) || (q.stt >= 33 && (cleanText.includes('→') || cleanText.includes('->')));
+
+        if (pendingPart2GhiChuLatex && (q.stt === 28 || isTrueFalse)) {
+          children.push(...renderEnglishGhiChuParagraphs(pendingPart2GhiChuLatex));
+          pendingPart2GhiChuLatex = '';
         }
 
-        p.tokens.forEach((t) => {
-          if (t.type === 'math') {
-            runs.push(
-              new TextRun({
-                text: `$${t.content}$`,
-                font: 'Courier New',
-                color: '4F46E5',
-                size: 20,
-              })
-            );
-          } else {
-            runs.push(
-              new TextRun({
-                text: t.content,
-                bold: t.bold,
-                italics: t.italic,
-                size: 22,
-              })
-            );
+        // Clean leading question numbers and extract any leading instruction line
+        let promptTextEng = cleanText.replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+        let instructionLead = '';
+        const leadInstMatch = promptTextEng.match(/^((?:Mark the letter|Look at the sign|Choose the best|Use the correct form)[^\n]*\n)([\s\S]*)$/i);
+        if (leadInstMatch) {
+          instructionLead = leadInstMatch[1].trim();
+          promptTextEng = leadInstMatch[2].replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+        }
+        if (instructionLead) {
+          children.push(new Paragraph({ children: [new TextRun({ text: instructionLead, bold: true, italics: true, size: 21, color: '1E293B' })], spacing: { before: 80, after: 40 } }));
+        }
+
+        if (isPhonetics) {
+          if (!isStress && !hasPrintedPronunciationInstLatex) {
+            hasPrintedPronunciationInstLatex = true;
+            children.push(new Paragraph({ children: [new TextRun({ text: 'Mark the letter A, B, C or D on your answer sheet to indicate the word whose underlined part differs from the other three in pronunciation in each of the following questions', italics: true, size: 21, color: '1E293B' })], spacing: { before: 80, after: 60 } }));
+          } else if (isStress && !hasPrintedStressInstLatex) {
+            hasPrintedStressInstLatex = true;
+            children.push(new Paragraph({ children: [new TextRun({ text: 'Mark the letter A, B, C or D on your answer sheet to indicate the word that differs from the other three in the position of primary stress in each of the following questions.', italics: true, size: 21, color: '1E293B' })], spacing: { before: 80, after: 60 } }));
           }
-        });
 
-        if (pIdx === parsedPromptParas.length - 1 && q.diem) {
-          runs.push(
-            new TextRun({
-              text: ` (${q.diem} điểm)`,
-              italics: true,
-              color: '64748B',
-              size: 20,
-            })
-          );
-        }
-
-        children.push(
-          new Paragraph({
-            children: runs,
-            indent: p.indentTwips ? { left: p.indentTwips } : undefined,
-          })
-        );
-      });
-
-      // Render all Tabular Tables if question contains LaTeX \begin{tabular}
-      if (parsedTables && parsedTables.length > 0) {
-        for (const parsedTable of parsedTables) {
-          if (isVariationTable(parsedTable)) {
-            // Bảng Biến Thiên đã được xuất thành ảnh vector PNG sắc nét qua ensureQuestionImages
-            // Bỏ qua tạo Table lưới Word thô kệch
-            continue;
-          } else {
-            const headerCells = parsedTable.headers.map(
-              (h) =>
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [new TextRun({ text: h, bold: true, size: 20 })],
-                    }),
-                  ],
-                  shading: { fill: 'E2E8F0' },
-                })
-            );
-            const tRows = [new TableRow({ children: headerCells })];
-            parsedTable.rows.forEach((r) => {
-              const cells = r.map(
-                (c) =>
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        alignment: AlignmentType.CENTER,
-                        children: [new TextRun({ text: c, size: 20 })],
-                      }),
-                    ],
-                  })
-              );
-              tRows.push(new TableRow({ children: cells }));
+          const runs: TextRun[] = [
+            new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
+          ];
+          const opts = [
+            { key: 'A', text: expOptA || '' },
+            { key: 'B', text: expOptB || '' },
+            { key: 'C', text: expOptC || '' },
+            { key: 'D', text: expOptD || '' },
+          ];
+          opts.forEach((opt, idx) => {
+            if (idx > 0) runs.push(new TextRun({ text: '\t' }));
+            runs.push(new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }));
+            parseUnderlineTokens(opt.text).forEach((tok) => {
+              runs.push(new TextRun({ text: tok.text, underline: tok.underline ? {} : undefined, size: 22 }));
             });
-
+          });
+          children.push(new Paragraph({
+            tabStops: [
+              { type: TabStopType.LEFT, position: 3402 },
+              { type: TabStopType.LEFT, position: 5669 },
+              { type: TabStopType.LEFT, position: 7937 },
+            ],
+            children: runs,
+            spacing: { after: 60 },
+          }));
+        } else if (isCloze) {
+          const runs: TextRun[] = [
+            new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
+          ];
+          const opts = [
+            { key: 'A', text: expOptA || '' },
+            { key: 'B', text: expOptB || '' },
+            { key: 'C', text: expOptC || '' },
+            { key: 'D', text: expOptD || '' },
+          ];
+          opts.forEach((opt, idx) => {
+            if (idx > 0) runs.push(new TextRun({ text: '\t' }));
+            runs.push(new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }));
+            runs.push(new TextRun({ text: opt.text, size: 22 }));
+          });
+          children.push(new Paragraph({
+            tabStops: [
+              { type: TabStopType.LEFT, position: 3402 },
+              { type: TabStopType.LEFT, position: 5669 },
+              { type: TabStopType.LEFT, position: 7937 },
+            ],
+            children: runs,
+            spacing: { after: 60 },
+          }));
+        } else if (isTrueFalse) {
+          if (!hasPrintedTfHeaderLatex) {
+            hasPrintedTfHeaderLatex = true;
             children.push(
               new Table({
-                rows: tRows,
-                width: { size: 100, type: WidthType.PERCENTAGE },
+                width: { size: 9638, type: WidthType.DXA },
+                borders: NO_BORDER_STYLE,
+                rows: [
+                  new TableRow({
+                    children: [
+                      new TableCell({ width: { size: 7838, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ text: '' })] }),
+                      new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'T', bold: true, size: 22 })] })] }),
+                      new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'F', bold: true, size: 22 })] })] }),
+                    ],
+                  }),
+                ],
               })
             );
-            children.push(new Paragraph({ text: '' }));
           }
-        }
-      }
-
-
-      // Embed Question Images directly into document (including captured TikZ images)
-      const qImages = await ensureQuestionImages(q);
-      for (const imgSrc of qImages) {
-        try {
-          const parsed = parseBase64Image(imgSrc);
-          const bytes = base64ToUint8Array(parsed.base64);
-          const dims = await getImageDimensions(imgSrc);
-          const maxW = 440;
-          const scale = dims.width > maxW ? maxW / dims.width : 1;
-          const finalW = Math.round(dims.width * scale);
-          const finalH = Math.round(dims.height * scale);
-
           children.push(
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new ImageRun({
-                  data: bytes,
-                  transformation: {
-                    width: finalW,
-                    height: finalH,
-                  },
+            new Table({
+              width: { size: 9638, type: WidthType.DXA },
+              borders: NO_BORDER_STYLE,
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      width: { size: 7838, type: WidthType.DXA },
+                      borders: NO_BORDER_STYLE,
+                      children: [
+                        new Paragraph({
+                          children: [
+                            new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
+                            new TextRun({ text: promptTextEng, size: 22 }),
+                          ],
+                        }),
+                      ],
+                    }),
+                    new TableCell({
+                      width: { size: 900, type: WidthType.DXA },
+                      borders: NO_BORDER_STYLE,
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
+                    }),
+                    new TableCell({
+                      width: { size: 900, type: WidthType.DXA },
+                      borders: NO_BORDER_STYLE,
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
+                    }),
+                  ],
                 }),
               ],
             })
           );
-        } catch (imgErr) {
-          console.warn(`Failed to embed image in question ${q.stt}:`, imgErr);
-        }
-      }
-
-      // 1. 4 Options — compact inline layout (auto 4-col / 2-col / 1-col based on length)
-      if (is4LuaChon && expOptA) {
-        const options = [
-          { key: 'A', text: expOptA ?? '' },
-          { key: 'B', text: expOptB ?? '' },
-          { key: 'C', text: expOptC ?? '' },
-          { key: 'D', text: expOptD ?? '' },
-        ];
-        renderOptionsBlock(options).forEach((el) => children.push(el as any));
-      }
-
-      // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
-      if (isDungSai) {
-        // Câu lệnh hỏi (VD: "Trong các mệnh đề sau, mệnh đề nào đúng?")
-        if (q.cauLenh) {
-          const clRuns: TextRun[] = [];
-          parseLineTokens(q.cauLenh).forEach((t) => {
-            if (t.type === 'math') {
-              clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22 }));
+        } else if (isWriting) {
+          const dotPrompt = promptTextEng.replace(/_{3,}/g, '............................................................................');
+          const lines = dotPrompt.split('\n').map((l) => l.trim()).filter(Boolean);
+          if (lines.length === 1 && !lines[0].includes('...') && !lines[0].includes('→')) {
+            lines.push('→ ............................................................................');
+          }
+          lines.forEach((l, lIdx) => {
+            const trimmed = l.replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+            if (!trimmed) return;
+            if (lIdx === 0) {
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
+                    new TextRun({ text: trimmed, size: 22 }),
+                  ],
+                  spacing: { after: 20 },
+                })
+              );
             } else {
-              clRuns.push(new TextRun({ text: t.content, bold: t.bold ?? true, italics: t.italic, size: 22, color: '0F172A' }));
+              children.push(
+                new Paragraph({
+                  children: [new TextRun({ text: trimmed, size: 22 })],
+                  spacing: { after: 40 },
+                })
+              );
             }
           });
-          children.push(new Paragraph({ children: clRuns, indent: { left: 360 }, spacing: { before: 60 } }));
+        } else {
+          // General MCQ or Word Form or Dictionary
+          let promptForDisplay = promptTextEng;
+          if (promptForDisplay.includes('Look at the entry of the word') || promptForDisplay.includes('in a dictionary:')) {
+            const dictMatch = promptForDisplay.match(/(Look at the entry of the word[^\n]*\n)([\s\S]*?)(\n\d+[\s\S]*|$)/);
+            if (dictMatch) {
+              const leadText = dictMatch[1].trim();
+              const boxText = dictMatch[2].trim();
+              const remainingText = dictMatch[3].trim();
+              if (leadText) {
+                children.push(new Paragraph({ children: [new TextRun({ text: leadText, italics: true, size: 21 })], spacing: { after: 40 } }));
+              }
+              if (boxText) {
+                children.push(
+                  new Table({
+                    width: { size: 9638, type: WidthType.DXA },
+                    rows: [
+                      new TableRow({
+                        children: [
+                          new TableCell({
+                            width: { size: 9638, type: WidthType.DXA },
+                            shading: { fill: 'F8FAFC' },
+                            margins: { top: 120, bottom: 120, left: 180, right: 180 },
+                            children: boxText.split('\n').map((bl) => new Paragraph({ children: [new TextRun({ text: bl, size: 21 })] })),
+                          }),
+                        ],
+                      }),
+                    ],
+                  })
+                );
+                children.push(new Paragraph({ text: '' }));
+              }
+              promptForDisplay = remainingText || promptForDisplay;
+            }
+          }
+
+          // Embed images if any (e.g. Signs)
+          const qImages = await ensureQuestionImages(q);
+          for (const imgSrc of qImages) {
+            try {
+              const parsed = parseBase64Image(imgSrc);
+              const bytes = base64ToUint8Array(parsed.base64);
+              const dims = await getImageDimensions(imgSrc);
+              const maxW = 380;
+              const scale = dims.width > maxW ? maxW / dims.width : 1;
+              const finalW = Math.round(dims.width * scale);
+              const finalH = Math.round(dims.height * scale);
+              children.push(
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [new ImageRun({ data: bytes, transformation: { width: finalW, height: finalH } })],
+                })
+              );
+            } catch (imgErr) {}
+          }
+
+          if (promptForDisplay) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
+                  new TextRun({ text: promptForDisplay, size: 22 }),
+                ],
+                spacing: { after: 40 },
+              })
+            );
+          }
+
+          if (is4LuaChon && expOptA) {
+            const options = [
+              { key: 'A', text: expOptA || '' },
+              { key: 'B', text: expOptB || '' },
+              { key: 'C', text: expOptC || '' },
+              { key: 'D', text: expOptD || '' },
+            ].filter((o) => o.text);
+
+            const avgLen = options.reduce((sum, o) => sum + o.text.length, 0) / (options.length || 1);
+            const maxLen = Math.max(...options.map((o) => o.text.length));
+
+            if (avgLen <= 26 && maxLen <= 35 && options.length === 4) {
+              const runs: TextRun[] = [];
+              options.forEach((opt, idx) => {
+                if (idx > 0) runs.push(new TextRun({ text: '\t' }));
+                runs.push(new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }));
+                runs.push(new TextRun({ text: opt.text, size: 22 }));
+              });
+              children.push(
+                new Paragraph({
+                  tabStops: [
+                    { type: TabStopType.LEFT, position: 3402 },
+                    { type: TabStopType.LEFT, position: 5669 },
+                    { type: TabStopType.LEFT, position: 7937 },
+                  ],
+                  children: runs,
+                  spacing: { after: 60 },
+                })
+              );
+            } else if (avgLen <= 55 && maxLen <= 65 && options.length === 4) {
+              const runs1: TextRun[] = [
+                new TextRun({ text: 'A. ', bold: true, size: 22 }),
+                new TextRun({ text: options[0].text, size: 22 }),
+                new TextRun({ text: '\t' }),
+                new TextRun({ text: 'B. ', bold: true, size: 22 }),
+                new TextRun({ text: options[1].text, size: 22 }),
+              ];
+              const runs2: TextRun[] = [
+                new TextRun({ text: 'C. ', bold: true, size: 22 }),
+                new TextRun({ text: options[2].text, size: 22 }),
+                new TextRun({ text: '\t' }),
+                new TextRun({ text: 'D. ', bold: true, size: 22 }),
+                new TextRun({ text: options[3].text, size: 22 }),
+              ];
+              children.push(new Paragraph({ tabStops: [{ type: TabStopType.LEFT, position: 4819 }], children: runs1, spacing: { after: 20 } }));
+              children.push(new Paragraph({ tabStops: [{ type: TabStopType.LEFT, position: 4819 }], children: runs2, spacing: { after: 60 } }));
+            } else {
+              options.forEach((opt) => {
+                children.push(
+                  new Paragraph({
+                    indent: { left: 360 },
+                    children: [
+                      new TextRun({ text: `${opt.key}. `, bold: true, size: 22 }),
+                      new TextRun({ text: opt.text, size: 22 }),
+                    ],
+                    spacing: { after: 20 },
+                  })
+                );
+              });
+            }
+          }
+        }
+      } else {
+        // TOÀN BỘ LOGIC MÔN TOÁN VÀ CÁC MÔN KHÁC GIỮ NGUYÊN 100%
+        // Render Question Prompt Paragraphs
+        const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
+        const parsedPromptParas = parseBlockToParagraphs(cleanPrompt);
+        parsedPromptParas.forEach((p, pIdx) => {
+          const runs: TextRun[] = [];
+          if (pIdx === 0) {
+            runs.push(
+              new TextRun({
+                text: `Câu ${q.stt}: `,
+                bold: true,
+                size: 22,
+              })
+            );
+          }
+
+          p.tokens.forEach((t) => {
+            if (t.type === 'math') {
+              runs.push(
+                new TextRun({
+                  text: `$${t.content}$`,
+                  font: 'Courier New',
+                  color: '4F46E5',
+                  size: 20,
+                })
+              );
+            } else {
+              runs.push(
+                new TextRun({
+                  text: t.content,
+                  bold: t.bold,
+                  italics: t.italic,
+                  size: 22,
+                })
+              );
+            }
+          });
+
+          if (pIdx === parsedPromptParas.length - 1 && q.diem) {
+            runs.push(
+              new TextRun({
+                text: ` (${q.diem} điểm)`,
+                italics: true,
+                color: '64748B',
+                size: 20,
+              })
+            );
+          }
+
+          children.push(
+            new Paragraph({
+              children: runs,
+              indent: p.indentTwips ? { left: p.indentTwips } : undefined,
+            })
+          );
+        });
+
+        // Render all Tabular Tables if question contains LaTeX \begin{tabular}
+        if (parsedTables && parsedTables.length > 0) {
+          for (const parsedTable of parsedTables) {
+            if (isVariationTable(parsedTable)) {
+              // Bảng Biến Thiên đã được xuất thành ảnh vector PNG sắc nét qua ensureQuestionImages
+              // Bỏ qua tạo Table lưới Word thô kệch
+              continue;
+            } else {
+              const headerCells = parsedTable.headers.map(
+                (h) =>
+                  new TableCell({
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: h, bold: true, size: 20 })],
+                      }),
+                    ],
+                    shading: { fill: 'E2E8F0' },
+                  })
+              );
+              const tRows = [new TableRow({ children: headerCells })];
+              parsedTable.rows.forEach((r) => {
+                const cells = r.map(
+                  (c) =>
+                    new TableCell({
+                      children: [
+                        new Paragraph({
+                          alignment: AlignmentType.CENTER,
+                          children: [new TextRun({ text: c, size: 20 })],
+                        }),
+                      ],
+                    })
+                );
+                tRows.push(new TableRow({ children: cells }));
+              });
+
+              children.push(
+                new Table({
+                  rows: tRows,
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                })
+              );
+              children.push(new Paragraph({ text: '' }));
+            }
+          }
         }
 
-        const propositions = [
-          { key: 'a', text: q.menhDeA || q.optionA },
-          { key: 'b', text: q.menhDeB || q.optionB },
-          { key: 'c', text: q.menhDeC || q.optionC },
-          { key: 'd', text: q.menhDeD || q.optionD },
-        ];
+        // Embed Question Images directly into document (including captured TikZ images)
+        const qImages = await ensureQuestionImages(q);
+        for (const imgSrc of qImages) {
+          try {
+            const parsed = parseBase64Image(imgSrc);
+            const bytes = base64ToUint8Array(parsed.base64);
+            const dims = await getImageDimensions(imgSrc);
+            const maxW = 440;
+            const scale = dims.width > maxW ? maxW / dims.width : 1;
+            const finalW = Math.round(dims.width * scale);
+            const finalH = Math.round(dims.height * scale);
 
-        propositions.forEach((m) => {
-          if (!m.text) return;
-          const mdRuns: TextRun[] = [
-            new TextRun({ text: `${m.key}) `, bold: true, size: 22 }),
+            children.push(
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new ImageRun({
+                    data: bytes,
+                    transformation: {
+                      width: finalW,
+                      height: finalH,
+                    },
+                  }),
+                ],
+              })
+            );
+          } catch (imgErr) {
+            console.warn(`Failed to embed image in question ${q.stt}:`, imgErr);
+          }
+        }
+
+        // 1. 4 Options — compact inline layout (auto 4-col / 2-col / 1-col based on length)
+        if (is4LuaChon && expOptA) {
+          const options = [
+            { key: 'A', text: expOptA ?? '' },
+            { key: 'B', text: expOptB ?? '' },
+            { key: 'C', text: expOptC ?? '' },
+            { key: 'D', text: expOptD ?? '' },
+          ];
+          renderOptionsBlock(options).forEach((el) => children.push(el as any));
+        }
+
+        // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
+        if (isDungSai) {
+          // Câu lệnh hỏi (VD: "Trong các mệnh đề sau, mệnh đề nào đúng?")
+          if (q.cauLenh) {
+            const clRuns: TextRun[] = [];
+            parseLineTokens(q.cauLenh).forEach((t) => {
+              if (t.type === 'math') {
+                clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22 }));
+              } else {
+                clRuns.push(new TextRun({ text: t.content, bold: t.bold ?? true, italics: t.italic, size: 22, color: '0F172A' }));
+              }
+            });
+            children.push(new Paragraph({ children: clRuns, indent: { left: 360 }, spacing: { before: 60 } }));
+          }
+
+          const propositions = [
+            { key: 'a', text: q.menhDeA || q.optionA },
+            { key: 'b', text: q.menhDeB || q.optionB },
+            { key: 'c', text: q.menhDeC || q.optionC },
+            { key: 'd', text: q.menhDeD || q.optionD },
           ];
 
-          parseLineTokens(m.text).forEach((t) => {
-            if (t.type === 'math') {
-              mdRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 20 }));
-            } else {
-              mdRuns.push(new TextRun({ text: t.content, bold: t.bold, italics: t.italic, size: 22 }));
-            }
-          });
+          propositions.forEach((m) => {
+            if (!m.text) return;
+            const mdRuns: TextRun[] = [
+              new TextRun({ text: `${m.key}) `, bold: true, size: 22 }),
+            ];
 
-          children.push(new Paragraph({ children: mdRuns, indent: { left: 720 } }));
-        });
+            parseLineTokens(m.text).forEach((t) => {
+              if (t.type === 'math') {
+                mdRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 20 }));
+              } else {
+                mdRuns.push(new TextRun({ text: t.content, bold: t.bold, italics: t.italic, size: 22 }));
+              }
+            });
+
+            children.push(new Paragraph({ children: mdRuns, indent: { left: 720 } }));
+          });
+        }
       }
 
       children.push(new Paragraph({ text: '' })); // Spacing between questions
@@ -958,8 +1418,9 @@ export async function exportExamToDocxLatex(
           })
         );
 
-        const mcqQuestions = secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
-        const essayQuestions = secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
+        const isWritingSec = sec.ten?.toLowerCase().includes('writing');
+        const mcqQuestions = isWritingSec ? [] : secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
+        const essayQuestions = isWritingSec ? secQuestions : secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
 
         if (mcqQuestions.length > 0) {
           const chunks = chunkArray(mcqQuestions, 10);
@@ -1009,12 +1470,14 @@ export async function exportExamToDocxLatex(
 
         if (essayQuestions.length > 0) {
           essayQuestions.forEach((q) => {
+            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
             children.push(
               new Paragraph({
                 children: [
                   new TextRun({ text: `Câu ${q.stt}: `, bold: true, size: 21, color: '1E3A8A' }),
-                  new TextRun({ text: q.dapAn || 'Theo hướng dẫn chấm', size: 21, color: '0F172A' }),
+                  new TextRun({ text: cleanAns, size: 21, color: '0F172A' }),
                 ],
+                spacing: { after: 30 },
               })
             );
           });
@@ -1448,6 +1911,13 @@ export async function exportExamToDocxOmml(
     xml += '</w:tblBorders>';
     xml += '</w:tblPr>';
 
+    xml += '<w:tblGrid>';
+    headers.forEach((_, idx) => {
+      const w = colWidthsTwips?.[idx] || Math.floor(9638 / (headers.length || 1));
+      xml += `<w:gridCol w:w="${w}"/>`;
+    });
+    xml += '</w:tblGrid>';
+
     // Header row
     xml += '<w:tr>';
     headers.forEach((h, idx) => {
@@ -1567,28 +2037,73 @@ export async function exportExamToDocxOmml(
   // ====================================================================================
   if (mode !== 'answers_only') {
     // Header Title
-    if (exam.meta.truong) {
-      bodyXml += createSimpleTextParagraph(exam.meta.truong.toUpperCase(), true, true);
-    }
-    bodyXml += createSimpleTextParagraph(
-      (exam.meta.tieuDe || 'ĐỀ KIỂM TRA ĐỊNH DẠNG GDPT 2025').toUpperCase(),
-      true,
-      true,
-      '1E3A8A'
-    );
-    bodyXml += createSimpleTextParagraph(
-      `Thời gian làm bài: ${exam.meta.thoiGian || 90} phút (Không kể thời gian phát đề)`,
-      false,
-      true
-    );
-    bodyXml += '<w:p/>'; // Spacing
-
-    // Thêm dòng điền thông tin học sinh đối với môn Tiếng Anh
+    // Header Title
     if (isEnglishExamData(exam)) {
-      bodyXml += `<w:p>
-        <w:r><w:rPr><w:i/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">Họ và tên học sinh: ............................................................................        Lớp: .....................</w:t></w:r>
-      </w:p><w:p/>`;
+      const truongText = exam.meta.truong ? exam.meta.truong.toUpperCase() : 'TRƯỜNG THCS LÊ QUÝ ĐÔN';
+      const tieuDeText = (exam.meta.tieuDe || 'KIỂM TRA GIỮA HỌC KÌ II').toUpperCase();
+      const namHocText = exam.meta.namHoc ? `NĂM HỌC ${exam.meta.namHoc}` : 'NĂM HỌC 2025-2026';
+      const thoiGianText = `Thời gian: ${exam.meta.thoiGian || 60} phút`;
+      const lopText = exam.meta.khoi ? `Lớp ${exam.meta.khoi}...` : 'Lớp 6...';
+      const maDeText = exam.meta.maDe ? ` - MÃ ĐỀ ${exam.meta.maDe}` : '';
+
+      bodyXml += `<w:tbl>
+        <w:tblPr>
+          <w:tblW w:w="9638" w:type="dxa"/>
+          <w:jc w:val="center"/>
+          <w:tblBorders>
+            <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+            <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+            <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+            <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+            <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+            <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>
+          </w:tblBorders>
+        </w:tblPr>
+        <w:tblGrid>
+          <w:gridCol w:w="4077"/>
+          <w:gridCol w:w="5561"/>
+        </w:tblGrid>
+        <w:tr>
+          <w:tc>
+            <w:tcPr><w:tcW w:w="4077" w:type="dxa"/><w:vAlign w:val="top"/><w:tcMar><w:top w:w="60"/><w:bottom w:w="60"/><w:left w:w="60"/><w:right w:w="60"/></w:tcMar></w:tcPr>
+            <w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">UBND PHƯỜNG / PHÒNG GD&amp;ĐT</w:t></w:r></w:p>
+            <w:p><w:pPr><w:spacing w:after="80" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(truongText)}</w:t></w:r></w:p>
+            <w:p><w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">Tên: …………………………………</w:t></w:r></w:p>
+            <w:p><w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(lopText)}</w:t></w:r></w:p>
+          </w:tc>
+          <w:tc>
+            <w:tcPr><w:tcW w:w="5561" w:type="dxa"/><w:vAlign w:val="top"/><w:tcMar><w:top w:w="60"/><w:bottom w:w="60"/><w:left w:w="60"/><w:right w:w="60"/></w:tcMar></w:tcPr>
+            <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(tieuDeText)}${xmlEscape(maDeText)}</w:t></w:r></w:p>
+            <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(namHocText)}</w:t></w:r></w:p>
+            <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">Môn: Tiếng Anh - Lớp ${exam.meta.khoi || '6'}</w:t></w:r></w:p>
+            <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(thoiGianText)}</w:t></w:r></w:p>
+            <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr><w:t xml:space="preserve">(Không kể thời gian giao phát đề)</w:t></w:r></w:p>
+          </w:tc>
+        </w:tr>
+      </w:tbl><w:p/>`;
+    } else {
+      if (exam.meta.truong) {
+        bodyXml += createSimpleTextParagraph(exam.meta.truong.toUpperCase(), true, true);
+      }
+      bodyXml += createSimpleTextParagraph(
+        (exam.meta.tieuDe || 'ĐỀ KIỂM TRA ĐỊNH DẠNG GDPT 2025').toUpperCase(),
+        true,
+        true,
+        '1E3A8A'
+      );
+      bodyXml += createSimpleTextParagraph(
+        `Thời gian làm bài: ${exam.meta.thoiGian || 90} phút (Không kể thời gian phát đề)`,
+        false,
+        true
+      );
+      bodyXml += '<w:p/>'; // Spacing
     }
+
+    let hasPrintedReadingHeaderOmml = false;
+    let hasPrintedPronunciationInstOmml = false;
+    let hasPrintedStressInstOmml = false;
+    let hasPrintedTfHeaderOmml = false;
+    let pendingPart2GhiChuOmml = '';
 
     // Sections
     for (const section of exam.phan) {
@@ -1605,17 +2120,42 @@ export async function exportExamToDocxOmml(
         }
       }
 
-      bodyXml += createSimpleTextParagraph(sectionTitle, true, false, '0F172A');
+      if (isEnglishExamData(exam) && sectionTitle.toUpperCase().includes('READING')) {
+        if (!hasPrintedReadingHeaderOmml) {
+          hasPrintedReadingHeaderOmml = true;
+          bodyXml += createSimpleTextParagraph('III. READING', true, false, '0F172A');
+        }
+      } else {
+        bodyXml += createSimpleTextParagraph(sectionTitle, true, false, '0F172A');
+      }
+
+      if (isEnglishExamData(exam)) {
+        if (section.ten?.toLowerCase().includes('use of english') && (!section.ghiChu || !section.ghiChu.trim())) {
+          bodyXml += renderEnglishGhiChuXml('Choose the best answer A, B, C or D.');
+        } else if (section.ten?.toLowerCase().includes('writing') && (!section.ghiChu || !section.ghiChu.trim())) {
+          bodyXml += renderEnglishGhiChuXml('Rewrite each of the following sentences in another way so that it means almost the same as the sentence printed before it.');
+        }
+      }
 
       // Xuất bài đọc đọc hiểu / đoạn văn chung / hướng dẫn phần thi vào file Word OMML
       if (section.ghiChu) {
-        const noteParagraphs = section.ghiChu.split('\n');
-        for (const pText of noteParagraphs) {
-          const trimmed = pText.trim();
-          if (trimmed) {
-            bodyXml += createSimpleTextParagraph(trimmed, false, true, '1E293B');
-          } else {
-            bodyXml += '<w:p/>';
+        if (isEnglishExamData(exam)) {
+          let noteToPrint = section.ghiChu;
+          const part2Idx = section.ghiChu.search(/Part 2[.:]/i);
+          if (part2Idx !== -1) {
+            noteToPrint = section.ghiChu.substring(0, part2Idx).trim();
+            pendingPart2GhiChuOmml = section.ghiChu.substring(part2Idx).trim();
+          }
+          bodyXml += renderEnglishGhiChuXml(noteToPrint);
+        } else {
+          const noteParagraphs = section.ghiChu.split('\n');
+          for (const pText of noteParagraphs) {
+            const trimmed = pText.trim();
+            if (trimmed) {
+              bodyXml += createSimpleTextParagraph(trimmed, false, true, '1E293B');
+            } else {
+              bodyXml += '<w:p/>';
+            }
           }
         }
       }
@@ -1638,6 +2178,232 @@ export async function exportExamToDocxOmml(
         // Extract LaTeX tabular from prompt (hỗ trợ nhiều bảng)
         const { cleanText: promptTextNoTable, tables: parsedTables } = extractAndParseTabular(cleanText);
 
+      if (isEnglishExamData(exam)) {
+        const isPhonetics = (section.ten?.toLowerCase().includes('phonetics') || (q.stt <= 4 && (cleanText.toLowerCase().includes('pronunciation') || cleanText.toLowerCase().includes('stress'))));
+        const isStress = isPhonetics && (q.stt >= 3 || cleanText.toLowerCase().includes('stress'));
+        const isCloze = (section.ten?.toLowerCase().includes('reading') || q.stt >= 23) && (cleanText.trim().startsWith('(') || cleanText.trim() === '' || cleanText.trim() === `(${q.stt})`) && is4LuaChon;
+        const isTrueFalse = is4LuaChon && ((expOptA?.toLowerCase() === 'true' && expOptB?.toLowerCase() === 'false') || (expOptA?.toLowerCase() === 't' && expOptB?.toLowerCase() === 'f'));
+        const isWriting = isTuLuan || (section.ten?.toLowerCase().includes('writing') ?? false) || (q.stt >= 33 && (cleanText.includes('→') || cleanText.includes('->')));
+
+        if (pendingPart2GhiChuOmml && (q.stt === 28 || isTrueFalse)) {
+          bodyXml += renderEnglishGhiChuXml(pendingPart2GhiChuOmml);
+          pendingPart2GhiChuOmml = '';
+        }
+
+        // Clean leading question numbers and extract any leading instruction line
+        let promptTextEng = cleanText.replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+        let instructionLead = '';
+        const leadInstMatch = promptTextEng.match(/^((?:Mark the letter|Look at the sign|Choose the best|Use the correct form)[^\n]*\n)([\s\S]*)$/i);
+        if (leadInstMatch) {
+          instructionLead = leadInstMatch[1].trim();
+          promptTextEng = leadInstMatch[2].replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+        }
+        if (instructionLead) {
+          bodyXml += `<w:p><w:pPr><w:spacing w:before="80" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">${xmlEscape(instructionLead)}</w:t></w:r></w:p>`;
+        }
+
+        if (isPhonetics) {
+          if (!isStress && !hasPrintedPronunciationInstOmml) {
+            hasPrintedPronunciationInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="80" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Mark the letter A, B, C or D on your answer sheet to indicate the word whose underlined part differs from the other three in pronunciation in each of the following questions</w:t></w:r></w:p>`;
+          } else if (isStress && !hasPrintedStressInstOmml) {
+            hasPrintedStressInstOmml = true;
+            bodyXml += `<w:p><w:pPr><w:spacing w:before="80" w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Mark the letter A, B, C or D on your answer sheet to indicate the word that differs from the other three in the position of primary stress in each of the following questions.</w:t></w:r></w:p>`;
+          }
+
+          const opts = [
+            { key: 'A', text: expOptA || '' },
+            { key: 'B', text: expOptB || '' },
+            { key: 'C', text: expOptC || '' },
+            { key: 'D', text: expOptD || '' },
+          ];
+
+          let pXml = `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="3402"/><w:tab w:val="left" w:pos="5669"/><w:tab w:val="left" w:pos="7937"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
+          pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r>`;
+          opts.forEach((opt, idx) => {
+            if (idx > 0) pXml += '<w:r><w:tab/></w:r>';
+            pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>`;
+            parseUnderlineTokens(opt.text).forEach((tok) => {
+              const uTag = tok.underline ? '<w:u w:val="single"/>' : '';
+              pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>${uTag}<w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(tok.text)}</w:t></w:r>`;
+            });
+          });
+          pXml += '</w:p>';
+          bodyXml += pXml;
+        } else if (isCloze) {
+          const opts = [
+            { key: 'A', text: expOptA || '' },
+            { key: 'B', text: expOptB || '' },
+            { key: 'C', text: expOptC || '' },
+            { key: 'D', text: expOptD || '' },
+          ];
+
+          let pXml = `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="3402"/><w:tab w:val="left" w:pos="5669"/><w:tab w:val="left" w:pos="7937"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
+          pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r>`;
+          opts.forEach((opt, idx) => {
+            if (idx > 0) pXml += '<w:r><w:tab/></w:r>';
+            pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>`;
+            pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>`;
+          });
+          pXml += '</w:p>';
+          bodyXml += pXml;
+        } else if (isTrueFalse) {
+          if (!hasPrintedTfHeaderOmml) {
+            hasPrintedTfHeaderOmml = true;
+            bodyXml += `<w:tbl>
+              <w:tblPr>
+                <w:tblW w:w="9638" w:type="dxa"/>
+                <w:jc w:val="center"/>
+                <w:tblBorders>
+                  <w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/>
+                </w:tblBorders>
+              </w:tblPr>
+              <w:tblGrid><w:gridCol w:w="7838"/><w:gridCol w:w="900"/><w:gridCol w:w="900"/></w:tblGrid>
+              <w:tr>
+                <w:tc><w:tcPr><w:tcW w:w="7838" w:type="dxa"/></w:tcPr><w:p/></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>T</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>F</w:t></w:r></w:p></w:tc>
+              </w:tr>
+            </w:tbl>`;
+          }
+          bodyXml += `<w:tbl>
+            <w:tblPr>
+              <w:tblW w:w="9638" w:type="dxa"/>
+              <w:jc w:val="center"/>
+              <w:tblBorders>
+                <w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/>
+              </w:tblBorders>
+            </w:tblPr>
+            <w:tblGrid><w:gridCol w:w="7838"/><w:gridCol w:w="900"/><w:gridCol w:w="900"/></w:tblGrid>
+            <w:tr>
+              <w:tc><w:tcPr><w:tcW w:w="7838" w:type="dxa"/><w:tcMar><w:top w:w="40"/><w:bottom w:w="40"/><w:left w:w="40"/><w:right w:w="40"/></w:tcMar></w:tcPr>
+                <w:p><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(promptTextEng)}</w:t></w:r></w:p>
+              </w:tc>
+              <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>[   ]</w:t></w:r></w:p></w:tc>
+              <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>[   ]</w:t></w:r></w:p></w:tc>
+            </w:tr>
+          </w:tbl>`;
+        } else if (isWriting) {
+          const dotPrompt = promptTextEng.replace(/_{3,}/g, '............................................................................');
+          const lines = dotPrompt.split('\n').map((l) => l.trim()).filter(Boolean);
+          if (lines.length === 1 && !lines[0].includes('...') && !lines[0].includes('→')) {
+            lines.push('→ ............................................................................');
+          }
+          lines.forEach((l, lIdx) => {
+            const trimmed = l.replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+            if (!trimmed) return;
+            if (lIdx === 0) {
+              bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(trimmed)}</w:t></w:r></w:p>`;
+            } else {
+              bodyXml += `<w:p><w:pPr><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(trimmed)}</w:t></w:r></w:p>`;
+            }
+          });
+        } else {
+          // General MCQ or Word Form or Dictionary
+          let promptForDisplay = promptTextEng;
+          if (promptForDisplay.includes('Look at the entry of the word') || promptForDisplay.includes('in a dictionary:')) {
+            const dictMatch = promptForDisplay.match(/(Look at the entry of the word[^\n]*\n)([\s\S]*?)(\n\d+[\s\S]*|$)/);
+            if (dictMatch) {
+              const leadText = dictMatch[1].trim();
+              const boxText = dictMatch[2].trim();
+              const remainingText = dictMatch[3].trim();
+              if (leadText) {
+                bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(leadText)}</w:t></w:r></w:p>`;
+              }
+              if (boxText) {
+                bodyXml += `<w:tbl>
+                  <w:tblPr>
+                    <w:tblW w:w="9638" w:type="dxa"/>
+                    <w:jc w:val="center"/>
+                    <w:tblBorders>
+                      <w:top w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                      <w:left w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                      <w:bottom w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                      <w:right w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                    </w:tblBorders>
+                  </w:tblPr>
+                  <w:tblGrid><w:gridCol w:w="9638"/></w:tblGrid>
+                  <w:tr>
+                    <w:tc>
+                      <w:tcPr><w:tcW w:w="9638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/><w:tcMar><w:top w:w="120"/><w:bottom w:w="120"/><w:left w:w="180"/><w:right w:w="180"/></w:tcMar></w:tcPr>`;
+                boxText.split('\n').forEach((bl) => {
+                  bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(bl)}</w:t></w:r></w:p>`;
+                });
+                bodyXml += `</w:tc></w:tr></w:tbl><w:p/>`;
+              }
+              promptForDisplay = remainingText || promptForDisplay;
+            }
+          }
+
+          // Embed images if any (e.g. Signs)
+          const qImages = await ensureQuestionImages(q);
+          for (const imgSrc of qImages) {
+            try {
+              const parsed = parseBase64Image(imgSrc);
+              const bytes = base64ToUint8Array(parsed.base64);
+              const dims = await getImageDimensions(imgSrc);
+              const maxW = 380;
+              const scale = dims.width > maxW ? maxW / dims.width : 1;
+              const finalW = Math.round(dims.width * scale);
+              const finalH = Math.round(dims.height * scale);
+              const cx = finalW * 9525;
+              const cy = finalH * 9525;
+              const imgIndex = imageRecords.length + 1;
+              const relId = `rIdImg${imgIndex}`;
+              const fileName = `image_${imgIndex}.${parsed.ext === 'jpeg' ? 'jpeg' : 'png'}`;
+              const record: ExportImageRecord = { id: imgIndex, relId, fileName, bytes, cx, cy };
+              imageRecords.push(record);
+              bodyXml += createDrawingXml(record);
+            } catch (imgErr) {}
+          }
+
+          if (promptForDisplay) {
+            bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(promptForDisplay)}</w:t></w:r></w:p>`;
+          }
+
+          if (is4LuaChon && expOptA) {
+            const options = [
+              { key: 'A', text: expOptA || '' },
+              { key: 'B', text: expOptB || '' },
+              { key: 'C', text: expOptC || '' },
+              { key: 'D', text: expOptD || '' },
+            ].filter((o) => o.text);
+
+            const avgLen = options.reduce((sum, o) => sum + o.text.length, 0) / (options.length || 1);
+            const maxLen = Math.max(...options.map((o) => o.text.length));
+
+            if (avgLen <= 26 && maxLen <= 35 && options.length === 4) {
+              let pXml = `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="3402"/><w:tab w:val="left" w:pos="5669"/><w:tab w:val="left" w:pos="7937"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>`;
+              options.forEach((opt, idx) => {
+                if (idx > 0) pXml += '<w:r><w:tab/></w:r>';
+                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>`;
+                pXml += `<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>`;
+              });
+              pXml += '</w:p>';
+              bodyXml += pXml;
+            } else if (avgLen <= 55 && maxLen <= 65 && options.length === 4) {
+              bodyXml += `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="4819"/></w:tabs><w:spacing w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>
+                <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">A. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[0].text)}</w:t></w:r>
+                <w:r><w:tab/></w:r>
+                <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">B. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[1].text)}</w:t></w:r>
+              </w:p>`;
+              bodyXml += `<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="4819"/></w:tabs><w:spacing w:after="60" w:line="240" w:lineRule="auto"/></w:pPr>
+                <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">C. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[2].text)}</w:t></w:r>
+                <w:r><w:tab/></w:r>
+                <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">D. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(options[3].text)}</w:t></w:r>
+              </w:p>`;
+            } else {
+              options.forEach((opt) => {
+                bodyXml += `<w:p><w:pPr><w:ind w:left="360"/><w:spacing w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>
+                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${opt.key}. </w:t></w:r>
+                  <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(opt.text)}</w:t></w:r>
+                </w:p>`;
+              });
+            }
+          }
+        }
+      } else {
+        // TOÀN BỘ LOGIC CŨ MÔN TOÁN VÀ CÁC MÔN KHÁC GIỮ NGUYÊN 100%
         // Question Prompt
         const prefixTokens: FormattedToken[] = [
           { type: 'text', content: `Câu ${q.stt}: `, bold: true },
@@ -1660,111 +2426,116 @@ export async function exportExamToDocxOmml(
           }
         }
 
+        // Embed Question Images directly into Word document (including captured TikZ images)
+        const qImages = await ensureQuestionImages(q);
+        for (const imgSrc of qImages) {
+          try {
+            const parsed = parseBase64Image(imgSrc);
+            const bytes = base64ToUint8Array(parsed.base64);
+            const dims = await getImageDimensions(imgSrc);
+            const maxW = 440;
+            const scale = dims.width > maxW ? maxW / dims.width : 1;
+            const finalW = Math.round(dims.width * scale);
+            const finalH = Math.round(dims.height * scale);
+            const cx = finalW * 9525;
+            const cy = finalH * 9525;
 
-      // Embed Question Images directly into Word document (including captured TikZ images)
-      const qImages = await ensureQuestionImages(q);
-      for (const imgSrc of qImages) {
-        try {
-          const parsed = parseBase64Image(imgSrc);
-          const bytes = base64ToUint8Array(parsed.base64);
-          const dims = await getImageDimensions(imgSrc);
-          const maxW = 440;
-          const scale = dims.width > maxW ? maxW / dims.width : 1;
-          const finalW = Math.round(dims.width * scale);
-          const finalH = Math.round(dims.height * scale);
-          const cx = finalW * 9525;
-          const cy = finalH * 9525;
+            const imgIndex = imageRecords.length + 1;
+            const relId = `rIdImg${imgIndex}`;
+            const fileName = `image_${imgIndex}.${parsed.ext === 'jpeg' ? 'jpeg' : 'png'}`;
 
-          const imgIndex = imageRecords.length + 1;
-          const relId = `rIdImg${imgIndex}`;
-          const fileName = `image_${imgIndex}.${parsed.ext === 'jpeg' ? 'jpeg' : 'png'}`;
-
-          const record: ExportImageRecord = {
-            id: imgIndex,
-            relId,
-            fileName,
-            bytes,
-            cx,
-            cy,
-          };
-          imageRecords.push(record);
-          bodyXml += createDrawingXml(record);
-        } catch (imgErr) {
-          console.warn(`Failed to process image in OMML for question ${q.stt}:`, imgErr);
-        }
-      }
-
-      // 1. 4 Options — inline compact layout (2 per row if short, 1 per row if long)
-      if (is4LuaChon && expOptA) {
-        const options = [
-          { key: 'A', text: expOptA ?? '' },
-          { key: 'B', text: expOptB ?? '' },
-          { key: 'C', text: expOptC ?? '' },
-          { key: 'D', text: expOptD ?? '' },
-        ].filter((o) => o.text);
-
-        const avgLen = options.reduce((acc, o) => acc + o.text.length, 0) / (options.length || 1);
-        const numCols = avgLen <= 30 ? 4 : avgLen <= 65 ? 2 : 1;
-
-        if (numCols === 1) {
-          options.forEach((opt) => {
-            const optTokens: FormattedToken[] = [
-              { type: 'text', content: `${opt.key}. `, bold: true },
-              ...parseLineTokens(opt.text),
-            ];
-            bodyXml += createXmlParagraph(optTokens, 720, false, '0F172A');
-          });
-        } else {
-          // Build XML table with numCols columns for compact layout
-          const colWidthDxa = Math.floor(9638 / numCols);
-          bodyXml += `<w:tbl><w:tblPr><w:tblW w:w="9638" w:type="dxa"/><w:tblBorders><w:top w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:left w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:bottom w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:right w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:insideH w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/></w:tblBorders><w:tblInd w:w="720" w:type="dxa"/></w:tblPr>`;
-          for (let i = 0; i < options.length; i += numCols) {
-            const rowOpts = options.slice(i, i + numCols);
-            while (rowOpts.length < numCols) rowOpts.push({ key: '', text: '' });
-            bodyXml += '<w:tr>';
-            rowOpts.forEach((opt) => {
-              bodyXml += `<w:tc><w:tcPr><w:tcW w:w="${colWidthDxa}" w:type="dxa"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="FFFFFF"/><w:left w:val="none" w:sz="0" w:color="FFFFFF"/><w:bottom w:val="none" w:sz="0" w:color="FFFFFF"/><w:right w:val="none" w:sz="0" w:color="FFFFFF"/></w:tcBorders></w:tcPr>`;
-              if (opt.key) {
-                const optTokens: FormattedToken[] = [
-                  { type: 'text', content: `${opt.key}. `, bold: true },
-                  ...parseLineTokens(opt.text),
-                ];
-                bodyXml += createXmlParagraph(optTokens, 0, false, '0F172A');
-              } else {
-                bodyXml += '<w:p/>';
-              }
-              bodyXml += '</w:tc>';
-            });
-            bodyXml += '</w:tr>';
+            const record: ExportImageRecord = {
+              id: imgIndex,
+              relId,
+              fileName,
+              bytes,
+              cx,
+              cy,
+            };
+            imageRecords.push(record);
+            bodyXml += createDrawingXml(record);
+          } catch (imgErr) {
+            console.warn(`Failed to process image in OMML for question ${q.stt}:`, imgErr);
           }
-          bodyXml += '</w:tbl>';
-        }
-      }
-
-      // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
-      if (isDungSai) {
-        // Câu lệnh hỏi dẫn trước mệnh đề
-        if (q.cauLenh) {
-          const clTokens: FormattedToken[] = [...parseLineTokens(q.cauLenh)];
-          bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
         }
 
-        const propositions = [
-          { key: 'a', text: q.menhDeA || q.optionA },
-          { key: 'b', text: q.menhDeB || q.optionB },
-          { key: 'c', text: q.menhDeC || q.optionC },
-          { key: 'd', text: q.menhDeD || q.optionD },
-        ];
+        // 1. 4 Options — inline compact layout (2 per row if short, 1 per row if long)
+        if (is4LuaChon && expOptA) {
+          const options = [
+            { key: 'A', text: expOptA ?? '' },
+            { key: 'B', text: expOptB ?? '' },
+            { key: 'C', text: expOptC ?? '' },
+            { key: 'D', text: expOptD ?? '' },
+          ].filter((o) => o.text);
 
-        propositions.forEach((m) => {
-          if (!m.text) return;
-          const mdTokens: FormattedToken[] = [
-            { type: 'text', content: `${m.key}) `, bold: true },
-            ...parseLineTokens(m.text),
+          const avgLen = options.reduce((acc, o) => acc + o.text.length, 0) / (options.length || 1);
+          const numCols = avgLen <= 30 ? 4 : avgLen <= 65 ? 2 : 1;
+
+          if (numCols === 1) {
+            options.forEach((opt) => {
+              const optTokens: FormattedToken[] = [
+                { type: 'text', content: `${opt.key}. `, bold: true },
+                ...parseLineTokens(opt.text),
+              ];
+              bodyXml += createXmlParagraph(optTokens, 720, false, '0F172A');
+            });
+          } else {
+            // Build XML table with numCols columns for compact layout
+            const colWidthDxa = Math.floor(9638 / numCols);
+            bodyXml += `<w:tbl><w:tblPr><w:tblW w:w="9638" w:type="dxa"/><w:tblBorders><w:top w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:left w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:bottom w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:right w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:insideH w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="FFFFFF"/></w:tblBorders><w:tblInd w:w="720" w:type="dxa"/></w:tblPr>`;
+            bodyXml += `<w:tblGrid>`;
+            for (let c = 0; c < numCols; c++) {
+              bodyXml += `<w:gridCol w:w="${colWidthDxa}"/>`;
+            }
+            bodyXml += `</w:tblGrid>`;
+            for (let i = 0; i < options.length; i += numCols) {
+              const rowOpts = options.slice(i, i + numCols);
+              while (rowOpts.length < numCols) rowOpts.push({ key: '', text: '' });
+              bodyXml += '<w:tr>';
+              rowOpts.forEach((opt) => {
+                bodyXml += `<w:tc><w:tcPr><w:tcW w:w="${colWidthDxa}" w:type="dxa"/><w:tcBorders><w:top w:val="none" w:sz="0" w:color="FFFFFF"/><w:left w:val="none" w:sz="0" w:color="FFFFFF"/><w:bottom w:val="none" w:sz="0" w:color="FFFFFF"/><w:right w:val="none" w:sz="0" w:color="FFFFFF"/></w:tcBorders></w:tcPr>`;
+                if (opt.key) {
+                  const optTokens: FormattedToken[] = [
+                    { type: 'text', content: `${opt.key}. `, bold: true },
+                    ...parseLineTokens(opt.text),
+                  ];
+                  bodyXml += createXmlParagraph(optTokens, 0, false, '0F172A');
+                } else {
+                  bodyXml += '<w:p/>';
+                }
+                bodyXml += '</w:tc>';
+              });
+              bodyXml += '</w:tr>';
+            }
+            bodyXml += '</w:tbl>';
+          }
+        }
+
+        // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
+        if (isDungSai) {
+          // Câu lệnh hỏi dẫn trước mệnh đề
+          if (q.cauLenh) {
+            const clTokens: FormattedToken[] = [...parseLineTokens(q.cauLenh)];
+            bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
+          }
+
+          const propositions = [
+            { key: 'a', text: q.menhDeA || q.optionA },
+            { key: 'b', text: q.menhDeB || q.optionB },
+            { key: 'c', text: q.menhDeC || q.optionC },
+            { key: 'd', text: q.menhDeD || q.optionD },
           ];
 
-          bodyXml += createXmlParagraph(mdTokens, 720, false, '0F172A');
-        });
+          propositions.forEach((m) => {
+            if (!m.text) return;
+            const mdTokens: FormattedToken[] = [
+              { type: 'text', content: `${m.key}) `, bold: true },
+              ...parseLineTokens(m.text),
+            ];
+
+            bodyXml += createXmlParagraph(mdTokens, 720, false, '0F172A');
+          });
+        }
       }
 
       bodyXml += '<w:p/>'; // Spacing between questions
@@ -1818,8 +2589,9 @@ export async function exportExamToDocxOmml(
 
         bodyXml += createSimpleTextParagraph(`${sec.ten || `PHẦN ${sIdx + 1}`}:`, true, false, '1E3A8A');
 
-        const mcqQuestions = secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
-        const essayQuestions = secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
+        const isWritingSec = sec.ten?.toLowerCase().includes('writing');
+        const mcqQuestions = isWritingSec ? [] : secQuestions.filter((q) => q.loai !== QuestionType.TU_LUAN);
+        const essayQuestions = isWritingSec ? secQuestions : secQuestions.filter((q) => q.loai === QuestionType.TU_LUAN);
 
         if (mcqQuestions.length > 0) {
           const chunks = chunkArray(mcqQuestions, 10);
@@ -1841,9 +2613,10 @@ export async function exportExamToDocxOmml(
 
         if (essayQuestions.length > 0) {
           essayQuestions.forEach((q) => {
-            bodyXml += `<w:p>
-              <w:r><w:rPr><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">Câu ${q.stt}: </w:t></w:r>
-              <w:r><w:rPr><w:color w:val="0F172A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(q.dapAn || 'Theo hướng dẫn chấm')}</w:t></w:r>
+            const cleanAns = (q.dapAn || 'Theo hướng dẫn chấm').trim();
+            bodyXml += `<w:p><w:pPr><w:spacing w:after="30" w:line="240" w:lineRule="auto"/></w:pPr>
+              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">Câu ${q.stt}: </w:t></w:r>
+              <w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:color w:val="0F172A"/><w:sz w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(cleanAns)}</w:t></w:r>
             </w:p>`;
           });
           bodyXml += '<w:p/>';
