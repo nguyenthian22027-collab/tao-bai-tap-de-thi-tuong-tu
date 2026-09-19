@@ -186,6 +186,53 @@ export async function callGeminiRoundRobin(
 }
 
 /**
+ * Sinh ra đoạn quy tắc nhận diện môn học dùng chung cho cả 3 prompt.
+ * Giúp AI biết cách trình bày (LaTeX/không LaTeX, TikZ, cấu trúc câu...)
+ * tùy theo môn học nhận diện từ đề gốc.
+ */
+function buildSubjectRules(): string {
+  return `
+QUY TẮC NHẬN DIỆN MÔN HỌC — ĐỌC KỸ VÀ ÁP DỤNG ĐÚNG MÔN:
+
+[NHÓM 1] KHOA HỌC TỰ NHIÊN — Toán, Vật lý, Hóa học, Sinh học:
+• BẮT BUỘC dùng LaTeX $...$ (inline) hoặc $$...$$ (display) cho mọi công thức, ký hiệu, đơn vị đo.
+• Có thể sinh TikZ nếu câu có hình vẽ hình học, đồ thị, bảng biến thiên.
+• Bảng số liệu (bảng tần số, giá trị hàm số): dùng \\begin{tabular}...\\end{tabular}.
+• Câu Đúng/Sai: mệnh đề a/b/c/d là các khẳng định toán/lý/hóa/sinh chứa LaTeX.
+
+[NHÓM 2] NGOẠI NGỮ — Tiếng Anh, Tiếng Pháp, Tiếng Trung, Tiếng Nhật...:
+• TUYỆT ĐỐI không dùng LaTeX hay ký hiệu Toán vô nghĩa.
+• TUYỆT ĐỐI không sinh TikZ (trừ khi câu dạy hình học bằng tiếng nước ngoài thực sự).
+• Cấu trúc phần đặc trưng: PHONETICS / VOCABULARY & GRAMMAR (USE OF ENGLISH) / READING / WRITING / SPEAKING.
+• Phonetics: A/B/C/D là các từ tiếng Anh thực tế (gạch chân âm/vần khác nhau).
+• Reading Passage: đặt TOÀN BỘ đoạn văn vào NOI_DUNG trước, sau đó là các câu hỏi về đoạn văn.
+• Rewrite / Sentence Transformation: LOAI: tu_luan, NOI_DUNG là câu gốc cần viết lại, DAP_AN là câu đã viết lại.
+• Fill in the blank (điền từ vào đoạn văn): NOI_DUNG chứa đoạn văn có _____, A/B/C/D là các từ điền vào.
+• Câu hỏi giao tiếp (Exchange / Dialogue): NOI_DUNG là tình huống hội thoại, A/B/C/D là các câu trả lời phù hợp.
+• Câu nhìn tranh/biển báo (Sign/Picture): NOI_DUNG mô tả biển báo/tranh, A/B/C/D là các phát biểu về nó.
+
+[NHÓM 3] NGỮ VĂN — Văn học, Tiếng Việt:
+• TUYỆT ĐỐI không dùng LaTeX hay công thức Toán.
+• Câu Đọc hiểu: NOI_DUNG chứa ĐẦY ĐỦ đoạn trích văn bản gốc (thơ/văn xuôi) rồi mới đến câu hỏi về nội dung/nghệ thuật.
+• Câu Làm văn / Nghị luận: LOAI: tu_luan, DAP_AN là gợi ý dàn ý chi tiết (mở bài, thân bài, kết bài).
+• Câu trắc nghiệm đọc hiểu: A/B/C/D là các phương án về nội dung/nghệ thuật/ý nghĩa.
+
+[NHÓM 4] KHOA HỌC XÃ HỘI — Lịch sử, Địa lý, GDCD, Giáo dục Kinh tế & Pháp luật:
+• Không cần LaTeX. Số liệu thống kê, năm tháng viết bình thường (KHÔNG bọc $...$).
+• Câu trắc nghiệm: A/B/C/D là các phát biểu về sự kiện lịch sử, địa danh, khái niệm pháp luật, chính sách kinh tế.
+• Câu Đúng/Sai: mệnh đề a/b/c/d là các nhận định về sự kiện, nhân vật, địa danh, quy định pháp luật.
+• Câu tự luận: trình bày nguyên nhân, diễn biến, ý nghĩa, bài học lịch sử; phân tích địa lý; giải thích pháp luật.
+• Bảng số liệu địa lý/kinh tế: có thể dùng \\begin{tabular} hoặc viết dạng liệt kê văn bản.
+
+[NHÓM 5] TIN HỌC — Khoa học máy tính, Công nghệ thông tin:
+• Không cần LaTeX (trừ khi câu liên quan đến thuật toán có ký hiệu toán học thực sự).
+• Câu có đoạn code: đặt code vào NOI_DUNG với thụt lề đúng, bọc code trong dấu triple backtick.
+• Câu lý thuyết: 4 lựa chọn bình thường về khái niệm, cú pháp, thuật toán, phần cứng/phần mềm.
+• Câu thực hành: LOAI: tu_luan, mô tả yêu cầu bài thực hành, DAP_AN là các bước thực hiện.
+`;
+}
+
+/**
  * Builds the strict structured text prompt for exam or problem generation
  */
 export function buildExamPrompt(
@@ -231,51 +278,57 @@ ${tikzShapeGuide}`;
 
   // Mode 2: Tạo câu lẻ / bài tập tương tự từ ảnh hoặc vài câu gốc
   if (config.mode === 'cau_le') {
-    return `Bạn là chuyên gia sư phạm & giáo viên dạy giỏi hàng đầu Việt Nam.
-NHIỆM VỤ: Dựa vào ảnh/văn bản bài tập gốc dưới đây, hãy sinh ra ${config.soBai} bài toán tương tự chất lượng cao.
+    return `Bạn là chuyên gia sư phạm & giáo viên dạy giỏi hàng đầu Việt Nam, am hiểu TẤT CẢ CÁC MÔN HỌC.
+NHIỆM VỤ: Dựa vào ảnh/văn bản bài tập gốc dưới đây, hãy sinh ra ${config.soBai} bài/câu hỏi tương tự chất lượng cao, CÙNG MÔN HỌC và CÙNG DẠNG CÂU HỎI với bài gốc.
 
-YÊU CẦU CẤU HÌNH BÀI TẬP:
+YÊU CẦU CẤU HÌNH:
 - Số bài cần sinh: ${config.soBai} bài
 - Độ khó: ${doKhoMap[config.doKho]}
 - Chế độ TikZ: ${tikzInstruction}
 - Lời giải chi tiết: ${config.includeAnswers ? 'BẮT BUỘC có lời giải chi tiết từng bước và đáp số.' : 'Chỉ cần đề bài và đáp số ngắn gọn.'}
 ${config.extraPrompt ? `- YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
 
-QUY TẮC BẮT BUỘC VỀ TRÌNH BÀY:
-1. Tất cả công thức Toán, Lý, Hóa, Sinh... BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
-2. ${mathTypeNote}
-3. Đảm bảo tính chính xác tuyệt đối về mặt toán học, số liệu đẹp, kết quả tính đúng đắn.
-4. NHẬN DIỆN LOẠI CÂU HỎI GỐC và sinh ra bài tương tự CÙNG LOẠI (tự luận, đúng/sai, 4 lựa chọn, trả lời ngắn).
-5. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
+${buildSubjectRules()}
 
-QUY TẮC QUAN TRỌNG VỀ LOẠI CÂU HỎI:
-- Nếu bài gốc là câu TỰ LUẬN → dùng LOAI: tu_luan, có NOI_DUNG và DAP_AN.
-- Nếu bài gốc là câu TRẮC NGHIỆM ĐÚNG/SAI (có 4 mệnh đề a/b/c/d) → dùng LOAI: trac_nghiem_dung_sai, BẮT BUỘC có CAU_LENH và 4 trường MENH_DE_A/B/C/D + DAP_AN_A/B/C/D (D=Đúng, S=Sai).
-- Nếu bài gốc là câu TRẮC NGHIỆM 4 LỰA CHỌN → dùng LOAI: trac_nghiem_4_lua_chon, có A/B/C/D và DAP_AN.
-- Nếu bài gốc là câu TRẢ LỜI NGẮN → dùng LOAI: trac_nghiem_tra_loi_ngan, có NOI_DUNG và DAP_AN ngắn.
+QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG:
+1. Nhận diện môn học từ bài gốc, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
+2. Nhận diện loại câu hỏi gốc (tự luận, đúng/sai, 4 lựa chọn, trả lời ngắn, đọc hiểu, rewrite...) và sinh ra bài tương tự CÙNG LOẠI.
+3. ${mathTypeNote || 'Đảm bảo tính chính xác về nội dung, số liệu đẹp, kết quả đúng đắn.'}
+4. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
+
+QUY TẮC LOẠI CÂU HỎI:
+- Câu TỰ LUẬN → LOAI: tu_luan, có NOI_DUNG và DAP_AN.
+- Câu ĐÚNG/SAI (4 mệnh đề) → LOAI: trac_nghiem_dung_sai, BẮT BUỘC có CAU_LENH và MENH_DE_A/B/C/D + DAP_AN_A/B/C/D (D=Đúng, S=Sai).
+- Câu 4 LỰA CHỌN → LOAI: trac_nghiem_4_lua_chon, có A/B/C/D và DAP_AN.
+- Câu TRẢ LỜI NGẮN → LOAI: trac_nghiem_tra_loi_ngan, DAP_AN là kết quả ngắn gọn.
+- Câu READING PASSAGE (Tiếng Anh) → LOAI: trac_nghiem_4_lua_chon, NOI_DUNG chứa toàn bộ đoạn văn rồi mới đến câu hỏi.
+- Câu REWRITE / SENTENCE TRANSFORMATION → LOAI: tu_luan, NOI_DUNG là câu gốc cần viết lại, DAP_AN là câu đã viết lại.
+- Câu ĐỌC HIỂU VĂN BẢN (Ngữ văn) → LOAI: tu_luan, NOI_DUNG chứa đoạn trích rồi mới đến câu hỏi, DAP_AN là gợi ý trả lời.
 
 ===DE===
-TIEU_DE: BỘ BÀI TẬP TƯƠNG TỰ
+TIEU_DE: BÀI TẬP TƯƠNG TỰ
 THOI_GIAN: 45
 ===PHAN===
-TEN: CÁC BÀI TOÁN TƯƠNG TỰ (${config.soBai} bài)
+TEN: CÁC BÀI/CÂU HỎI TƯƠNG TỰ (${config.soBai} bài)
 LOAI: tu_luan
 ===CAU===
 STT: 1
-[--- VÍ DỤ NẾU LÀ CÂU TỰ LUẬN ---]
+[Dùng đúng template bên dưới tương ứng với dạng câu gốc:]
+
+[--- DẠNG: TỰ LUẬN (Toán/Lý/Hóa/Sinh/Văn/Sử/Địa...) ---]
 LOAI: tu_luan
-NOI_DUNG: [Nội dung đề bài toán tương tự, LaTeX trong $...]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị. Để trống nếu không có hình]
+NOI_DUNG: [Nội dung đề bài tương tự — LaTeX nếu là KHTN, văn bản thuần nếu là KHXH/Ngữ văn]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ. Để trống nếu không có hình hoặc là môn Ngoại ngữ/KHXH]
 DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
 MUC_DO: thong_hieu
 DIEM: 1.0
 
-[--- VÍ DỤ NẾU LÀ CÂU ĐÚNG/SAI ---]
+[--- DẠNG: TRẮC NGHIỆM ĐÚNG/SAI (mọi môn) ---]
 LOAI: trac_nghiem_dung_sai
-NOI_DUNG: [Đề dẫn bài toán — KHÔNG liệt kê mệnh đề ở đây]
-TIKZ: [Mã TikZ nếu có hình. Để trống nếu không có hình]
-CAU_LENH: Trong các mệnh đề sau, mệnh đề nào đúng?
-MENH_DE_A: [Nội dung mệnh đề a — LaTeX trong $...$]
+NOI_DUNG: [Đề dẫn/bối cảnh chung — KHÔNG liệt kê mệnh đề ở đây]
+TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống nếu không có hình]
+CAU_LENH: [Câu lệnh hỏi phù hợp môn — VD: "Trong các mệnh đề sau, mệnh đề nào đúng?" hoặc "Xét các phát biểu sau:"]
+MENH_DE_A: [Nội dung mệnh đề a]
 DAP_AN_A: D
 MENH_DE_B: [Nội dung mệnh đề b]
 DAP_AN_B: S
@@ -287,27 +340,55 @@ HUONG_DAN_GIAI: [Giải thích từng mệnh đề]
 MUC_DO: thong_hieu
 DIEM: 1.0
 
-[--- VÍ DỤ NẾU LÀ CÂU 4 LỰA CHỌN ---]
+[--- DẠNG: TRẮC NGHIỆM 4 LỰA CHỌN (mọi môn — Toán, Anh, Sử, Địa...) ---]
 LOAI: trac_nghiem_4_lua_chon
-NOI_DUNG: [Nội dung câu hỏi]
-TIKZ: [Mã TikZ nếu có hình. Để trống nếu không có hình]
+NOI_DUNG: [Nội dung câu hỏi phù hợp môn học]
+TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống nếu không có hình]
 A: [Phương án A]
 B: [Phương án B]
 C: [Phương án C]
 D: [Phương án D]
 DAP_AN: [A/B/C/D]
-HUONG_DAN_GIAI: [Lời giải chi tiết]
+HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: thong_hieu
 DIEM: 0.25
 
+[--- DẠNG: TIẾNG ANH — READING PASSAGE (đoạn văn + câu hỏi) ---]
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: [Toàn bộ đoạn văn Reading tương tự — tự nhiên, phù hợp trình độ]
+
+Question 1: [Câu hỏi về đoạn văn]
+A: [A]
+B: [B]
+C: [C]
+D: [D]
+DAP_AN: A
+DIEM: 0.25
+
+[--- DẠNG: TIẾNG ANH — REWRITE / SENTENCE TRANSFORMATION ---]
+LOAI: tu_luan
+NOI_DUNG: Rewrite the sentence so that it has a similar meaning:
+"[Câu gốc tương tự]"
+DAP_AN: [Câu đã viết lại hoàn chỉnh]
+DIEM: 0.5
+
+[--- DẠNG: NGỮ VĂN — ĐỌC HIỂU VĂN BẢN ---]
+LOAI: tu_luan
+NOI_DUNG: Đọc đoạn trích sau và trả lời câu hỏi:
+[Đoạn trích văn bản tương tự — thơ hoặc văn xuôi]
+Câu hỏi: [Câu hỏi về nội dung/nghệ thuật/ý nghĩa]
+DAP_AN: [Gợi ý trả lời ngắn gọn]
+DIEM: 1.0
+
 ===CAU===
-... (Tiếp tục sinh đủ ${config.soBai} bài — dùng đúng template tương ứng loại câu gốc)
+... (Tiếp tục sinh đủ ${config.soBai} bài — dùng đúng template tương ứng loại câu và môn học)
 ===DE===
 
 NỘI DUNG / HÌNH ẢNH BÀI GỐC CẦN TẠO TƯƠNG TỰ:
 ${sourceContent}
 `;
   }
+
 
   // Mode 1: Tạo nguyên đề thi (Mọi môn học)
   const modeTextMap = {
@@ -327,21 +408,24 @@ ${sourceContent}
 NHIỆM VỤ QUAN TRỌNG:
 Phân tích kỹ lưỡng đề thi gốc dưới đây và tạo 1 ĐỀ THI MỚI TƯƠNG TỰ (Mã đề: ${deIndex}) SAO CHÉP Y HỆT 100% CẤU TRÚC ĐỀ GỐC.
 
+${buildSubjectRules()}
+
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
-1. Tất cả công thức Toán, Lý, Hóa, Sinh, Ký hiệu BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
-2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn trước 4 mệnh đề (ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?", "Xét các phát biểu sau về hàm số:", "Khẳng định nào sau đây là đúng?"). KHÔNG được bỏ trống CAU_LENH.
-3. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài (bán kính, tọa độ, góc...). TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
-4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
+1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức, ký hiệu. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
+2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn phù hợp môn học (VD Toán: "Trong các mệnh đề sau, mệnh đề nào đúng?"; VD Sử: "Xét các phát biểu sau về sự kiện lịch sử:"; VD Anh: "Which of the following statements is true?"). KHÔNG được bỏ trống CAU_LENH.
+3. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài. TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
+4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 5. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
-1. Nhận diện chính xác môn học, tên từng Phần, loại câu hỏi (Tự luận, Đọc hiểu, Trắc nghiệm 4 lựa chọn, Trắc nghiệm Đúng/Sai, Trả lời ngắn...) và số lượng câu hỏi trong từng phần của đề gốc.
+1. Nhận diện chính xác môn học, tên từng Phần, loại câu hỏi (Tự luận, Đọc hiểu, Phonetics, Trắc nghiệm 4 lựa chọn, Trắc nghiệm Đúng/Sai, Trả lời ngắn, Rewrite...) và số lượng câu hỏi trong từng phần của đề gốc.
 2. GIỮ NGUYÊN HOÀN TOÀN TÊN CÁC PHẦN, SỐ LƯỢNG CÂU VÀ LOẠI CÂU HỎI như đề gốc.
-   - Nếu đề gốc là Ngữ văn gồm 2 phần (I. ĐỌC HIỂU 4 câu tự luận, II. LÀM VĂN 2 câu tự luận), đề mới BẮT BUỘC gồm đúng 2 phần đó với 6 câu tự luận tương tự.
-   - Nếu đề gốc có trắc nghiệm hoặc đọc hiểu kèm văn bản, hãy chọn ngữ cảnh/văn bản mới tương đương và sinh các câu hỏi tương ứng.
-   - Nếu đề gốc gồm trắc nghiệm và tự luận kết hợp, hãy tái tạo chính xác số câu trắc nghiệm và tự luận như đề gốc.
+   - Nếu đề gốc là Tiếng Anh gồm (I. PHONETICS, II. USE OF ENGLISH, III. READING, IV. WRITING) → đề mới BẮT BUỘC gồm đúng 4 phần đó với nội dung Tiếng Anh tương đương.
+   - Nếu đề gốc là Ngữ văn gồm 2 phần (I. ĐỌC HIỂU, II. LÀM VĂN) → đề mới BẮT BUỘC gồm đúng 2 phần đó với đoạn trích/đề văn mới tương đương.
+   - Nếu đề gốc có trắc nghiệm hoặc đọc hiểu kèm văn bản → chọn ngữ cảnh/văn bản mới tương đương và sinh các câu hỏi tương ứng.
+   - Nếu đề gốc gồm trắc nghiệm và tự luận kết hợp → tái tạo chính xác số câu trắc nghiệm và tự luận như đề gốc.
 3. ĐỘ KHÓ ĐỀ THI: ${doKhoMap[config.doKho]}
-4. MỨC ĐỘ TƯƠNG TỰ MÔN HỌC: ${modeTextMap[config.mucDoTuongTu]}
+4. MỨC ĐỘ TƯƠNG TỰ: ${modeTextMap[config.mucDoTuongTu]}
 5. VẼ HÌNH TIKZ: ${tikzInstruction}
 ${config.extraPrompt ? `6. YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
 
@@ -353,37 +437,41 @@ NAM_HOC: ${config.namHoc || '2025 - 2026'}
 DE_SO: ${deIndex}
 TONG_SO_DE: ${config.soDeCanTao}
 
+[GIỮ Y HỆT CẤU TRÚC ĐỀ GỐC — ví dụ dưới đây chỉ là mẫu tham khảo:]
+
+[--- Ví dụ nếu là PHẦN TRẮC NGHIỆM 4 LỰA CHỌN (Toán/Lý/Hóa/Sinh/Sử/Địa/GDCD/Anh...) ---]
 ===PHAN===
-TEN: [Tên phần 1 như đề gốc, VD: PHẦN I. TRẮC NGHIỆM]
+TEN: [Tên phần như đề gốc — VD: PHẦN I. TRẮC NGHIỆM hoặc I. PHONETICS hoặc I. USE OF ENGLISH]
 LOAI: trac_nghiem_4_lua_chon
 DIEM_MOI_CAU: 0.25
 ===CAU===
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
-NOI_DUNG: [Nội dung câu hỏi — LaTeX trong $...$. KHÔNG chứa mã TikZ. KHÔNG chứa "Hình vẽ:" hay "xem hình bên"]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
+NOI_DUNG: [Nội dung câu hỏi đúng môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa. KHÔNG chứa mã TikZ]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
 A: [Phương án A]
 B: [Phương án B]
 C: [Phương án C]
 D: [Phương án D]
-DAP_AN: [Chữ cái A/B/C/D]
-HUONG_DAN_GIAI: [Lời giải chi tiết]
+DAP_AN: [A/B/C/D]
+HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: nhan_biet
 DIEM: 0.25
 ===CAU===
-... (Các câu 4 lựa chọn tiếp theo của phần 1)
+... (Các câu 4 lựa chọn tiếp theo)
 
+[--- Ví dụ nếu là PHẦN TRẮC NGHIỆM ĐÚNG/SAI (mọi môn) ---]
 ===PHAN===
-TEN: [Tên phần 2 — VD: PHẦN II. TRẮC NGHIỆM ĐÚNG SAI]
+TEN: [Tên phần như đề gốc — VD: PHẦN II. TRẮC NGHIỆM ĐÚNG SAI]
 LOAI: trac_nghiem_dung_sai
 DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: [số thứ tự tiếp theo]
 LOAI: trac_nghiem_dung_sai
-NOI_DUNG: [Đề dẫn bài toán. KHÔNG liệt kê mệnh đề ở đây. KHÔNG chứa mã TikZ]
-TIKZ: [Mã TikZ nếu câu có hình. Để trống nếu không có hình]
-CAU_LENH: Trong các mệnh đề sau, mệnh đề nào đúng?
-MENH_DE_A: [Nội dung mệnh đề a — LaTeX trong $...$]
+NOI_DUNG: [Đề dẫn/bối cảnh chung. KHÔNG liệt kê mệnh đề ở đây. KHÔNG chứa mã TikZ]
+TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống nếu không có hình]
+CAU_LENH: [Câu lệnh hỏi phù hợp môn — VD: "Trong các mệnh đề sau, mệnh đề nào đúng?" (Toán) / "Xét các phát biểu sau:" (Sử/Địa) / "Which statements are correct?" (Anh)]
+MENH_DE_A: [Nội dung mệnh đề a]
 DAP_AN_A: D
 MENH_DE_B: [Nội dung mệnh đề b]
 DAP_AN_B: S
@@ -395,10 +483,11 @@ HUONG_DAN_GIAI: [Giải thích từng mệnh đề]
 MUC_DO: thong_hieu
 DIEM: 1.0
 ===CAU===
-... (Các câu Đúng/Sai tiếp theo của phần 2)
+... (Các câu Đúng/Sai tiếp theo)
 
+[--- Ví dụ nếu là PHẦN TRẢ LỜI NGẮN ---]
 ===PHAN===
-TEN: [Tên phần 3 — VD: PHẦN III. TRẢ LỜI NGẮN]
+TEN: [Tên phần như đề gốc — VD: PHẦN III. TRẢ LỜI NGẮN]
 LOAI: trac_nghiem_tra_loi_ngan
 DIEM_MOI_CAU: 0.5
 ===CAU===
@@ -412,9 +501,25 @@ MUC_DO: van_dung
 DIEM: 0.5
 ===CAU===
 ... (Các câu trả lời ngắn tiếp theo)
+
+[--- Ví dụ nếu là PHẦN TỰ LUẬN / LÀM VĂN / WRITING ---]
+===PHAN===
+TEN: [Tên phần như đề gốc — VD: PHẦN IV. TỰ LUẬN hoặc II. LÀM VĂN hoặc IV. WRITING]
+LOAI: tu_luan
+DIEM_MOI_CAU: 1.0
+===CAU===
+STT: [số thứ tự tiếp theo]
+LOAI: tu_luan
+NOI_DUNG: [Nội dung câu hỏi/yêu cầu tự luận đúng môn — VD Toán: bài toán tự luận; Văn: đề nghị luận/phân tích; Anh: câu Rewrite hoặc đoạn văn cần viết]
+TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống với Văn/Anh/Sử/Địa]
+DAP_AN: [Lời giải chi tiết / Gợi ý dàn ý / Câu viết lại]
+MUC_DO: van_dung_cao
+DIEM: 1.0
+===CAU===
+... (Các câu tự luận tiếp theo)
 ===DE===
 
-QUAN TRỌNG: Chỉ xuất những PHẦN tồn tại trong đề gốc. Nếu đề gốc không có phần Đúng/Sai thì không xuất phần đó. Số lượng câu mỗi phần PHẢI bằng đúng số câu trong đề gốc.
+QUAN TRỌNG: Chỉ xuất những PHẦN tồn tại trong đề gốc. Số lượng câu mỗi phần PHẢI bằng đúng số câu trong đề gốc. Tên phần BẮT BUỘC giống đề gốc.
 
 NỘI DUNG ĐỀ GỐC CẦN PHÂN TÍCH VÀ SAO CHÉP Y HỆT CẤU TRÚC:
 ${sourceContent}
@@ -422,9 +527,12 @@ ${sourceContent}
   }
 
   // 1B. Chế độ: TÙY CHỈNH SỐ CÂU THEO MA TRẬN GDPT 2025 (4 phần)
-  return `Bạn là chuyên gia khảo thí và ra đề thi chuẩn chương trình GDPT 2025 của Bộ Giáo dục & Đào tạo Việt Nam.
+  return `Bạn là chuyên gia khảo thí và ra đề thi chuẩn chương trình GDPT 2025 của Bộ Giáo dục & Đào tạo Việt Nam, am hiểu TẤT CẢ CÁC MÔN HỌC.
 
 NHIỆM VỤ: Tạo 1 đề thi tương tự (Mã đề: ${deIndex}) từ đề thi gốc dưới đây theo ĐÚNG MA TRẬN CẤU HÌNH TÙY CHỈNH.
+LƯU Ý: Nhận diện môn học từ đề gốc và sinh nội dung đúng môn đó (Toán, Anh, Văn, Sử, Địa, Lý, Hóa, Sinh, Tin học, GDCD...).
+
+${buildSubjectRules()}
 
 CẤU TRÚC ĐỀ THI YÊU CẦU:
 - Tiêu đề: ${deTitle}
@@ -439,15 +547,15 @@ ${config.extraPrompt ? `- Yêu cầu thêm từ giáo viên: "${config.extraProm
 CÁC PHẦN TRONG ĐỀ THI:
 ${config.numPart1 > 0 ? `1. PHẦN I (${config.numPart1} câu): Trắc nghiệm 4 lựa chọn (Nhiều phương án chọn 1 - A, B, C, D).` : ''}
 ${config.numPart2 > 0 ? `2. PHẦN II (${config.numPart2} câu): Trắc nghiệm Đúng / Sai (Mỗi câu gồm 1 đề dẫn chung và 4 mệnh đề a, b, c, d; thí sinh trả lời Đúng (D) hoặc Sai (S) cho từng mệnh đề).` : ''}
-${config.numPart3 > 0 ? `3. PHẦN III (${config.numPart3} câu): Trắc nghiệm Trả lời ngắn (Thí sinh điền kết quả dạng số, phân số, số thập phân hoặc tọa độ).` : ''}
-${config.numPart4 > 0 ? `4. PHẦN IV (${config.numPart4} câu): Tự luận (Trình bày lời giải chi tiết từng bước).` : ''}
+${config.numPart3 > 0 ? `3. PHẦN III (${config.numPart3} câu): Trắc nghiệm Trả lời ngắn (Thí sinh điền kết quả — số, từ, cụm từ — tùy theo môn học).` : ''}
+${config.numPart4 > 0 ? `4. PHẦN IV (${config.numPart4} câu): Tự luận (Trình bày lời giải/luận điểm chi tiết từng bước).` : ''}
 
 QUY TẮC BẮT BUỘC:
-1. Tất cả công thức BẮT BUỘC dùng LaTeX trong dấu $...$ (inline) hoặc $$...$$ (display).
-2. ${mathTypeNote}
-3. Ở Phần II (Đúng/Sai), BẮT BUỘC cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề.
-4. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG và KHÔNG viết mô tả gạch đầu dòng thay thế cho hình vẽ.
-5. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
+1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
+2. ${mathTypeNote || 'Đảm bảo nội dung chính xác, phù hợp trình độ học sinh và môn học.'}
+3. Ở Phần II (Đúng/Sai), BẮT BUỘC có CAU_LENH và cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề. Nội dung mệnh đề phải phù hợp môn học.
+4. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG.
+5. Nếu câu hỏi có bảng số liệu: Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 6. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
 
 ===DE===
@@ -465,8 +573,8 @@ DIEM_MOI_CAU: 0.25
 ===CAU===
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
-NOI_DUNG: [Nội dung câu hỏi, LaTeX trong $...]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
+NOI_DUNG: [Nội dung câu hỏi phù hợp môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
 A: [Nội dung phương án A]
 B: [Nội dung phương án B]
 C: [Nội dung phương án C]
@@ -485,10 +593,10 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: ${config.numPart1 + 1}
 LOAI: trac_nghiem_dung_sai
-NOI_DUNG: [Đề dẫn chung của bài toán — ngữ cảnh, giả thiết, dữ kiện chung]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
-CAU_LENH: [Câu lệnh hỏi, ví dụ: "Trong các mệnh đề sau, mệnh đề nào đúng?" hoặc "Xét các khẳng định sau:" — PHẢI CÓ, đây là câu hỏi dẫn bắt buộc]
-MENH_DE_A: [Nội dung mệnh đề a)]
+NOI_DUNG: [Đề dẫn/bối cảnh chung — ngữ cảnh, giả thiết, dữ kiện. KHÔNG liệt kê mệnh đề ở đây]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
+CAU_LENH: [Câu lệnh hỏi phù hợp môn — VD: "Trong các mệnh đề sau, mệnh đề nào đúng?" (Toán) / "Xét các phát biểu sau:" (Sử/Địa/GDCD) / "Which statements are true?" (Anh) — PHẢI CÓ]
+MENH_DE_A: [Nội dung mệnh đề a) — phù hợp môn học]
 DAP_AN_A: D
 MENH_DE_B: [Nội dung mệnh đề b)]
 DAP_AN_B: S
@@ -497,7 +605,7 @@ DAP_AN_C: D
 MENH_DE_D: [Nội dung mệnh đề d)]
 DAP_AN_D: S
 DAP_AN: a) Đúng, b) Sai, c) Đúng, d) Sai
-HUONG_DAN_GIAI: [Lời giải thích chi tiết tính đúng sai của từng ý]
+HUONG_DAN_GIAI: [Lời giải thích chi tiết tính đúng sai của từng mệnh đề]
 MUC_DO: thong_hieu
 DIEM: 1.0
 ===CAU===
@@ -511,9 +619,9 @@ DIEM_MOI_CAU: 0.5
 ===CAU===
 STT: ${config.numPart1 + config.numPart2 + 1}
 LOAI: trac_nghiem_tra_loi_ngan
-NOI_DUNG: [Nội dung câu hỏi yêu cầu tính kết quả]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
-DAP_AN: [Đáp số ngắn, ví dụ: 12 hoặc 3/4 hoặc 2.5]
+NOI_DUNG: [Nội dung câu hỏi yêu cầu điền kết quả — phù hợp môn học]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
+DAP_AN: [Đáp án ngắn gọn — số/từ/cụm từ phù hợp môn, VD Toán: 12 hoặc 3/4; Anh: "because" hoặc "were"]
 HUONG_DAN_GIAI: [Hướng dẫn giải vắn tắt]
 MUC_DO: van_dung
 DIEM: 0.5
@@ -528,9 +636,9 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: ${config.numPart1 + config.numPart2 + config.numPart3 + 1}
 LOAI: tu_luan
-NOI_DUNG: [Nội dung câu hỏi tự luận]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu có hình vẽ/đồ thị, khớp chính xác số liệu bài toán. Để trống nếu không có hình]
-DAP_AN: [Lời giải chi tiết từng bước]
+NOI_DUNG: [Nội dung câu hỏi tự luận phù hợp môn học — VD Toán: bài toán; Văn: đề nghị luận; Sử: câu hỏi phân tích sự kiện]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với Văn/Anh/Sử/Địa]
+DAP_AN: [Lời giải/luận điểm chi tiết từng bước]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
