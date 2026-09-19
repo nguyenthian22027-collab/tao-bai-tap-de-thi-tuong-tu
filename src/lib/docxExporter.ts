@@ -726,10 +726,12 @@ export async function exportExamToDocxLatex(
     let hasPrintedPronunciationInstLatex = false;
     let hasPrintedStressInstLatex = false;
     let hasPrintedTfHeaderLatex = false;
+    let hasRenderedTfBlockLatex = false;
     let pendingPart2GhiChuLatex = '';
 
     // Process sections
     for (const section of exam.phan) {
+      hasRenderedTfBlockLatex = false;
       let sectionTitle = section.ten;
       if (!sectionTitle) {
         if (section.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON || (section.loai as any) === 'trac_nghiem') {
@@ -921,58 +923,66 @@ export async function exportExamToDocxLatex(
             spacing: { after: 60 },
           }));
         } else if (isTrueFalse) {
-          if (!hasPrintedTfHeaderLatex) {
-            hasPrintedTfHeaderLatex = true;
-            children.push(
-              new Table({
-                width: { size: 9638, type: WidthType.DXA },
-                borders: NO_BORDER_STYLE,
-                rows: [
-                  new TableRow({
+          if (hasRenderedTfBlockLatex) {
+            continue;
+          }
+          hasRenderedTfBlockLatex = true;
+          const tfQuestions = section.cauHoi.filter((item) => {
+            const { optionA, optionB } = extractQuestionOptions(item);
+            const isTF = (optionA?.toLowerCase() === 'true' && optionB?.toLowerCase() === 'false') || (optionA?.toLowerCase() === 't' && optionB?.toLowerCase() === 'f');
+            return isTF || item.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI;
+          });
+
+          const tfRows: TableRow[] = [
+            new TableRow({
+              children: [
+                new TableCell({ width: { size: 7838, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ text: '' })] }),
+                new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'T', bold: true, size: 22 })] })] }),
+                new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'F', bold: true, size: 22 })] })] }),
+              ],
+            }),
+          ];
+
+          tfQuestions.forEach((tfQ) => {
+            const qClean = (tfQ.noiDung || '').replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+            tfRows.push(
+              new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 7838, type: WidthType.DXA },
+                    borders: NO_BORDER_STYLE,
                     children: [
-                      new TableCell({ width: { size: 7838, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ text: '' })] }),
-                      new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'T', bold: true, size: 22 })] })] }),
-                      new TableCell({ width: { size: 900, type: WidthType.DXA }, borders: NO_BORDER_STYLE, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'F', bold: true, size: 22 })] })] }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: `${tfQ.stt}. `, bold: true, size: 22 }),
+                          new TextRun({ text: qClean, size: 22 }),
+                        ],
+                      }),
                     ],
+                  }),
+                  new TableCell({
+                    width: { size: 900, type: WidthType.DXA },
+                    borders: NO_BORDER_STYLE,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
+                  }),
+                  new TableCell({
+                    width: { size: 900, type: WidthType.DXA },
+                    borders: NO_BORDER_STYLE,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
                   }),
                 ],
               })
             );
-          }
+          });
+
           children.push(
             new Table({
               width: { size: 9638, type: WidthType.DXA },
               borders: NO_BORDER_STYLE,
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      width: { size: 7838, type: WidthType.DXA },
-                      borders: NO_BORDER_STYLE,
-                      children: [
-                        new Paragraph({
-                          children: [
-                            new TextRun({ text: `${q.stt}. `, bold: true, size: 22 }),
-                            new TextRun({ text: promptTextEng, size: 22 }),
-                          ],
-                        }),
-                      ],
-                    }),
-                    new TableCell({
-                      width: { size: 900, type: WidthType.DXA },
-                      borders: NO_BORDER_STYLE,
-                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
-                    }),
-                    new TableCell({
-                      width: { size: 900, type: WidthType.DXA },
-                      borders: NO_BORDER_STYLE,
-                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '[   ]', size: 22 })] })],
-                    }),
-                  ],
-                }),
-              ],
+              rows: tfRows,
             })
           );
+          children.push(new Paragraph({ text: '' }));
         } else if (isWriting) {
           const dotPrompt = promptTextEng.replace(/_{3,}/g, '............................................................................');
           const lines = dotPrompt.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -1004,36 +1014,50 @@ export async function exportExamToDocxLatex(
         } else {
           // General MCQ or Word Form or Dictionary
           let promptForDisplay = promptTextEng;
-          if (promptForDisplay.includes('Look at the entry of the word') || promptForDisplay.includes('in a dictionary:')) {
-            const dictMatch = promptForDisplay.match(/(Look at the entry of the word[^\n]*\n)([\s\S]*?)(\n\d+[\s\S]*|$)/);
-            if (dictMatch) {
-              const leadText = dictMatch[1].trim();
-              const boxText = dictMatch[2].trim();
-              const remainingText = dictMatch[3].trim();
-              if (leadText) {
-                children.push(new Paragraph({ children: [new TextRun({ text: leadText, italics: true, size: 21 })], spacing: { after: 40 } }));
+          if (promptForDisplay.toLowerCase().includes('look at the entry of the word') || promptForDisplay.toLowerCase().includes('in a dictionary')) {
+            const rawLines = promptForDisplay.split('\n').map((l) => l.trim()).filter(Boolean);
+            let leadText = '';
+            let sentenceText = '';
+            const boxLines: string[] = [];
+
+            for (const l of rawLines) {
+              if (l.toLowerCase().includes('look at the entry') || l.toLowerCase().includes('in a dictionary')) {
+                leadText = l;
+              } else if (l.toLowerCase().includes('câu hỏi:') || l.includes('__________') || l.includes('____')) {
+                sentenceText = l;
+              } else {
+                boxLines.push(l);
               }
-              if (boxText) {
-                children.push(
-                  new Table({
-                    width: { size: 9638, type: WidthType.DXA },
-                    rows: [
-                      new TableRow({
-                        children: [
-                          new TableCell({
-                            width: { size: 9638, type: WidthType.DXA },
-                            shading: { fill: 'F8FAFC' },
-                            margins: { top: 120, bottom: 120, left: 180, right: 180 },
-                            children: boxText.split('\n').map((bl) => new Paragraph({ children: [new TextRun({ text: bl, size: 21 })] })),
-                          }),
-                        ],
-                      }),
-                    ],
-                  })
-                );
-                children.push(new Paragraph({ text: '' }));
-              }
-              promptForDisplay = remainingText || promptForDisplay;
+            }
+
+            if (leadText) {
+              children.push(new Paragraph({ children: [new TextRun({ text: leadText, italics: true, bold: true, size: 21, color: '1E293B' })], spacing: { before: 80, after: 40 } }));
+            }
+            if (boxLines.length > 0) {
+              children.push(
+                new Table({
+                  width: { size: 9638, type: WidthType.DXA },
+                  rows: [
+                    new TableRow({
+                      children: [
+                        new TableCell({
+                          width: { size: 9638, type: WidthType.DXA },
+                          shading: { fill: 'F8FAFC' },
+                          margins: { top: 120, bottom: 120, left: 180, right: 180 },
+                          children: boxLines.map((bl) => new Paragraph({ children: [new TextRun({ text: bl, size: 21 })] })),
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+              );
+              children.push(new Paragraph({ text: '' }));
+            }
+            if (sentenceText) {
+              sentenceText = sentenceText.replace(/^(?:câu hỏi\s*:\s*|câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+              promptForDisplay = sentenceText;
+            } else {
+              promptForDisplay = '';
             }
           }
 
@@ -2103,10 +2127,12 @@ export async function exportExamToDocxOmml(
     let hasPrintedPronunciationInstOmml = false;
     let hasPrintedStressInstOmml = false;
     let hasPrintedTfHeaderOmml = false;
+    let hasRenderedTfBlockOmml = false;
     let pendingPart2GhiChuOmml = '';
 
     // Sections
     for (const section of exam.phan) {
+      hasRenderedTfBlockOmml = false;
       let sectionTitle = section.ten;
       if (!sectionTitle) {
         if (section.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON || (section.loai as any) === 'trac_nghiem') {
@@ -2248,24 +2274,16 @@ export async function exportExamToDocxOmml(
           pXml += '</w:p>';
           bodyXml += pXml;
         } else if (isTrueFalse) {
-          if (!hasPrintedTfHeaderOmml) {
-            hasPrintedTfHeaderOmml = true;
-            bodyXml += `<w:tbl>
-              <w:tblPr>
-                <w:tblW w:w="9638" w:type="dxa"/>
-                <w:jc w:val="center"/>
-                <w:tblBorders>
-                  <w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/>
-                </w:tblBorders>
-              </w:tblPr>
-              <w:tblGrid><w:gridCol w:w="7838"/><w:gridCol w:w="900"/><w:gridCol w:w="900"/></w:tblGrid>
-              <w:tr>
-                <w:tc><w:tcPr><w:tcW w:w="7838" w:type="dxa"/></w:tcPr><w:p/></w:tc>
-                <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>T</w:t></w:r></w:p></w:tc>
-                <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>F</w:t></w:r></w:p></w:tc>
-              </w:tr>
-            </w:tbl>`;
+          if (hasRenderedTfBlockOmml) {
+            continue;
           }
+          hasRenderedTfBlockOmml = true;
+          const tfQuestions = section.cauHoi.filter((item) => {
+            const { optionA, optionB } = extractQuestionOptions(item);
+            const isTF = (optionA?.toLowerCase() === 'true' && optionB?.toLowerCase() === 'false') || (optionA?.toLowerCase() === 't' && optionB?.toLowerCase() === 'f');
+            return isTF || item.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI;
+          });
+
           bodyXml += `<w:tbl>
             <w:tblPr>
               <w:tblW w:w="9638" w:type="dxa"/>
@@ -2276,13 +2294,23 @@ export async function exportExamToDocxOmml(
             </w:tblPr>
             <w:tblGrid><w:gridCol w:w="7838"/><w:gridCol w:w="900"/><w:gridCol w:w="900"/></w:tblGrid>
             <w:tr>
+              <w:tc><w:tcPr><w:tcW w:w="7838" w:type="dxa"/></w:tcPr><w:p/></w:tc>
+              <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>T</w:t></w:r></w:p></w:tc>
+              <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>F</w:t></w:r></w:p></w:tc>
+            </w:tr>`;
+
+          tfQuestions.forEach((tfQ) => {
+            const qClean = (tfQ.noiDung || '').replace(/^(?:câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+            bodyXml += `<w:tr>
               <w:tc><w:tcPr><w:tcW w:w="7838" w:type="dxa"/><w:tcMar><w:top w:w="40"/><w:bottom w:w="40"/><w:left w:w="40"/><w:right w:w="40"/></w:tcMar></w:tcPr>
-                <w:p><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(promptTextEng)}</w:t></w:r></w:p>
+                <w:p><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${tfQ.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(qClean)}</w:t></w:r></w:p>
               </w:tc>
               <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>[   ]</w:t></w:r></w:p></w:tc>
               <w:tc><w:tcPr><w:tcW w:w="900" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t>[   ]</w:t></w:r></w:p></w:tc>
-            </w:tr>
-          </w:tbl>`;
+            </w:tr>`;
+          });
+
+          bodyXml += `</w:tbl><w:p/>`;
         } else if (isWriting) {
           const dotPrompt = promptTextEng.replace(/_{3,}/g, '............................................................................');
           const lines = dotPrompt.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -2301,37 +2329,51 @@ export async function exportExamToDocxOmml(
         } else {
           // General MCQ or Word Form or Dictionary
           let promptForDisplay = promptTextEng;
-          if (promptForDisplay.includes('Look at the entry of the word') || promptForDisplay.includes('in a dictionary:')) {
-            const dictMatch = promptForDisplay.match(/(Look at the entry of the word[^\n]*\n)([\s\S]*?)(\n\d+[\s\S]*|$)/);
-            if (dictMatch) {
-              const leadText = dictMatch[1].trim();
-              const boxText = dictMatch[2].trim();
-              const remainingText = dictMatch[3].trim();
-              if (leadText) {
-                bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(leadText)}</w:t></w:r></w:p>`;
+          if (promptForDisplay.toLowerCase().includes('look at the entry of the word') || promptForDisplay.toLowerCase().includes('in a dictionary')) {
+            const rawLines = promptForDisplay.split('\n').map((l) => l.trim()).filter(Boolean);
+            let leadText = '';
+            let sentenceText = '';
+            const boxLines: string[] = [];
+
+            for (const l of rawLines) {
+              if (l.toLowerCase().includes('look at the entry') || l.toLowerCase().includes('in a dictionary')) {
+                leadText = l;
+              } else if (l.toLowerCase().includes('câu hỏi:') || l.includes('__________') || l.includes('____')) {
+                sentenceText = l;
+              } else {
+                boxLines.push(l);
               }
-              if (boxText) {
-                bodyXml += `<w:tbl>
-                  <w:tblPr>
-                    <w:tblW w:w="9638" w:type="dxa"/>
-                    <w:jc w:val="center"/>
-                    <w:tblBorders>
-                      <w:top w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-                      <w:left w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-                      <w:bottom w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-                      <w:right w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
-                    </w:tblBorders>
-                  </w:tblPr>
-                  <w:tblGrid><w:gridCol w:w="9638"/></w:tblGrid>
-                  <w:tr>
-                    <w:tc>
-                      <w:tcPr><w:tcW w:w="9638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/><w:tcMar><w:top w:w="120"/><w:bottom w:w="120"/><w:left w:w="180"/><w:right w:w="180"/></w:tcMar></w:tcPr>`;
-                boxText.split('\n').forEach((bl) => {
-                  bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(bl)}</w:t></w:r></w:p>`;
-                });
-                bodyXml += `</w:tc></w:tr></w:tbl><w:p/>`;
-              }
-              promptForDisplay = remainingText || promptForDisplay;
+            }
+
+            if (leadText) {
+              bodyXml += `<w:p><w:pPr><w:spacing w:before="80" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">${xmlEscape(leadText)}</w:t></w:r></w:p>`;
+            }
+            if (boxLines.length > 0) {
+              bodyXml += `<w:tbl>
+                <w:tblPr>
+                  <w:tblW w:w="9638" w:type="dxa"/>
+                  <w:jc w:val="center"/>
+                  <w:tblBorders>
+                    <w:top w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                    <w:left w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                    <w:bottom w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                    <w:right w:val="single" w:sz="6" w:space="0" w:color="CBD5E1"/>
+                  </w:tblBorders>
+                </w:tblPr>
+                <w:tblGrid><w:gridCol w:w="9638"/></w:tblGrid>
+                <w:tr>
+                  <w:tc>
+                    <w:tcPr><w:tcW w:w="9638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/><w:tcMar><w:top w:w="120"/><w:bottom w:w="120"/><w:left w:w="180"/><w:right w:w="180"/></w:tcMar></w:tcPr>`;
+              boxLines.forEach((bl) => {
+                bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr><w:t xml:space="preserve">${xmlEscape(bl)}</w:t></w:r></w:p>`;
+              });
+              bodyXml += `</w:tc></w:tr></w:tbl><w:p/>`;
+            }
+            if (sentenceText) {
+              sentenceText = sentenceText.replace(/^(?:câu hỏi\s*:\s*|câu\s*\d+[\.:\s]*|\d+[\.:\s]+)/i, '').trim();
+              promptForDisplay = sentenceText;
+            } else {
+              promptForDisplay = '';
             }
           }
 
