@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ExamData, Question } from '../types';
 import { Search, Eye, EyeOff } from 'lucide-react';
 import { QuestionCard } from './QuestionCard';
+import { isEnglishExamData } from '../lib/docxExporter';
+import { EnglishExamViewer } from './EnglishExamViewer';
 
 interface ExamViewerProps {
   exam: ExamData;
@@ -12,7 +14,10 @@ interface ExamViewerProps {
   onAddToast?: (type: 'success' | 'error' | 'warning' | 'info', msg: string) => void;
 }
 
-export const ExamViewer: React.FC<ExamViewerProps> = ({
+/**
+ * Component hiển thị đề thi môn Toán, KHTN và các môn khác (giữ nguyên 100% logic cũ)
+ */
+const MathExamViewer: React.FC<ExamViewerProps> = ({
   exam,
   showAnswer,
   onToggleAnswer,
@@ -142,3 +147,14 @@ export const ExamViewer: React.FC<ExamViewerProps> = ({
   );
 };
 
+/**
+ * Dispatcher ExamViewer:
+ * - Nếu là đề thi Tiếng Anh: Hiển thị giao diện tờ giấy thi trực quan chuẩn 100% bản in Word
+ * - Nếu là môn Toán, KHTN hoặc môn khác: Chạy nguyên bản MathExamViewer (bảo toàn 100% logic cũ)
+ */
+export const ExamViewer: React.FC<ExamViewerProps> = (props) => {
+  if (isEnglishExamData(props.exam)) {
+    return <EnglishExamViewer {...props} />;
+  }
+  return <MathExamViewer {...props} />;
+};

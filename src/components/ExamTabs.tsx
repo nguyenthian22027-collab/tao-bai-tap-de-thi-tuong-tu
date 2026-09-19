@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExamData, SourceState } from '../types';
 import { ExamViewer } from './ExamViewer';
 import { ExamEditor } from './ExamEditor';
+import { isEnglishExamData } from '../lib/docxExporter';
 import { FileText, Sparkles, Columns, Edit3, Eye, FileUp, Sliders, CheckCircle2, Shuffle, Image as ImageIcon } from 'lucide-react';
 
 interface ExamTabsProps {
@@ -33,6 +34,13 @@ export const ExamTabs: React.FC<ExamTabsProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'source' | 'generated' | 'compare'>('generated');
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('edit');
+
+  // Khi đề thi là môn Tiếng Anh, tự động chuyển sang chế độ "Xem Đề" để giáo viên nhìn thấy ngay tờ giấy thi trực quan như Word
+  useEffect(() => {
+    if (exam && isEnglishExamData(exam)) {
+      setViewMode('view');
+    }
+  }, [exam?.meta?.tieuDe, exam?.meta?.mon, exam?.meta?.truong]);
 
   return (
     <div className="space-y-3.5">
