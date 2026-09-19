@@ -603,6 +603,32 @@ export async function exportExamToDocxLatex(
         })
       );
 
+      // Xuất bài đọc đọc hiểu / đoạn văn chung / hướng dẫn phần thi vào file Word
+      if (section.ghiChu) {
+        const noteParagraphs = section.ghiChu.split('\n');
+        for (const pText of noteParagraphs) {
+          const trimmed = pText.trim();
+          if (trimmed) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: trimmed,
+                    italics: true,
+                    size: 22,
+                    color: '1E293B',
+                  }),
+                ],
+                spacing: { before: 80, after: 80 },
+                indent: { left: 240 },
+              })
+            );
+          } else {
+            children.push(new Paragraph({ text: '', spacing: { before: 40, after: 40 } }));
+          }
+        }
+      }
+
       for (const q of section.cauHoi) {
         const isDungSai = q.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI || (q.loai as any) === 'dung_sai';
         const isTraLoiNgan = q.loai === QuestionType.TRAC_NGHIEM_TRA_LOI_NGAN || (q.loai as any) === 'tra_loi_ngan';
@@ -1462,6 +1488,19 @@ export async function exportExamToDocxOmml(
       }
 
       bodyXml += createSimpleTextParagraph(sectionTitle, true, false, '0F172A');
+
+      // Xuất bài đọc đọc hiểu / đoạn văn chung / hướng dẫn phần thi vào file Word OMML
+      if (section.ghiChu) {
+        const noteParagraphs = section.ghiChu.split('\n');
+        for (const pText of noteParagraphs) {
+          const trimmed = pText.trim();
+          if (trimmed) {
+            bodyXml += createSimpleTextParagraph(trimmed, false, true, '1E293B');
+          } else {
+            bodyXml += '<w:p/>';
+          }
+        }
+      }
 
       for (const q of section.cauHoi) {
         const isDungSai = q.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI || (q.loai as any) === 'dung_sai';

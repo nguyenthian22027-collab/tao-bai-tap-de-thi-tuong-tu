@@ -192,43 +192,55 @@ export async function callGeminiRoundRobin(
  */
 function buildSubjectRules(): string {
   return `
-QUY TẮC NHẬN DIỆN MÔN HỌC — ĐỌC KỸ VÀ ÁP DỤNG ĐÚNG MÔN:
+QUY TẮC NHẬN DIỆN MÔN HỌC & CÔ LẬP MÔN HỌC TUYỆT ĐỐI:
+Xác định chính xác môn học từ tiêu đề và nội dung đề thi gốc.
+TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì CHỈ ÁP DỤNG 100% cấu trúc, thuật ngữ và định dạng của môn đó!
 
 [NHÓM 1] KHOA HỌC TỰ NHIÊN — Toán, Vật lý, Hóa học, Sinh học:
 • BẮT BUỘC dùng LaTeX $...$ (inline) hoặc $$...$$ (display) cho mọi công thức, ký hiệu, đơn vị đo.
 • Có thể sinh TikZ nếu câu có hình vẽ hình học, đồ thị, bảng biến thiên.
 • Bảng số liệu (bảng tần số, giá trị hàm số): dùng \\begin{tabular}...\\end{tabular}.
-• Câu Đúng/Sai: mệnh đề a/b/c/d là các khẳng định toán/lý/hóa/sinh chứa LaTeX.
+• Câu Đúng/Sai: mỗi câu gồm đề dẫn chung + 4 mệnh đề a/b/c/d (MENH_DE_A/B/C/D) chứa khẳng định toán/khtn.
+• TUYỆT ĐỐI KHÔNG xuất hiện từ vựng tiếng Anh hay cấu trúc bài đọc reading của môn ngoại ngữ.
 
 [NHÓM 2] NGOẠI NGỮ — Tiếng Anh, Tiếng Pháp, Tiếng Trung, Tiếng Nhật...:
-• TUYỆT ĐỐI không dùng LaTeX hay ký hiệu Toán vô nghĩa.
-• TUYỆT ĐỐI không sinh TikZ (trừ khi câu dạy hình học bằng tiếng nước ngoài thực sự).
-• Cấu trúc phần đặc trưng: PHONETICS / VOCABULARY & GRAMMAR (USE OF ENGLISH) / READING / WRITING / SPEAKING.
-• Phonetics: A/B/C/D là các từ tiếng Anh thực tế (gạch chân âm/vần khác nhau).
-• Reading Passage: đặt TOÀN BỘ đoạn văn vào NOI_DUNG trước, sau đó là các câu hỏi về đoạn văn.
-• Rewrite / Sentence Transformation: LOAI: tu_luan, NOI_DUNG là câu gốc cần viết lại, DAP_AN là câu đã viết lại.
-• Fill in the blank (điền từ vào đoạn văn): NOI_DUNG chứa đoạn văn có _____, A/B/C/D là các từ điền vào.
-• Câu hỏi giao tiếp (Exchange / Dialogue): NOI_DUNG là tình huống hội thoại, A/B/C/D là các câu trả lời phù hợp.
-• Câu nhìn tranh/biển báo (Sign/Picture): NOI_DUNG mô tả biển báo/tranh, A/B/C/D là các phát biểu về nó.
+• TUYỆT ĐỐI không dùng LaTeX hay ký hiệu Toán ($...$) vô nghĩa.
+• TUYỆT ĐỐI không sinh TikZ.
+• CẤU TRÚC ĐỀ THI TIẾNG ANH CHUẨN (GIỮ CHÍNH XÁC NHƯ ĐỀ GỐC):
+  1. PHẦN I. PHONETICS:
+     - Pronunciation (phát âm âm gạch chân): A/B/C/D là 4 từ tiếng Anh, có phần phát âm khác nhau được gạch chân hoặc đặt trong ngoặc vuông (vd: cr[ow]d, t[ow]n, sn[ow], h[ou]se).
+     - Stress (trọng âm): 4 từ tiếng Anh, hỏi từ có vị trí trọng âm khác.
+  2. PHẦN II. USE OF ENGLISH (Vocabulary, Grammar, Exchanges, Signs, Word Form):
+     - Trắc nghiệm 4 lựa chọn A, B, C, D về ngữ pháp, từ vựng, tình huống giao tiếp (Exchanges), biển báo/thông báo (Signs/Notices).
+     - Word form (Dạng đúng của từ, vd: VISIT -> visitors): LOAI: tu_luan hoặc trac_nghiem_tra_loi_ngan, NOI_DUNG chứa câu và từ trong ngoặc (VD: (VISIT)), DAP_AN là dạng đúng.
+     - Mục từ điển (Dictionary entry, nếu có): Cho đoạn trích mục từ điển ở GHI_CHU hoặc câu hỏi đầu, các câu sau điền từ hoàn thành câu.
+  3. PHẦN III. READING (ĐẶC BIỆT QUAN TRỌNG - GIỐNG 100% ĐỀ GỐC):
+     GỒM 2 PHẦN RIÊNG BIỆT. BÀI ĐỌC CHUNG BẮT BUỘC ĐẶT TRONG TRƯỜNG GHI_CHU CỦA PHẦN. TUYỆT ĐỐI KHÔNG LẶP LẠI BÀI ĐỌC VÀO TỪNG CÂU HỎI CON!
+     * PART 1: CLOZE TEST (Điền từ vào đoạn văn có chỗ trống):
+       - Đặt TOÀN BỘ đoạn văn bài đọc có các chỗ trống đánh số (23) _______, (24) _______, (25) _______... vào trường GHI_CHU của ===PHAN===.
+       - Các câu hỏi con phía dưới (STT: 23, 24, 25...) chỉ gồm số thứ tự, NOI_DUNG: (23) và 4 phương án A, B, C, D để chọn từ điền vào.
+     * PART 2: READING COMPREHENSION (Bài đọc hiểu hoàn chỉnh):
+       - Đặt TOÀN BỘ đoạn văn đọc hiểu hoàn chỉnh (về danh lam thắng cảnh, thành phố như Hollywood, Hội An, người nổi tiếng...) vào trường GHI_CHU của ===PHAN===.
+       - Các câu hỏi con phía dưới dùng chung bài đọc này:
+         + Các câu True / False: LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu khẳng định, A: True, B: False, DAP_AN: A (nếu True) hoặc B (nếu False).
+         + Các câu 4 lựa chọn (Main idea, Detail, EXCEPT...): LOAI: trac_nghiem_4_lua_chon, NOI_DUNG là câu hỏi, 4 phương án A, B, C, D.
+  4. PHẦN IV. WRITING (Viết lại câu - Sentence Rewriting):
+     - LOAI: tu_luan
+     - NOI_DUNG: Rewrite each of the following sentences in another way so that it means almost the same as the sentence printed before it:\n"[Câu gốc]"
+     - DAP_AN: [Câu đã viết lại hoàn chỉnh]
 
 [NHÓM 3] NGỮ VĂN — Văn học, Tiếng Việt:
 • TUYỆT ĐỐI không dùng LaTeX hay công thức Toán.
-• Câu Đọc hiểu: NOI_DUNG chứa ĐẦY ĐỦ đoạn trích văn bản gốc (thơ/văn xuôi) rồi mới đến câu hỏi về nội dung/nghệ thuật.
-• Câu Làm văn / Nghị luận: LOAI: tu_luan, DAP_AN là gợi ý dàn ý chi tiết (mở bài, thân bài, kết bài).
-• Câu trắc nghiệm đọc hiểu: A/B/C/D là các phương án về nội dung/nghệ thuật/ý nghĩa.
+• Cấu trúc: PHẦN I. ĐỌC HIỂU (văn bản thơ/văn xuôi đặt trong trường GHI_CHU của phần, các câu hỏi 1, 2, 3, 4 đặt ở dưới) + PHẦN II. LÀM VĂN (nghị luận xã hội, nghị luận văn học).
 
 [NHÓM 4] KHOA HỌC XÃ HỘI — Lịch sử, Địa lý, GDCD, Giáo dục Kinh tế & Pháp luật:
-• Không cần LaTeX. Số liệu thống kê, năm tháng viết bình thường (KHÔNG bọc $...$).
-• Câu trắc nghiệm: A/B/C/D là các phát biểu về sự kiện lịch sử, địa danh, khái niệm pháp luật, chính sách kinh tế.
-• Câu Đúng/Sai: mệnh đề a/b/c/d là các nhận định về sự kiện, nhân vật, địa danh, quy định pháp luật.
-• Câu tự luận: trình bày nguyên nhân, diễn biến, ý nghĩa, bài học lịch sử; phân tích địa lý; giải thích pháp luật.
-• Bảng số liệu địa lý/kinh tế: có thể dùng \\begin{tabular} hoặc viết dạng liệt kê văn bản.
+• Không dùng LaTeX. Số liệu thống kê viết bình thường.
+• Nếu có đoạn tư liệu hoặc bảng số liệu chung: Đặt vào GHI_CHU của phần, các câu hỏi con đặt ở dưới.
+• Trắc nghiệm 4 lựa chọn và tự luận theo chuẩn môn Xã hội.
 
 [NHÓM 5] TIN HỌC — Khoa học máy tính, Công nghệ thông tin:
-• Không cần LaTeX (trừ khi câu liên quan đến thuật toán có ký hiệu toán học thực sự).
-• Câu có đoạn code: đặt code vào NOI_DUNG với thụt lề đúng, bọc code trong dấu triple backtick.
-• Câu lý thuyết: 4 lựa chọn bình thường về khái niệm, cú pháp, thuật toán, phần cứng/phần mềm.
-• Câu thực hành: LOAI: tu_luan, mô tả yêu cầu bài thực hành, DAP_AN là các bước thực hiện.
+• Không dùng LaTeX (trừ công thức toán học thực sự).
+• Đoạn mã nguồn/code đặt trong triple backtick.
 `;
 }
 
@@ -511,12 +523,76 @@ DIEM_MOI_CAU: 1.0
 STT: [số thứ tự tiếp theo]
 LOAI: tu_luan
 NOI_DUNG: [Nội dung câu hỏi/yêu cầu tự luận đúng môn — VD Toán: bài toán tự luận; Văn: đề nghị luận/phân tích; Anh: câu Rewrite hoặc đoạn văn cần viết]
-TIKZ: [Mã TikZ nếu câu KHTN có hình. Để trống với Văn/Anh/Sử/Địa]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình. Để trống với Văn/Anh/Sử/Địa]
 DAP_AN: [Lời giải chi tiết / Gợi ý dàn ý / Câu viết lại]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
 ... (Các câu tự luận tiếp theo)
+
+[--- ĐẶC BIỆT: Ví dụ môn TIẾNG ANH - PHẦN III. READING (PART 1 VÀ PART 2) ---]
+===PHAN===
+TEN: III. READING - PART 1
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Choose the word (A, B, C or D) that best fits each space in the following passage.
+
+Playing sports regularly brings fantastic benefits to both body and mind. When students (23) _______ exercise or play sports, they become stronger and more energetic. (24) _______ like badminton, table tennis, and tennis help improve speed and coordination. They also teach important values like fair play and respect for (25) _______. Many famous sportspeople started their careers when they were (26) _______. They practiced hard every day at the gym or in the (27) _______ to become champions. Their success stories inspire others to take part in sports and competitions.
+===CAU===
+STT: 23
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: (23)
+A: go
+B: do
+C: play
+D: make
+DAP_AN: B
+DIEM: 0.25
+===CAU===
+STT: 24
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: (24)
+A: Photos
+B: Champion
+C: Equipment
+D: Sports
+DAP_AN: D
+DIEM: 0.25
+
+===PHAN===
+TEN: III. READING - PART 2
+LOAI: trac_nghiem_4_lua_chon
+DIEM_MOI_CAU: 0.25
+GHI_CHU: Read the following passage. Decide whether the statements from 28 to 30 are True or False and choose the correct answer (A, B, C or D) to complete the statements in question 31 and 32.
+
+Hoi An is an ancient town in Vietnam that attracts visitors with its well-preserved architecture and peaceful atmosphere. The Old Town area has narrow streets lined with yellow buildings and colorful lanterns. Visitors can rent bicycles to explore the town or take a boat trip along the river. Many people enjoy taking photos of the beautiful pagodas and traditional houses that reflect Vietnam's rich cultural heritage.
+===CAU===
+STT: 28
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: Hoi An is a modern city in Vietnam.
+A: True
+B: False
+DAP_AN: B
+HUONG_DAN_GIAI: Hoi An is an ancient town, not a modern city.
+DIEM: 0.25
+===CAU===
+STT: 29
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: The Old Town has yellow buildings and colorful lanterns.
+A: True
+B: False
+DAP_AN: A
+DIEM: 0.25
+===CAU===
+STT: 31
+LOAI: trac_nghiem_4_lua_chon
+NOI_DUNG: What is the main idea of the passage?
+A: Hoi An is famous for its factories.
+B: Hoi An is an ancient town with beautiful architecture and culture.
+C: Hoi An has many shopping malls.
+D: Hoi An is the biggest city in Vietnam.
+DAP_AN: B
+DIEM: 0.25
 ===DE===
 
 QUAN TRỌNG: Chỉ xuất những PHẦN tồn tại trong đề gốc. Số lượng câu mỗi phần PHẢI bằng đúng số câu trong đề gốc. Tên phần BẮT BUỘC giống đề gốc.
@@ -689,6 +765,8 @@ export function parseExam(rawText: string): ExamData {
     let sectionName = `PHẦN ${pIdx + 1}`;
     let sectionType: any = 'trac_nghiem_4_lua_chon';
     let diemMoiCau = 0.25;
+    let sectionGhiChu = '';
+    let currentHeaderKey: string | null = null;
 
     // Separate CAU blocks
     const cauBlocks = block.split('===CAU===').filter((cb) => cb.trim().length > 0);
@@ -705,21 +783,51 @@ export function parseExam(rawText: string): ExamData {
         const key = trimmed.slice(0, colonIdx).trim();
         const val = trimmed.slice(colonIdx + 1).trim();
 
-        if (key === 'MON') meta.mon = val;
-        else if (key === 'LOP') meta.lop = val;
-        else if (key === 'THOI_GIAN') meta.thoiGian = parseInt(val, 10) || 90;
-        else if (key === 'TIEU_DE') meta.tieuDe = val;
-        else if (key === 'TRUONG') meta.truong = val;
-        else if (key === 'NAM_HOC') meta.namHoc = val;
-        else if (key === 'DE_SO') meta.deSo = parseInt(val, 10) || 1;
-        else if (key === 'TONG_SO_DE') meta.tongSoDe = parseInt(val, 10) || 1;
-        else if (key === 'TEN') sectionName = val;
-        else if (key === 'LOAI') {
-          if (val === 'trac_nghiem_dung_sai') sectionType = 'trac_nghiem_dung_sai';
-          else if (val === 'trac_nghiem_tra_loi_ngan') sectionType = 'trac_nghiem_tra_loi_ngan';
-          else if (val === 'tu_luan') sectionType = 'tu_luan';
-          else sectionType = 'trac_nghiem_4_lua_chon';
-        } else if (key === 'DIEM_MOI_CAU') diemMoiCau = parseFloat(val) || 0.25;
+        const recognizedHeaderKeys = [
+          'MON',
+          'LOP',
+          'THOI_GIAN',
+          'TIEU_DE',
+          'TRUONG',
+          'NAM_HOC',
+          'DE_SO',
+          'TONG_SO_DE',
+          'TEN',
+          'LOAI',
+          'DIEM_MOI_CAU',
+          'GHI_CHU',
+          'MO_TA',
+          'DE_DAN',
+          'BAI_DOC',
+        ];
+
+        if (recognizedHeaderKeys.includes(key)) {
+          currentHeaderKey = key;
+          if (key === 'MON') meta.mon = val;
+          else if (key === 'LOP') meta.lop = val;
+          else if (key === 'THOI_GIAN') meta.thoiGian = parseInt(val, 10) || 90;
+          else if (key === 'TIEU_DE') meta.tieuDe = val;
+          else if (key === 'TRUONG') meta.truong = val;
+          else if (key === 'NAM_HOC') meta.namHoc = val;
+          else if (key === 'DE_SO') meta.deSo = parseInt(val, 10) || 1;
+          else if (key === 'TONG_SO_DE') meta.tongSoDe = parseInt(val, 10) || 1;
+          else if (key === 'TEN') sectionName = val;
+          else if (key === 'LOAI') {
+            if (val === 'trac_nghiem_dung_sai') sectionType = 'trac_nghiem_dung_sai';
+            else if (val === 'trac_nghiem_tra_loi_ngan') sectionType = 'trac_nghiem_tra_loi_ngan';
+            else if (val === 'tu_luan') sectionType = 'tu_luan';
+            else sectionType = 'trac_nghiem_4_lua_chon';
+          } else if (key === 'DIEM_MOI_CAU') diemMoiCau = parseFloat(val) || 0.25;
+          else if (['GHI_CHU', 'MO_TA', 'DE_DAN', 'BAI_DOC'].includes(key)) {
+            sectionGhiChu = val;
+          }
+          return;
+        }
+      }
+
+      // Nếu dòng tiếp theo là nội dung kéo dài của GHI_CHU / bài đọc chung
+      if (currentHeaderKey && ['GHI_CHU', 'MO_TA', 'DE_DAN', 'BAI_DOC'].includes(currentHeaderKey)) {
+        sectionGhiChu += (sectionGhiChu ? '\n' : '') + trimmed;
       }
     });
 
@@ -919,6 +1027,11 @@ export function parseExam(rawText: string): ExamData {
         }
       }
 
+      // Fallback cho câu điền từ khuyết nội dung (Cloze test): chỉ có STT và các phương án A, B, C, D
+      if (!qObj.noiDung && (qObj.optionA || qObj.dapAn || qObj.menhDeA)) {
+        qObj.noiDung = `(${qObj.stt || qIdx + 1})`;
+      }
+
       if (qObj.noiDung && qObj.noiDung.trim()) {
         questions.push(qObj as Question);
       }
@@ -930,6 +1043,7 @@ export function parseExam(rawText: string): ExamData {
         ten: sectionName,
         loai: sectionType,
         diemMoiCau,
+        ghiChu: sectionGhiChu.trim() || undefined,
         cauHoi: questions,
       });
     }

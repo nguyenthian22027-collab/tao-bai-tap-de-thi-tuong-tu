@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ExamData, Question, QuestionType } from '../types';
 import { QuestionCard } from './QuestionCard';
 import { QuestionEditor } from './QuestionEditor';
-import { Plus, Undo2, Redo2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Undo2, Redo2, Eye, EyeOff, BookOpen } from 'lucide-react';
 
 interface ExamEditorProps {
   exam: ExamData;
@@ -215,6 +215,17 @@ export const ExamEditor: React.FC<ExamEditorProps> = ({
                 <span>+ Thêm câu {section.loai === 'trac_nghiem' ? 'trắc nghiệm' : 'tự luận'}</span>
               </button>
             </div>
+
+            {/* Đoạn văn đọc hiểu chung / Hướng dẫn phần thi (Reading Passage / Common stimulus) */}
+            {section.ghiChu && (
+              <div className="p-4 bg-amber-50/75 border border-amber-200/90 rounded-xl text-slate-800 text-sm whitespace-pre-wrap font-serif leading-relaxed shadow-2xs">
+                <div className="text-xs font-bold text-amber-900 uppercase mb-1.5 tracking-wider flex items-center gap-1.5 font-sans">
+                  <BookOpen className="w-4 h-4 text-amber-700" />
+                  <span>Nội dung bài đọc / Đề dẫn chung:</span>
+                </div>
+                {section.ghiChu}
+              </div>
+            )}
 
             <div className="space-y-3">
               {section.cauHoi.map((q, idx) => (

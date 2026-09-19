@@ -169,6 +169,10 @@ export function examToMarkdown(
         lines.push(`## ${sanitizeMathText(phan.ten)}`);
         lines.push('');
       }
+      if (phan.ghiChu) {
+        lines.push(`*${sanitizeMathText(phan.ghiChu)}*`);
+        lines.push('');
+      }
 
       const cauHoiList = phan.cauHoi || [];
       for (const q of cauHoiList) {

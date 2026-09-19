@@ -57,6 +57,7 @@ export interface ExamSection {
   ten: string;
   loai: QuestionType;
   diemMoiCau?: number;
+  ghiChu?: string; // Đoạn văn đọc hiểu chung, đề dẫn bài đọc hoặc hướng dẫn phần thi
   cauHoi: Question[];
 }
 
