@@ -216,8 +216,58 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
      & & & & & $-1$ & & \\\\
     \\hline
     \\end{tabular}
+• QUY TẮC VẼ HÌNH TIKZ MÔN VẬT LÝ (TUYỆT ĐỐI TUÂN THỦ):
+  Nếu câu gốc là môn Vật lý có hình vẽ/đồ thị, BẮT BUỘC dùng đúng cú pháp TikZ theo 5 dạng chuẩn sau:
+  1. Đồ thị Chu trình nhiệt động lực học ($p-V, p-T, V-T$):
+     - Dựng hệ trục vuông góc có mũi tên ->, nhãn trục $p$ (atm/Pa), $V$ (lít/$\text{m}^3$), $T$ (K).
+     - Đoạn chu trình khép kín nối các trạng thái $1 \to 2 \to 3 \to 1$.
+     - BẮT BUỘC có mũi tên chỉ chiều chu trình: postaction={decorate, decoration={markings, mark=at position 0.55 with {\arrow{Latex}}}}.
+     - Mẫu chuẩn:
+       \\begin{tikzpicture}[scale=0.9, >=Latex]
+         \\draw[->, thick] (0,0) -- (5,0) node[right] {$V\\text{ (lít)}$};
+         \\draw[->, thick] (0,0) -- (0,4.2) node[above] {$p\\text{ (atm)}$};
+         \\node[below left] at (0,0) {$O$};
+         \\coordinate (A) at (1.5,1.2); \\coordinate (B) at (1.5,3.4); \\coordinate (C) at (4,1.2);
+         \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (A) -- (B);
+         \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (B) to[out=-40,in=135] (C);
+         \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (C) -- (A);
+         \\fill (A) circle (1.5pt) node[left] {$1$}; \\fill (B) circle (1.5pt) node[above left] {$2$}; \\fill (C) circle (1.5pt) node[right] {$3$};
+         \\draw[dashed] (1.5,0) node[below] {$V_1$} -- (A) -- (0,1.2) node[left] {$p_1$};
+         \\draw[dashed] (B) -- (0,3.4) node[left] {$p_2$}; \\draw[dashed] (4,0) node[below] {$V_2$} -- (C);
+       \\end{tikzpicture}
+  2. Mô hình Xilanh - Pittông:
+     - Thành xilanh nét đậm [thick], miệng hở; Piston chữ nhật có vân gạch [pattern=north east lines]; Thanh truyền [line width=2pt].
+     - Mẫu chuẩn:
+       \\begin{tikzpicture}[scale=0.8]
+         \\draw[thick] (0,2) -- (5,2); \\draw[thick] (0,0) -- (5,0); \\draw[thick] (0,0) -- (0,2);
+         \\fill[pattern=north east lines] (2.5,0) rectangle (3,2); \\draw[thick] (2.5,0) rectangle (3,2);
+         \\draw[line width=2.5pt] (3,1) -- (5.5,1);
+         \\node at (1.2,1) {$(p, V, T)$};
+       \\end{tikzpicture}
+  3. Con lắc lò xo & Dao động cơ:
+     - Giá đỡ gạch chéo; Lò xo dùng decorate, decoration={coil, aspect=0.5, segment length=5pt, amplitude=4pt}; Quả nặng $m$ có nhãn.
+     - Mẫu chuẩn:
+       \\begin{tikzpicture}[scale=0.9]
+         \\fill[pattern=north east lines] (-0.3,-0.5) rectangle (0,1.2); \\draw[thick] (0,-0.5) -- (0,1.2);
+         \\fill[pattern=north east lines] (-0.3,-0.7) rectangle (5.5,-0.5); \\draw[thick] (0,-0.5) -- (5.5,-0.5);
+         \\draw[thick, decorate, decoration={coil, aspect=0.5, segment length=5pt, amplitude=4pt}] (0,0.3) -- (2.8,0.3);
+         \\draw[thick, fill=blue!15] (2.8,-0.5) rectangle (3.8,0.7); \\node at (3.3,0.1) {$m$};
+         \\draw[->, thick] (1.5,-0.9) -- (5,-0.9) node[right] {$x$}; \\draw (3.3,-0.8) -- (3.3,-1) node[below] {$O$};
+       \\end{tikzpicture}
+  4. Sơ đồ Mạch điện:
+     - Nguồn $(\\mathcal{E}, r)$ gồm 2 vạch song song (dài +, ngắn -); Điện trở $R$ hình chữ nhật; Ampe kế/Vôn kế hình tròn có chữ A/V.
+     - Mẫu chuẩn:
+       \\begin{tikzpicture}[scale=0.8]
+         \\draw[thick] (0,2) -- (0,3) -- (5,3) -- (5,0) -- (0,0) -- (0,1);
+         \\draw[thick] (-0.3,2) -- (0.3,2); \\draw[very thick] (-0.2,1) -- (0.2,1); \\node[left] at (-0.3,1.5) {$(\\mathcal{E}, r)$};
+         \\draw[thick, fill=white] (1.5,2.75) rectangle (2.7,3.25) node[midway] {$R$};
+         \\draw[thick, fill=white] (4,1.5) circle (0.35) node {$A$};
+       \\end{tikzpicture}
+  5. Đồ thị Sóng hình sin & Dao động điều hòa:
+     - Dùng \\draw[thick, blue, domain=0:6.3, samples=100] plot (\\x, {1.2*sin(\\x*180/1.57)}); có vạch chia trục.
 • Câu Đúng/Sai: mỗi câu gồm đề dẫn chung + 4 mệnh đề a/b/c/d (MENH_DE_A/B/C/D) chứa khẳng định toán/khtn.
 • TUYỆT ĐỐI KHÔNG xuất hiện từ vựng tiếng Anh hay cấu trúc bài đọc reading của môn ngoại ngữ.
+
 
 [NHÓM 2] NGOẠI NGỮ — Tiếng Anh, Tiếng Pháp, Tiếng Trung, Tiếng Nhật...:
 • TUYỆT ĐỐI không dùng LaTeX hay ký hiệu Toán ($...$) vô nghĩa.
@@ -312,6 +362,12 @@ export function buildExamPrompt(
     • Đồ thị hàm số → \\begin{axis}[...]...\\end{axis} (pgfplots); vẽ đúng domain hàm
     • Bảng biến thiên → Nếu câu hỏi đã có bảng biến thiên dạng \\begin{tabular} trong đề bài (trường NOI_DUNG) thì trường TIKZ BẮT BUỘC ĐỂ TRỐNG (TUYỆT ĐỐI KHÔNG vẽ thêm hình tròn hay hình học lạ). Nếu đề không có \\begin{tabular} mà vẽ TikZ thì vẽ đúng khung bảng biến thiên gồm \\draw + \\node + dấu +/- và mũi tên tăng giảm, TUYỆT ĐỐI KHÔNG vẽ hình tròn.
     • Tam giác / Đa giác phẳng → \\draw (A)--(B)--(C)--cycle; nhãn điểm đúng vị trí
+    • Đồ thị chu trình nhiệt ($p-V, p-T, V-T$) → Trục tọa độ mũi tên, các đoạn chu trình khép kín $1 \\to 2 \\to 3 \\to 1$ có mũi tên chỉ chiều chu trình [postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}]
+    • Xilanh - Pittông → Mặt cắt chữ U thành xilanh, piston hình chữ nhật có vân gạch [pattern=north east lines], thanh truyền [line width=2pt]
+    • Con lắc lò xo → Giá đỡ gạch chéo, lò xo dùng [decorate, decoration={coil, aspect=0.5, segment length=5pt, amplitude=4pt}], vật nặng $m$, trục $Ox$
+    • Sơ đồ mạch điện → Nguồn điện (vạch dài +, vạch ngắn -), điện trở chữ nhật, ampe kế/vôn kế hình tròn có chữ A/V
+    • Sóng cơ / Dao động điều hòa → Đường hình sin mềm mại plot[domain=..., samples=100], có trục tọa độ và vạch chia biên độ, chu kỳ
+    • Quang hình học → Trục chính nằm ngang, thấu kính hội tụ/phân kỳ, tia sáng có mũi tên chỉ chiều truyền
   [B] TUYỆT ĐỐI KHÔNG sao chép cùng mã TikZ cho 2 câu khác nhau. Mỗi câu có mã TikZ ĐỘC LẬP, đúng số liệu riêng của câu đó.
   [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.
   [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.`;
@@ -1261,6 +1317,32 @@ export function parseExam(rawText: string): ExamData {
 export function detectShapeType(questionText: string): string {
   const text = questionText.toLowerCase();
 
+  // ===== CÁC DẠNG HÌNH MÔN VẬT LÝ (Ưu tiên nhận diện trước) =====
+  // 1. Nhiệt học, Khí lí tưởng, Chu trình p-V, p-T, V-T, Xilanh - Pittông
+  if (/(chu trình|p-v|p-t|v-t|đẳng nhiệt|đẳng áp|đẳng tích|khí lí tưởng|xilanh|piston|pittông|nhiệt lượng kế|nhiệt độ.*thời gian|thang đo.*nhiệt|nóng chảy|hóa hơi|nhiệt dung riêng)/i.test(text)) {
+    return 'physics_thermo';
+  }
+
+  // 2. Mạch điện, Dụng cụ đo điện, Dòng điện xoay chiều
+  if (/(mạch điện|mắc nối tiếp|song song|biến trở|ampe kế|vôn kế|suất điện động|cuộn cảm|tụ điện|điện trở.*r|đặc trưng vôn-ampe|nguồn điện|xoay chiều|khóa k|u_c|u_l|u_r)/i.test(text)) {
+    return 'physics_circuits';
+  }
+
+  // 3. Dao động cơ học, Con lắc lò xo, Con lắc đơn, Phân tích lực
+  if (/(con lắc lò xo|con lắc đơn|lò xo|mặt phẳng nghiêng|ròng rọc|phân tích lực|vận tốc.*thời gian|gia tốc.*thời gian|động năng.*thế năng|thế năng.*li độ|ném ngang|ném xiên|ma sát)/i.test(text)) {
+    return 'physics_mechanics';
+  }
+
+  // 4. Sóng cơ & Sóng âm, Giao thoa sóng, Sóng dừng
+  if (/(sóng cơ|sóng dừng|giao thoa sóng|bước sóng|bụng sóng|nút sóng|sợi dây.*sóng|hình dạng sợi dây|phương trình sóng)/i.test(text)) {
+    return 'physics_waves';
+  }
+
+  // 5. Quang hình học
+  if (/(thấu kính|lăng kính|quang tâm|tiêu điểm|tiêu cự|tia sáng|khúc xạ|phản xạ toàn phần|chiết suất|ảnh ảo|ảnh thật)/i.test(text)) {
+    return 'physics_optics';
+  }
+
   // Hình nón (cone) — THPT phổ biến
   if (/(hình nón|nón tròn xoay|cone|đường sinh.*nón|thể tích.*nón|diện tích xung quanh.*nón)/i.test(text)) return 'cone';
 
@@ -1549,6 +1631,97 @@ function getTikzExample(shapeType: string): string {
   \\draw[blue,thick,->] ($(Q)+(-0.4,0)$) arc (180:135:0.4cm) node[left,font=\\small]{$\\alpha$};
 \\end{tikzpicture}`;
 
+    case 'physics_thermo':
+      return `Ví dụ đồ thị chu trình nhiệt p-V (khí lí tưởng 1 -> 2 -> 3 -> 1 có mũi tên chỉ chiều chu trình):
+\\begin{tikzpicture}[scale=0.9, >=Latex]
+  \\draw[->, thick] (0,0) -- (5.2,0) node[right] {$V\\text{ (lít)}$};
+  \\draw[->, thick] (0,0) -- (0,4.5) node[above] {$p\\text{ (atm)}$};
+  \\node[below left] at (0,0) {$O$};
+  \\coordinate (A) at (1.5,1.2);
+  \\coordinate (B) at (1.5,3.6);
+  \\coordinate (C) at (4.2,1.2);
+  % Quá trình đẳng tích 1 -> 2
+  \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (A) -- (B);
+  % Quá trình dãn đẳng nhiệt 2 -> 3
+  \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (B) to[out=-40,in=135] (C);
+  % Quá trình nén đẳng áp 3 -> 1
+  \\draw[thick, blue, postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}] (C) -- (A);
+  % Điểm trạng thái
+  \\fill (A) circle (1.5pt) node[left] {$1$};
+  \\fill (B) circle (1.5pt) node[above left] {$2$};
+  \\fill (C) circle (1.5pt) node[right] {$3$};
+  % Đường gióng
+  \\draw[dashed] (1.5,0) node[below] {$V_1$} -- (A) -- (0,1.2) node[left] {$p_1$};
+  \\draw[dashed] (B) -- (0,3.6) node[left] {$p_2$};
+  \\draw[dashed] (4.2,0) node[below] {$V_2$} -- (C);
+\\end{tikzpicture}`;
+
+    case 'physics_circuits':
+      return `Ví dụ sơ đồ mạch điện gồm nguồn (E, r), điện trở R1 nối tiếp với biến trở R và vôn kế V:
+\\begin{tikzpicture}[scale=0.9]
+  \\draw[thick] (0,2) -- (0,3) -- (6,3) -- (6,0) -- (0,0) -- (0,1);
+  % Nguồn điện E, r ở nhánh trái
+  \\draw[thick] (-0.4,2) -- (0.4,2); % cực dương
+  \\draw[very thick] (-0.25,1) -- (0.25,1); % cực âm
+  \\node[left] at (-0.4,1.5) {$(\\mathcal{E}, r)$};
+  % Điện trở R1
+  \\draw[thick, fill=white] (1.5,2.75) rectangle (2.7,3.25) node[midway] {$R_1$};
+  % Biến trở R
+  \\draw[thick, fill=white] (3.8,2.75) rectangle (5,3.25) node[midway] {$R$};
+  \\draw[->, thick] (4,2.5) -- (4.8,3.5);
+  % Vôn kế
+  \\draw[thick] (3.5,3) -- (3.5,1.5) -- (4.1,1.5);
+  \\draw[thick, fill=white] (4.4,1.5) circle (0.3) node {$V$};
+  \\draw[thick] (4.7,1.5) -- (5.3,1.5) -- (5.3,3);
+\\end{tikzpicture}`;
+
+    case 'physics_mechanics':
+      return `Ví dụ con lắc lò xo nằm ngang gồm giá treo cố định, lò xo k và vật nặng m trên mặt sàn:
+\\begin{tikzpicture}[scale=0.9]
+  % Tường / Giá đỡ
+  \\fill[pattern=north east lines] (-0.3,-0.5) rectangle (0,1.2);
+  \\draw[thick] (0,-0.5) -- (0,1.2);
+  % Mặt sàn
+  \\fill[pattern=north east lines] (-0.3,-0.7) rectangle (6,-0.5);
+  \\draw[thick] (0,-0.5) -- (6,-0.5);
+  % Lò xo (dùng decoration coil)
+  \\draw[thick, decorate, decoration={coil, aspect=0.5, segment length=5pt, amplitude=4pt}] (0,0.3) -- (3,0.3);
+  % Vật nặng m
+  \\draw[thick, fill=blue!15] (3,-0.5) rectangle (4.2,0.8);
+  \\node at (3.6,0.15) {$m$};
+  % Trục tọa độ Ox
+  \\draw[->, thick] (1.5,-0.9) -- (5.5,-0.9) node[right] {$x$};
+  \\draw (3.6,-0.8) -- (3.6,-1) node[below] {$O$};
+\\end{tikzpicture}`;
+
+    case 'physics_waves':
+      return `Ví dụ đồ thị sóng hình sin lan truyền trên trục Ox tại một thời điểm:
+\\begin{tikzpicture}[scale=0.9]
+  \\draw[->, thick] (0,0) -- (6.5,0) node[right] {$x\\text{ (cm)}$};
+  \\draw[->, thick] (0,-2) -- (0,2.2) node[above] {$u\\text{ (mm)}$};
+  \\node[below left] at (0,0) {$O$};
+  \\draw[thick, blue, domain=0:6, samples=120] plot (\\x, {1.5*sin(\\x*180/1.5)});
+  \\draw[dashed] (0,1.5) node[left] {$A$} -- (0.75,1.5);
+  \\draw[dashed] (0,-1.5) node[left] {$-A$} -- (2.25,-1.5);
+  \\fill[red] (0.75,1.5) circle (2pt) node[above] {$M$};
+  \\fill[red] (3,0) circle (2pt) node[below right] {$N$};
+  \\draw[->, very thick, red] (1,1.8) -- (2.2,1.8) node[right] {$\\vec{v}$};
+\\end{tikzpicture}`;
+
+    case 'physics_optics':
+      return `Ví dụ đường đi của các tia sáng qua thấu kính hội tụ:
+\\begin{tikzpicture}[scale=0.9]
+  \\draw[->] (-3,0) -- (4,0) node[right] {$\\Delta$};
+  \\draw[<->, very thick, blue] (0,-2) -- (0,2) node[above] {$(L)$};
+  \\node[below left] at (0,0) {$O$};
+  \\fill (-1.5,0) circle (1.5pt) node[below] {$F$};
+  \\fill (1.5,0) circle (1.5pt) node[below] {$F'$};
+  \\draw[->, very thick, red] (-2.5,0) -- (-2.5,1.2) node[above] {$B$};
+  \\node[below] at (-2.5,0) {$A$};
+  \\draw[thick, red] (-2.5,1.2) -- (0,1.2) -- (3,-1.2);
+  \\draw[thick, red] (-2.5,1.2) -- (3,-1.44);
+\\end{tikzpicture}`;
+
     default:
       return `Ví dụ hình minh họa tổng quát (điểm, đoạn thẳng, góc):
 \\begin{tikzpicture}[scale=1]
@@ -1616,14 +1789,35 @@ export async function generateTikzFromQuestion(
 • Vẽ cung tròn đánh dấu góc kèm nhãn góc hoặc số đo góc.`,
     coordinate: `- HỆ TỌA ĐỘ:
 • Trục Ox, Oy có chia vạch số; Đánh dấu và ghi chú đúng tọa độ (x, y) của các điểm trong đề.`,
+    physics_thermo: `- ĐỒ THỊ CHU TRÌNH NHIỆT / XILANH - PISTON (VẬT LÝ NHIỆT):
+• Với Chu trình nhiệt động lực học (p-V, p-T, V-T): Vẽ hệ trục tọa độ có mũi tên, nhãn trục p, V, T theo đúng đề. Các đoạn chu trình nối 1 -> 2 -> 3 -> 1 BẮT BUỘC có mũi tên chỉ chiều chu trình (dùng postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}). Đường đẳng nhiệt vẽ cong mềm mại.
+• Với Xilanh - Piston: Vẽ thành xilanh nét đậm [thick], piston hình chữ nhật có vân gạch mặt cắt [pattern=north east lines], thanh truyền [line width=2pt], nhãn khối khí bên trong.`,
+    physics_circuits: `- SƠ ĐỒ MẠCH ĐIỆN (VẬT LÝ):
+• Vẽ khung dây dẫn chữ nhật nét đậm [thick].
+• Nguồn điện (E, r): 2 vạch song song (vạch dài cực dương, vạch ngắn cực âm kèm nhãn).
+• Điện trở R: hình chữ nhật có nhãn R. Biến trở: thêm mũi tên chéo chỉ con chạy.
+• Tụ điện C: 2 vạch song song bằng nhau; Cuộn cảm L: nét xoắn; Khóa K: công tắc đóng/mở.
+• Ampe kế (A) và Vôn kế (V): hình tròn đường kính khoảng 0.6cm-0.7cm có chữ A hoặc V ở tâm.`,
+    physics_mechanics: `- DAO ĐỘNG CƠ HỌC & CƠ HỌC:
+• Với con lắc lò xo: Vẽ giá đỡ cố định có gạch chéo [pattern=north east lines], lò xo đàn hồi dùng decorate, decoration={coil, aspect=0.5, segment length=5pt, amplitude=4pt}, vật nặng m hình chữ nhật có nhãn, trục Ox có gốc O và mũi tên.
+• Với con lắc đơn: Điểm treo, dây treo nét mảnh, quả cầu tròn m, góc lệch alpha.
+• Với mặt phẳng nghiêng / phân tích lực: Mặt phẳng nghiêng góc alpha, vật m, các vectơ lực P, N, Fms có mũi tên [-Latex, thick] xuất phát từ vật.`,
+    physics_waves: `- SÓNG CƠ & DAO ĐỘNG HÌNH SIN:
+• Dựng hệ trục tọa độ vuông góc có chia vạch. Đường sóng hình sin vẽ bằng plot[domain=..., samples=120] mềm mại.
+• Đánh dấu các điểm M, N, P trên sóng bằng dấu chấm tròn \\fill circle (2pt).
+• Nếu có sóng dừng: vẽ các bó sóng đối xứng qua trục hoành.`,
+    physics_optics: `- QUANG HÌNH HỌC:
+• Vẽ trục chính Delta nằm ngang có mũi tên.
+• Thấu kính hội tụ (mũi tên 2 đầu <->) hoặc phân kỳ (>--<).
+• Quang tâm O, tiêu điểm F, F' đối xứng qua O; Các tia sáng vẽ bằng mũi tên chỉ chiều truyền ánh sáng.`,
     generic: `- Phân tích kỹ các đối tượng hình học trong đề bài để dựng hình chính xác theo đúng tên các điểm và số liệu đề bài.`,
   };
 
   const specificGuidance = guidanceByType[shapeType] || guidanceByType.generic;
 
-  const prompt = `Bạn là một chuyên gia toán học và lập trình viên LaTeX TikZ hàng đầu, chuyên vẽ hình minh họa cho các đề thi Toán THCS và THPT Việt Nam.
+  const prompt = `Bạn là một chuyên gia toán học, vật lý và lập trình viên LaTeX TikZ hàng đầu, chuyên vẽ hình minh họa cho các đề thi Toán và Vật lý THCS/THPT Việt Nam.
 
-NỘI DUNG ĐỀ BÀI TOÁN CẦN VẼ HÌNH:
+NỘI DUNG ĐỀ BÀI CẦN VẼ HÌNH:
 """
 ${questionText}
 """
