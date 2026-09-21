@@ -33,8 +33,8 @@ export interface Question {
   optionC?: string;
   optionD?: string;
 
-  // Dạng 2: Trắc nghiệm Đúng / Sai (4 mệnh đề quanh câu hỏi chung)
-  cauLenh?: string; // Câu lệnh hỏi (VD: "Xét các mệnh đề sau:"), nằm giữa đề dẫn và 4 mệnh đề
+  // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (VD: "Giá trị lớn nhất M và giá trị nhỏ nhất m của hàm số là:" hoặc "Xét các mệnh đề sau:")
+  cauLenh?: string;
   menhDeA?: string;
   menhDeB?: string;
   menhDeC?: string;

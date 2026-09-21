@@ -1415,6 +1415,19 @@ export async function exportExamToDocxLatex(
           }
         }
 
+        // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (áp dụng cho mọi câu hỏi, đặt ngay trước các lựa chọn A, B, C, D hoặc mệnh đề a, b, c, d)
+        if (q.cauLenh) {
+          const clRuns: TextRun[] = [];
+          parseLineTokens(q.cauLenh).forEach((t) => {
+            if (t.type === 'math') {
+              clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22 }));
+            } else {
+              clRuns.push(new TextRun({ text: t.content, bold: t.bold ?? false, italics: t.italic ?? true, size: 22, color: '0F172A' }));
+            }
+          });
+          children.push(new Paragraph({ children: clRuns, indent: { left: 360 }, spacing: { before: 80, after: 60 } }));
+        }
+
         // 1. 4 Options — compact inline layout (auto 4-col / 2-col / 1-col based on length)
         if (is4LuaChon && expOptA) {
           const options = [
@@ -1426,20 +1439,8 @@ export async function exportExamToDocxLatex(
           renderOptionsBlock(options).forEach((el) => children.push(el as any));
         }
 
-        // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
+        // 2. True / False — 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
         if (isDungSai) {
-          // Câu lệnh hỏi (VD: "Trong các mệnh đề sau, mệnh đề nào đúng?")
-          if (q.cauLenh) {
-            const clRuns: TextRun[] = [];
-            parseLineTokens(q.cauLenh).forEach((t) => {
-              if (t.type === 'math') {
-                clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22 }));
-              } else {
-                clRuns.push(new TextRun({ text: t.content, bold: t.bold ?? true, italics: t.italic, size: 22, color: '0F172A' }));
-              }
-            });
-            children.push(new Paragraph({ children: clRuns, indent: { left: 360 }, spacing: { before: 60 } }));
-          }
 
           const propositions = [
             { key: 'a', text: q.menhDeA || q.optionA },
@@ -2720,6 +2721,12 @@ export async function exportExamToDocxOmml(
           }
         }
 
+        // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (áp dụng cho mọi câu hỏi, đặt ngay trước các lựa chọn A, B, C, D hoặc mệnh đề a, b, c, d)
+        if (q.cauLenh) {
+          const clTokens: FormattedToken[] = [...parseLineTokens(q.cauLenh)];
+          bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
+        }
+
         // 1. 4 Options — inline compact layout (2 per row if short, 1 per row if long)
         if (is4LuaChon && expOptA) {
           const options = [
@@ -2772,13 +2779,8 @@ export async function exportExamToDocxOmml(
           }
         }
 
-        // 2. True / False — câu lệnh hỏi + 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
+        // 2. True / False — 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
         if (isDungSai) {
-          // Câu lệnh hỏi dẫn trước mệnh đề
-          if (q.cauLenh) {
-            const clTokens: FormattedToken[] = [...parseLineTokens(q.cauLenh)];
-            bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
-          }
 
           const propositions = [
             { key: 'a', text: q.menhDeA || q.optionA },

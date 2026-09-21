@@ -127,7 +127,13 @@ export async function callGeminiRoundRobin(
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts }] }),
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 16384,
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -214,8 +220,21 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
     $y$ & & & $3$ & & & & $+\\infty$ \\\\
      & $-\\infty$ & $\\nearrow$ & & $\\searrow$ & & $\\nearrow$ & \\\\
      & & & & & $-1$ & & \\\\
-    \\hline
-    \\end{tabular}
+• QUY TẮC CẤU TRÚC CÂU HỎI CÓ HÌNH VẼ / ĐỒ THỊ (TUYỆT ĐỐI TUÂN THỦ):
+  Nếu câu hỏi có hình ảnh/đồ thị (Toán/Lý/KHTN), BẮT BUỘC tách làm 3 phần:
+  - NOI_DUNG: Lời dẫn mở đầu trước hình (VD: "Cho hàm số $y=f(x)$ có đồ thị như hình vẽ dưới đây.")
+  - TIKZ: Mã \\begin{tikzpicture}...\\end{tikzpicture} vẽ hình
+  - CAU_LENH: Câu hỏi yêu cầu tính toán sau hình (VD: "Giá trị lớn nhất $M$ và giá trị nhỏ nhất $m$ của hàm số $f(x)$ trên đoạn $[-1; 2]$ lần lượt là:" hoặc "Hàm số đã cho đồng biến trên khoảng nào dưới đây?"). TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu hỏi yêu cầu sau hình vẽ!
+• QUY TẮC VẼ ĐỒ THỊ HÀM SỐ MÔN TOÁN 12 (TUYỆT ĐỐI TUÂN THỦ):
+  1. Hàm phân thức bậc nhất/bậc nhất $y = \\frac{ax+b}{cx+d}$:
+     - BẮT BUỘC vẽ 2 nhánh hyperbol phân biệt qua domain, KHÔNG nối qua điểm gián đoạn $x = -d/c$.
+     - Tiệm cận đứng $x = -d/c$ và tiệm cận ngang $y = a/c$ BẮT BUỘC vẽ nét đứt: \\draw[dashed, red, thick] (axis cs:...)...
+  2. Hàm phân thức bậc hai/bậc nhất $y = \\frac{ax^2+bx+c}{dx+e}$:
+     - Tiệm cận đứng và tiệm cận xiên $y = ax+b$ BẮT BUỘC vẽ nét đứt: \\draw[dashed, red, thick] (axis cs:...)...
+  3. Đồ thị hàm số trên đoạn $[a; b]$:
+     - Giới hạn miền vẽ domain=a:b. Hai đầu mút BẮT BUỘC vẽ chấm tròn đặc: \\addplot[mark=*, mark size=2.5pt, black] coordinates {(a, f(a))} và {(b, f(b))}.
+  4. Hàm đa thức bậc ba, bậc bốn:
+     - Đánh dấu rõ các điểm cực đại, cực tiểu bằng \\addplot[mark=*, mark size=2pt, red] coordinates {...}.
 • QUY TẮC VẼ HÌNH TIKZ MÔN VẬT LÝ (TUYỆT ĐỐI TUÂN THỦ):
   Nếu câu gốc là môn Vật lý có hình vẽ/đồ thị, BẮT BUỘC dùng đúng cú pháp TikZ theo 5 dạng chuẩn sau:
   1. Đồ thị Chu trình nhiệt động lực học ($p-V, p-T, V-T$):
@@ -331,6 +350,77 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
 • Không dùng LaTeX (trừ công thức toán học thực sự).
 • Đoạn mã nguồn/code đặt trong triple backtick.
 `;
+}
+
+/**
+ * Phân tích cấu trúc đề gốc để đếm chính xác số lượng câu hỏi từng phần
+ */
+export function analyzeExamStructure(sourceText: string): {
+  part1Count: number;
+  part2Count: number;
+  part3Count: number;
+  part4Count: number;
+  summaryText: string;
+} {
+  let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
+
+  // 1. Quét các chỉ dẫn số lượng câu hỏi trong tiêu đề phần (VD: "từ câu 1 đến câu 12" -> 12 câu)
+  const p1Match = sourceText.match(/Phần\s+I[.:\s][^\n]*?từ\s+câu\s+(\d+)\s+đến\s+câu\s+(\d+)/i);
+  if (p1Match) {
+    p1 = Math.max(0, parseInt(p1Match[2], 10) - parseInt(p1Match[1], 10) + 1);
+  }
+  const p2Match = sourceText.match(/Phần\s+II[.:\s][^\n]*?từ\s+câu\s+(\d+)\s+đến\s+câu\s+(\d+)/i);
+  if (p2Match) {
+    p2 = Math.max(0, parseInt(p2Match[2], 10) - parseInt(p2Match[1], 10) + 1);
+  }
+  const p3Match = sourceText.match(/Phần\s+III[.:\s][^\n]*?từ\s+câu\s+(\d+)\s+đến\s+câu\s+(\d+)/i);
+  if (p3Match) {
+    p3 = Math.max(0, parseInt(p3Match[2], 10) - parseInt(p3Match[1], 10) + 1);
+  }
+
+  // 2. Quét Phần Tự luận (Phần IV hoặc B. PHẦN TỰ LUẬN)
+  const tuLuanMatch = sourceText.match(/(?:Phần\s+(?:IV|B)|TỰ\s+LUẬN)[^\n]*?(?:\((\d+[,.]?\d*)\s*điểm\))?[\s\S]*?(?:------------------------\s*HẾT|HẾT|$)/i);
+  if (tuLuanMatch) {
+    const tuLuanSection = tuLuanMatch[0];
+    const tlCauMatches = [...tuLuanSection.matchAll(/(?:^|\n)\s*Câu\s+(\d+)[.:]/gi)];
+    if (tlCauMatches.length > 0) {
+      p4 = tlCauMatches.length;
+    } else if (/1[\s,.]?0\s*điểm|3[\s,.]?0\s*điểm/i.test(tuLuanSection)) {
+      p4 = 3;
+    }
+  }
+
+  // 3. Fallback thông minh nếu không bắt được qua tiêu đề
+  if (p1 === 0 && p2 === 0 && p3 === 0) {
+    // Đếm số câu tổng quát nếu có
+    const allCau = [...sourceText.matchAll(/(?:^|\n)\s*(?:Câu|Question)\s+(\d+)[.:]/gi)];
+    if (allCau.length >= 12) {
+      p1 = 12;
+      p2 = allCau.length >= 16 ? 4 : 2;
+      p3 = allCau.length >= 22 ? 6 : 4;
+      if (allCau.length > 20 && p4 === 0) p4 = allCau.length - (p1 + p2 + p3);
+    }
+  }
+
+  if (p1 === 0) p1 = 12;
+  if (p2 === 0 && /Phần\s+II/i.test(sourceText)) p2 = 2;
+  if (p3 === 0 && /Phần\s+III/i.test(sourceText)) p3 = 4;
+  if (p4 === 0 && /(?:TỰ\s+LUẬN|Phần\s+B)/i.test(sourceText)) p4 = 3;
+
+  const partsSummary: string[] = [];
+  if (p1 > 0) partsSummary.push(`Phần I (Trắc nghiệm 4 lựa chọn): ${p1} câu`);
+  if (p2 > 0) partsSummary.push(`Phần II (Trắc nghiệm Đúng/Sai): ${p2} câu`);
+  if (p3 > 0) partsSummary.push(`Phần III (Trả lời ngắn): ${p3} câu`);
+  if (p4 > 0) partsSummary.push(`Phần Tự luận (Trình bày bài giải): ${p4} câu`);
+  const total = p1 + p2 + p3 + p4;
+
+  return {
+    part1Count: p1,
+    part2Count: p2,
+    part3Count: p3,
+    part4Count: p4,
+    summaryText: `${partsSummary.join(', ')} (Tổng cộng đúng ${total} câu)`,
+  };
 }
 
 /**
@@ -556,6 +646,8 @@ ${sourceContent}
 
   // 1A. Chế độ: TẠO Y HỆT CẤU TRÚC ĐỀ GỐC (Phân tích tự động môn học & các phần)
   if (config.cautrucDe === 'y_het_goc') {
+    const detectedStruct = analyzeExamStructure(sourceContent);
+
     return `Bạn là chuyên gia khảo thí và ra đề thi chuyên nghiệp cho TẤT CẢ CÁC MÔN HỌC (Toán, Ngữ văn, Tiếng Anh, Vật lý, Hóa học, Sinh học, Lịch sử, Địa lý, GDCD, Tin học...) thuộc mọi cấp học Việt Nam.
 
 NHIỆM VỤ QUAN TRỌNG:
@@ -565,18 +657,26 @@ ${buildSubjectRules()}
 
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức, ký hiệu. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
-2. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn phù hợp môn học (VD Toán: "Trong các mệnh đề sau, mệnh đề nào đúng?"; VD Sử: "Xét các phát biểu sau về sự kiện lịch sử:"; VD Anh: "Which of the following statements is true?"). KHÔNG được bỏ trống CAU_LENH.
-3. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài. TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
-4. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \begin{tabular}{|c|c|...} ... \end{tabular} chuẩn ngoài dấu $.
-5. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức, câu đầy đủ). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D".
-6. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
+2. Với CÂU CÓ HÌNH VẼ / ĐỒ THỊ (Toán / Lý / KHTN):
+   - NOI_DUNG: Ghi đề dẫn mở đầu trước hình (VD: "Cho hàm số $y=f(x)$ có đồ thị trên đoạn $[-1; 2]$ như hình vẽ dưới đây.")
+   - TIKZ: Ghi mã TikZ vẽ hình \\begin{tikzpicture}...\\end{tikzpicture}.
+   - CAU_LENH: BẮT BUỘC ghi câu hỏi yêu cầu tính toán sau hình (VD: "Giá trị lớn nhất $M$ và giá trị nhỏ nhất $m$ của hàm số $f(x)$ trên $[-1; 2]$ lần lượt là:" hoặc "Hàm số đã cho đồng biến trên khoảng nào dưới đây?"). TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu hỏi yêu cầu tính toán sau hình vẽ!
+3. Với CÂU ĐÚNG/SAI: BẮT BUỘC có trường CAU_LENH chứa câu hỏi dẫn phù hợp môn học (VD Toán: "Trong các mệnh đề sau, mệnh đề nào đúng?"; VD Sử: "Xét các phát biểu sau về sự kiện lịch sử:"; VD Anh: "Which of the following statements is true?"). KHÔNG được bỏ trống CAU_LENH.
+4. ĐẦY ĐỦ CÔNG THỨC & DỮ KIỆN (TUYỆT ĐỐI CẤM NGẮT CỤT):
+   - TUYỆT ĐỐI CẤM xuất câu hỏi cụt như "Cho hàm số ." hoặc "Đồ thị hàm số  cắt trục tung".
+   - BẮT BUỘC phải viết rõ công thức toán học đầy đủ bằng LaTeX: ví dụ "Cho hàm số $y = \\frac{2x-1}{x-1}$".
+   - Ở phần TỰ LUẬN: BẮT BUỘC nêu đầy đủ yêu cầu bài toán (ví dụ: "Khảo sát sự biến thiên và vẽ đồ thị của hàm số $y = \\frac{2x-1}{x-1}$").
+5. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không tự thêm hình. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG. TikZ phải CHÍNH XÁC THEO DỮ KIỆN SỐ trong đề bài. TUYỆT ĐỐI KHÔNG sao chép cùng một mã TikZ cho các câu khác nhau.
+6. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
+7. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức đầy đủ bằng LaTeX $...$). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D" hoặc để trống phương án.
+8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
-1. Nhận diện chính xác môn học, tên từng Phần, loại câu hỏi (Tự luận, Đọc hiểu, Phonetics, Trắc nghiệm 4 lựa chọn, Trắc nghiệm Đúng/Sai, Trả lời ngắn, Rewrite...) và số lượng câu hỏi trong từng phần của đề gốc.
+1. ĐỀ GỐC CÓ CẤU TRÚC DỰ KIẾN: ${detectedStruct.summaryText}.
+   BẮT BUỘC đề mới phải sinh ĐỦ 100% SỐ CÂU của từng phần trên! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu nào, đặc biệt là các câu Tự luận cuối đề!
 2. GIỮ NGUYÊN HOÀN TOÀN TÊN CÁC PHẦN, SỐ LƯỢNG CÂU VÀ LOẠI CÂU HỎI như đề gốc.
    - Nếu đề gốc là Tiếng Anh gồm (I. PHONETICS, II. USE OF ENGLISH, III. READING, IV. WRITING) → đề mới BẮT BUỘC gồm đúng 4 phần đó với nội dung Tiếng Anh tương đương.
    - Nếu đề gốc là Ngữ văn gồm 2 phần (I. ĐỌC HIỂU, II. LÀM VĂN) → đề mới BẮT BUỘC gồm đúng 2 phần đó với đoạn trích/đề văn mới tương đương.
-   - Nếu đề gốc có trắc nghiệm hoặc đọc hiểu kèm văn bản → chọn ngữ cảnh/văn bản mới tương đương và sinh các câu hỏi tương ứng.
    - Nếu đề gốc gồm trắc nghiệm và tự luận kết hợp → tái tạo chính xác số câu trắc nghiệm và tự luận như đề gốc.
 3. ĐỘ KHÓ ĐỀ THI: ${doKhoMap[config.doKho]}
 4. MỨC ĐỘ TƯƠNG TỰ: ${modeTextMap[config.mucDoTuongTu]}
@@ -601,12 +701,13 @@ DIEM_MOI_CAU: 0.25
 ===CAU===
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
-NOI_DUNG: [Nội dung câu hỏi đúng môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa. KHÔNG chứa mã TikZ]
-TIKZ: [Mã \begin{tikzpicture}...\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
-A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ]
-B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ]
-C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ]
-D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ]
+NOI_DUNG: [Nội dung câu hỏi hoặc đề dẫn mở đầu trước hình — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa. KHÔNG chứa mã TikZ]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
+CAU_LENH: [Câu hỏi yêu cầu tính toán sau hình nếu câu có hình vẽ — VD: "Giá trị lớn nhất $M$ và giá trị nhỏ nhất $m$ của hàm số $f(x)$ trên $[-1; 2]$ lần lượt là:". Nếu câu không có hình thì để trống]
+A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ hoặc để trống]
+B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ hoặc để trống]
+C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ hoặc để trống]
+D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ hoặc để trống]
 DAP_AN: [A/B/C/D]
 HUONG_DAN_GIAI: [Lời giải/giải thích]
 MUC_DO: nhan_biet
@@ -664,13 +765,14 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: [số thứ tự tiếp theo]
 LOAI: tu_luan
-NOI_DUNG: [Nội dung câu hỏi/yêu cầu tự luận đúng môn — VD Toán: bài toán tự luận; Văn: đề nghị luận/phân tích; Anh: câu Rewrite hoặc đoạn văn cần viết]
-TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình. Để trống với Văn/Anh/Sử/Địa]
-DAP_AN: [Lời giải chi tiết / Gợi ý dàn ý / Câu viết lại]
+NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số ."]
+TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ. Để trống nếu không có hình]
+DAP_AN: [Đáp án tóm tắt / kết quả chính]
+HUONG_DAN_GIAI: [Lời giải chi tiết từng bước: Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
-... (Các câu tự luận tiếp theo)
+... (Các câu tự luận tiếp theo — BẮT BUỘC sinh đủ 100% các câu tự luận như đề gốc)
 
 [--- ĐẶC BIỆT: Ví dụ môn TIẾNG ANH - PHẦN III. READING (PART 1 VÀ PART 2) ---]
 ===PHAN===
@@ -874,12 +976,16 @@ ${config.numPart4 > 0 ? `4. PHẦN IV (${config.numPart4} câu): Tự luận (Tr
 
 QUY TẮC BẮT BUỘC:
 1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
-2. ${mathTypeNote || 'Đảm bảo nội dung chính xác, phù hợp trình độ học sinh và môn học.'}
-3. Ở Phần II (Đúng/Sai), BẮT BUỘC có CAU_LENH và cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề. Nội dung mệnh đề phải phù hợp môn học.
-4. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG.
-5. Nếu câu hỏi có bảng số liệu: Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
-6. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức, câu đầy đủ). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D".
-7. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
+2. Với CÂU CÓ HÌNH VẼ / ĐỒ THỊ:
+   - NOI_DUNG: Ghi đề dẫn mở đầu trước hình.
+   - TIKZ: Ghi mã TikZ vẽ hình.
+   - CAU_LENH: BẮT BUỘC ghi câu hỏi yêu cầu tính toán sau hình (VD: "Giá trị lớn nhất $M$ và nhỏ nhất $m$ của hàm số là:"). TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu hỏi yêu cầu tính toán!
+3. ĐẦY ĐỦ CÔNG THỨC & DỮ KIỆN (TUYỆT ĐỐI CẤM NGẮT CỤT): TUYỆT ĐỐI CẤM xuất câu hỏi cụt như "Cho hàm số .". BẮT BUỘC phải viết rõ công thức toán học đầy đủ bằng LaTeX (VD: "Cho hàm số $y = \\frac{2x-1}{x-1}$").
+4. Ở Phần II (Đúng/Sai), BẮT BUỘC có CAU_LENH và cung cấp rõ nội dung 4 mệnh đề a), b), c), d) và đáp án D (Đúng) hoặc S (Sai) cho từng mệnh đề.
+5. Về hình vẽ / đồ thị: Nếu câu gốc có nhãn [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ LaTeX đầy đủ trong trường TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}. Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ. TUYỆT ĐỐI KHÔNG viết mã TikZ vào NOI_DUNG.
+6. Nếu câu hỏi có bảng số liệu: Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
+7. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức đầy đủ bằng LaTeX $...$). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D" hoặc để trống phương án.
+8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
 
 ===DE===
 TIEU_DE: ${deTitle}
@@ -896,18 +1002,18 @@ DIEM_MOI_CAU: 0.25
 ===CAU===
 STT: 1
 LOAI: trac_nghiem_4_lua_chon
-NOI_DUNG: [Nội dung câu hỏi phù hợp môn học — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa]
+NOI_DUNG: [Nội dung câu hỏi hoặc đề dẫn mở đầu trước hình — LaTeX nếu KHTN, văn bản thuần nếu Anh/Văn/Sử/Địa]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với môn Ngoại ngữ/KHXH]
-A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ]
-B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ]
-C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ]
-D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ]
+CAU_LENH: [Câu hỏi yêu cầu tính toán sau hình nếu câu có hình vẽ — VD: "Giá trị lớn nhất $M$ và giá trị nhỏ nhất $m$ của hàm số $f(x)$ trên $[-1; 2]$ lần lượt là:". Nếu câu không có hình thì để trống]
+A: [Nội dung phương án A đầy đủ — TUYỆT ĐỐI KHÔNG để chữ A đơn lẻ hoặc để trống]
+B: [Nội dung phương án B đầy đủ — TUYỆT ĐỐI KHÔNG để chữ B đơn lẻ hoặc để trống]
+C: [Nội dung phương án C đầy đủ — TUYỆT ĐỐI KHÔNG để chữ C đơn lẻ hoặc để trống]
+D: [Nội dung phương án D đầy đủ — TUYỆT ĐỐI KHÔNG để chữ D đơn lẻ hoặc để trống]
 DAP_AN: A
 MUC_DO: nhan_biet
 DIEM: 0.25
 ===CAU===
-... (Sinh đủ ${config.numPart1} câu trắc nghiệm 4 lựa chọn)
-` : ''}
+... (Sinh đủ ${config.numPart1} câu trắc nghiệm 4 lựa chọn)` : ''}
 
 ${config.numPart2 > 0 ? `===PHAN===
 TEN: PHẦN II. CÂU TRẮC NGHIỆM ĐÚNG SAI
@@ -959,14 +1065,14 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: ${config.numPart1 + config.numPart2 + config.numPart3 + 1}
 LOAI: tu_luan
-NOI_DUNG: [Nội dung câu hỏi tự luận phù hợp môn học — VD Toán: bài toán; Văn: đề nghị luận; Sử: câu hỏi phân tích sự kiện]
+NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số ."]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với Văn/Anh/Sử/Địa]
-DAP_AN: [Lời giải/luận điểm chi tiết từng bước]
+DAP_AN: [Đáp án tóm tắt / kết quả chính]
+HUONG_DAN_GIAI: [Lời giải chi tiết từng bước: Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
-... (Sinh đủ ${config.numPart4} câu tự luận)
-` : ''}
+... (Sinh đủ ${config.numPart4} câu tự luận)` : ''}
 ===DE===
 
 NỘI DUNG ĐỀ GỐC THAM KHẢO:
@@ -1211,7 +1317,23 @@ export function parseExam(rawText: string): ExamData {
           if (!qObj.tikzCode) {
             qObj.tikzCode = tikzMatch[0].trim();
           }
-          qObj.noiDung = qObj.noiDung.replace(tikzMatch[0], '').trim();
+          const parts = qObj.noiDung.split(tikzMatch[0]);
+          qObj.noiDung = (parts[0] || '').trim();
+          const afterTikz = (parts[1] || '').trim();
+          if (afterTikz && !qObj.cauLenh) {
+            qObj.cauLenh = afterTikz;
+          }
+        }
+      }
+
+      // Tách thông minh câu hỏi yêu cầu sau hình vẽ (khi câu có hình mà AI gộp chung câu hỏi vào NOI_DUNG)
+      if (qObj.tikzCode && qObj.noiDung && !qObj.cauLenh) {
+        // Tìm các câu hỏi yêu cầu tính toán phổ biến ở nửa sau đề bài
+        const questionLeadPattern = /(?:\.|\n)\s*(Giá trị lớn nhất.*?|Giá trị nhỏ nhất.*?|Giá trị cực đại.*?|Giá trị cực tiểu.*?|Hàm số.*?đồng biến.*?|Hàm số.*?nghịch biến.*?|Tập xác định.*?|Số điểm cực trị.*?|Điểm cực trị.*?|Số đường tiệm cận.*?|Phương trình tiệm cận.*?|Đồ thị hàm số.*?cắt.*?|Có bao nhiêu.*?|Tính giá trị.*?|Tìm tất cả các giá trị.*?|Tìm giá trị.*?|Biết rằng.*?hãy tính.*?)(?:[:.]?)$/i;
+        const qMatch = qObj.noiDung.match(questionLeadPattern);
+        if (qMatch && qMatch.index !== undefined && qMatch.index > 15) {
+          qObj.cauLenh = qMatch[1].trim();
+          qObj.noiDung = qObj.noiDung.slice(0, qMatch.index + 1).trim();
         }
       }
 
@@ -1255,7 +1377,7 @@ export function parseExam(rawText: string): ExamData {
 
       // ===== FALLBACK CHO CÂU 4 LỰA CHỌN =====
       const is4LuaChonQ = qObj.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON || (qObj.loai as any) === 'trac_nghiem_4_lua_chon' || !qObj.loai;
-      if (is4LuaChonQ) {
+      if (is4LuaChonQ || (!qObj.menhDeA && (qObj.optionA || qObj.optionB))) {
         const extracted = extractQuestionOptions(qObj as any);
         if (extracted.optionA) {
           qObj.optionA = extracted.optionA;
@@ -1263,6 +1385,10 @@ export function parseExam(rawText: string): ExamData {
           qObj.optionC = extracted.optionC;
           qObj.optionD = extracted.optionD;
           qObj.noiDung = extracted.cleanNoiDung;
+        }
+        // Đảm bảo loại câu hỏi chuẩn để giao diện Web luôn hiển thị 4 phương án
+        if (qObj.optionA && qObj.optionB && !qObj.menhDeA) {
+          qObj.loai = QuestionType.TRAC_NGHIEM_4_LUA_CHON;
         }
       }
 
@@ -1471,7 +1597,49 @@ function getTikzExample(shapeType: string): string {
 \\end{tikzpicture}`;
 
     case 'function_graph':
-      return `Ví dụ đồ thị hàm số bậc ba y = x^3 - 3x có cực đại tại x=-1, cực tiểu tại x=1:
+      return `Ví dụ 1: Đồ thị hàm phân thức bậc nhất/bậc nhất y = (2x-1)/(x-1) có tiệm cận đứng x=1, tiệm cận ngang y=2 (ĐÚNG CHUẨN TOÁN 12):
+\\begin{tikzpicture}
+  \\begin{axis}[
+    axis lines=center, xlabel={$x$}, ylabel={$y$},
+    xmin=-3, xmax=5, ymin=-2, ymax=6,
+    xtick={-2,-1,0,1,2,3,4}, ytick={-1,0,1,2,3,4,5},
+    tick label style={font=\\small},
+    width=7cm, height=7cm,
+    samples=100, smooth,
+  ]
+    % Tiệm cận đứng x=1 và tiệm cận ngang y=2 (nét đứt màu đỏ/xám)
+    \\draw[dashed, red, thick] (axis cs:1,-2) -- (axis cs:1,6);
+    \\draw[dashed, red, thick] (axis cs:-3,2) -- (axis cs:5,2);
+    % Nhánh trái x < 1
+    \\addplot[thick, blue, domain=-3:0.75] {(2*x - 1)/(x - 1)};
+    % Nhánh phải x > 1
+    \\addplot[thick, blue, domain=1.25:5] {(2*x - 1)/(x - 1)};
+    % Giao điểm trục tọa độ
+    \\addplot[mark=*, mark size=2pt, red] coordinates {(0,1)} node[left]{$1$};
+    \\addplot[mark=*, mark size=2pt, red] coordinates {(0.5,0)} node[below]{$0.5$};
+  \\end{axis}
+\\end{tikzpicture}
+
+Ví dụ 2: Đồ thị hàm số trên đoạn [-1; 2] có điểm mút (tìm GTLN và GTNN Toán 12):
+\\begin{tikzpicture}
+  \\begin{axis}[
+    axis lines=center, xlabel={$x$}, ylabel={$y$},
+    xmin=-2, xmax=3, ymin=-1, ymax=6,
+    xtick={-1,0,1,2}, ytick={1,2,3,4,5},
+    tick label style={font=\\small},
+    width=7cm, height=7cm,
+  ]
+    \\addplot[thick, blue, domain=-1:2, samples=100, smooth] {x^2 - 2*x + 2};
+    \\addplot[mark=*, mark size=2.5pt, black] coordinates {(-1,5)} node[above left]{$(-1;5)$};
+    \\addplot[mark=*, mark size=2.5pt, black] coordinates {(2,2)} node[above right]{$(2;2)$};
+    \\addplot[mark=*, mark size=2pt, red] coordinates {(1,1)} node[below]{$1$};
+    \\draw[dashed] (axis cs:-1,0) -- (axis cs:-1,5) -- (axis cs:0,5);
+    \\draw[dashed] (axis cs:2,0) -- (axis cs:2,2) -- (axis cs:0,2);
+    \\draw[dashed] (axis cs:1,0) -- (axis cs:1,1) -- (axis cs:0,1);
+  \\end{axis}
+\\end{tikzpicture}
+
+Ví dụ 3: Đồ thị hàm số bậc ba y = x^3 - 3x có cực đại tại x=-1, cực tiểu tại x=1:
 \\begin{tikzpicture}
   \\begin{axis}[
     axis lines=center, xlabel={$x$}, ylabel={$y$},
@@ -1482,8 +1650,8 @@ function getTikzExample(shapeType: string): string {
     samples=100, smooth,
   ]
     \\addplot[thick,blue,domain=-2.5:2.5] {x^3 - 3*x};
-    \\addplot[mark=*,mark size=2pt,red] coordinates {(-1,2)} node[above right]{$(−1;2)$};
-    \\addplot[mark=*,mark size=2pt,red] coordinates {(1,-2)} node[below right]{$(1;−2)$};
+    \\addplot[mark=*,mark size=2pt,red] coordinates {(-1,2)} node[above right]{$(-1;2)$};
+    \\addplot[mark=*,mark size=2pt,red] coordinates {(1,-2)} node[below right]{$(1;-2)$};
   \\end{axis}
 \\end{tikzpicture}`;
 

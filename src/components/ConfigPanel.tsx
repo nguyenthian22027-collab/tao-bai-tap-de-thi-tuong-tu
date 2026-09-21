@@ -361,7 +361,51 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
                 </div>
               ) : (
                 /* MA TRẬN MÔN TOÁN / KHTN (GDPT 2025 CHUẨN) */
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-2">
+                  {/* Quick Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                    <span className="text-[10px] text-slate-500 font-medium">Mẫu nhanh:</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChangeConfig({
+                          ...config,
+                          numPart1: 12,
+                          numPart2: 2,
+                          numPart3: 4,
+                          numPart4: 3,
+                        })
+                      }
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        config.numPart1 === 12 && config.numPart2 === 2 && config.numPart3 === 4 && config.numPart4 === 3
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      🏫 Đề Giữa kì / Cuối kì (21 câu có Tự luận)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChangeConfig({
+                          ...config,
+                          numPart1: 12,
+                          numPart2: 4,
+                          numPart3: 6,
+                          numPart4: 0,
+                        })
+                      }
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        config.numPart1 === 12 && config.numPart2 === 4 && config.numPart3 === 6 && config.numPart4 === 0
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      🎯 Đề Tốt nghiệp 2025 (22 câu chuẩn Bộ)
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {/* Dạng 1: 4 lựa chọn */}
                   <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                     <span className="text-[11px] font-bold text-slate-800 block leading-tight">
@@ -444,6 +488,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
                       }
                       className="w-full px-2 py-1 text-xs font-bold border border-slate-300 rounded-lg text-center bg-white"
                     />
+                  </div>
                   </div>
                 </div>
               )}

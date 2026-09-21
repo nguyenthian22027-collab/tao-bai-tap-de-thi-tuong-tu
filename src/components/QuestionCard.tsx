@@ -703,6 +703,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       )}
 
+      {/* Lời dẫn phụ / Câu hỏi sau hình vẽ (hiển thị cho mọi dạng câu hỏi khi có câu lệnh) */}
+      {question.cauLenh && (
+        <div className="text-xs font-medium text-slate-800 italic border-l-2 border-indigo-400 pl-2.5 my-2 leading-relaxed bg-indigo-50/30 py-1 rounded-r">
+          {normalizeMathLatex(question.cauLenh)}
+        </div>
+      )}
+
       {/* DẠNG 1: Trắc nghiệm 4 lựa chọn (A, B, C, D) */}
       {is4LuaChon && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
@@ -735,14 +742,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       )}
 
-      {/* DẠNG 2: Trắc nghiệm Đúng / Sai (1 đề chung + câu lệnh hỏi + 4 mệnh đề a, b, c, d) */}
+      {/* DẠNG 2: Trắc nghiệm Đúng / Sai (4 mệnh đề a, b, c, d) */}
       {isDungSai && (
         <div className="space-y-1.5 pt-1 text-xs">
-          {question.cauLenh && (
-            <div className="text-xs font-medium text-slate-700 italic border-l-2 border-indigo-300 pl-2 mb-1">
-              {normalizeMathLatex(question.cauLenh)}
-            </div>
-          )}
           {!question.cauLenh && (
             <div className="text-[11px] font-semibold text-slate-500 mb-1">Các mệnh đề xét tính Đúng / Sai:</div>
           )}
