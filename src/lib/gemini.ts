@@ -525,15 +525,18 @@ export function buildExamPrompt(
     • Sơ đồ mạch điện → Nguồn điện (vạch dài +, vạch ngắn -), điện trở chữ nhật, ampe kế/vôn kế hình tròn có chữ A/V
     • Sóng cơ / Dao động điều hòa → Đường hình sin mềm mại plot[domain=..., samples=100], có trục tọa độ và vạch chia biên độ, chu kỳ
     • Quang hình học → Trục chính nằm ngang, thấu kính hội tụ/phân kỳ, tia sáng có mũi tên chỉ chiều truyền
-  [B] TUYỆT ĐỐI KHÔNG sao chép cùng mã TikZ cho 2 câu khác nhau. Mỗi câu có mã TikZ ĐỘC LẬP, đúng số liệu riêng của câu đó.
+  [B] TUYỆT ĐỐI KHÔNG sao chép cùng mã TikZ cho 2 câu khác nhau. Mỗi câu TikZ PHẢI có số liệu riêng biệt hoàn toàn: nếu là đồ thị hàm số thì hàm số ở mỗi câu PHẢI KHÁC NHAU (VD câu 3: y=(2x-1)/(x-1), câu 7: y=(3x+2)/(x+2), không được dùng cùng 1 hàm); nếu là hình hình học thì kích thước/cạnh/bán kính PHẢI KHÁC NHAU giữa các câu.
   [C] Số liệu trong TikZ PHẢI CHÍNH XÁC theo đề bài: bán kính, cạnh, góc, tọa độ — không dùng số liệu câu hỏi khác.
-  [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.`;
+  [D] Đánh nhãn đầy đủ các điểm, đường thẳng, góc theo đúng ký hiệu trong đề bài.
+  [E] KIỂM TRA TRƯỚC KHI VIẾT TIKZ: Xác định hàm số/kích thước/tọa độ cụ thể của câu hiện tại. VÍ DỤ: Câu 5 có hàm $y=\\frac{x^2+1}{x-2}$ → TikZ PHẢI vẽ đúng hàm y=(x^2+1)/(x-2), KHÔNG vẽ hàm khác. TUYỆT ĐỐI không copy TikZ từ câu trước chỉ để điền cho nhanh.
+  [F] CÂU "QUAN SÁT HÌNH / ĐỒ THỊ": Nếu câu hỏi tương tự có dạng "Đường cong trong hình là đồ thị hàm số nào?" hoặc "Quan sát đồ thị/hình dưới đây và chọn đáp án" hoặc "Nhìn vào hình" → BẮT BUỘC sinh mã TikZ vẽ đồ thị của hàm số ĐÚNG (đáp án đúng) vào trường TIKZ. Đồ thị phải có đủ đặc trưng nhận diện (số cực trị, tiệm cận, đơn điệu, hướng đi của đường cong...) để thí sinh có thể đọc và chọn đáp án đúng từ hình.`;
 
   const tikzInstruction = config.tikzMode === 'no'
     ? 'KHÔNG tạo mã TikZ. Bỏ trống trường TIKZ.'
     : `SINH MÃ TIKZ THEO QUY TẮC SAU:
 - Nếu câu gốc tương ứng được đánh dấu [CÓ_HÌNH] → BẮT BUỘC sinh mã TikZ đầy đủ vào trường TIKZ.
 - Nếu câu gốc KHÔNG có [CÓ_HÌNH] → TUYỆT ĐỐI để trống trường TIKZ, không được tự thêm hình.
+- ĐẶC BIỆT: Nếu câu hỏi tương tự sinh ra có dạng "quan sát hình/đồ thị", "đường cong trong hình là...", "nhìn vào đồ thị dưới đây" → BẮT BUỘC sinh TikZ dù câu gốc không có [CÓ_HÌNH].
 - Mã TikZ phải viết trực tiếp: TIKZ: \\begin{tikzpicture}...\\end{tikzpicture}
 - Mã TikZ PHẢI CHÍNH XÁC 100% theo số liệu, tên đỉnh/điểm (A, B, C, S, O,...) riêng của câu hỏi đó.
 - TUYỆT ĐỐI KHÔNG sao chép cùng 1 mã TikZ cho nhiều câu khác nhau.
@@ -567,7 +570,7 @@ ${targetTypeInstruction}
 4. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
 
 QUY TẮC LOẠI CÂU HỎI:
-- Câu TỰ LUẬN → LOAI: tu_luan, có NOI_DUNG và DAP_AN.
+- Câu TỰ LUẬN → LOAI: tu_luan, có NOI_DUNG (CHỈ đề bài, TUYỆT ĐỐI KHÔNG đặt lời giải vào đây), DAP_AN (chỉ kết quả/đáp số cuối ngắn gọn), HUONG_DAN_GIAI (lời giải chi tiết từng bước — trường riêng, học sinh KHÔNG nhìn thấy trên đề).
 - Câu ĐÚNG/SAI (4 mệnh đề) → LOAI: trac_nghiem_dung_sai, BẮT BUỘC có CAU_LENH và MENH_DE_A/B/C/D + DAP_AN_A/B/C/D (D=Đúng, S=Sai).
 - Câu 4 LỰA CHỌN → LOAI: trac_nghiem_4_lua_chon, có A/B/C/D và DAP_AN.
 - Câu TRẢ LỜI NGẮN → LOAI: trac_nghiem_tra_loi_ngan, DAP_AN là kết quả ngắn gọn (số nguyên, số thập phân, hoặc phân số tối giản). KHÔNG liệt kê A/B/C/D.
@@ -590,9 +593,10 @@ STT: 1
 
 [--- DẠNG: TỰ LUẬN (Toán/Lý/Hóa/Sinh/Văn/Sử/Địa...) ---]
 LOAI: tu_luan
-NOI_DUNG: [Nội dung đề bài tương tự — LaTeX nếu là KHTN, văn bản thuần nếu là KHXH/Ngữ văn]
+NOI_DUNG: [ĐỀ BÀI tự luận ĐẦY ĐỦ — CHỈ phần đề, KHÔNG chứa lời giải. VD: "Cho hàm số $y=\\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị hàm số đã cho."]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ hình học/đồ thị. TUYỆT ĐỐI để trống nếu câu có Bảng biến thiên \\begin{tabular}]
-DAP_AN: [Lời giải chi tiết và đáp số cuối cùng]
+DAP_AN: [Kết quả / đáp số cuối cùng ngắn gọn — VD: "Hàm số đồng biến trên (-∞;1) và (1;+∞)" hoặc "S = 12". KHÔNG phải lời giải dài]
+HUONG_DAN_GIAI: [Lời giải chi tiết từng bước dành cho giáo viên — học sinh sẽ không nhìn thấy]
 MUC_DO: thong_hieu
 DIEM: 1.0
 
@@ -737,6 +741,8 @@ QUY TẮC TRÌNH BÀY BẮT BUỘC:
 6. Nếu câu hỏi có bảng số liệu (bảng tần số, bảng giá trị, bảng thống kê): Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 7. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức đầy đủ bằng LaTeX $...$). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D" hoặc để trống phương án.
 8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
+9. VỚI CÂU TỰ LUẬN: NOI_DUNG CHỈ chứa đề bài (yêu cầu, dữ kiện, hàm số). TUYỆT ĐỐI CẤM đặt lời giải vào NOI_DUNG. DAP_AN CHỈ là đáp số/kết quả ngắn gọn cuối cùng. HUONG_DAN_GIAI mới chứa lời giải chi tiết (ẩn với học sinh, chỉ giáo viên xem).
+10. CÂU "QUAN SÁT ĐỒ THỊ": Nếu câu hỏi tương tự có dạng "Đường cong trong hình dưới đây là đồ thị hàm số nào?" → NOI_DUNG là đề dẫn ngắn, TIKZ BẮT BUỘC vẽ đồ thị hàm số ĐÚNG (đáp án đúng) có đủ đặc trưng, CAU_LENH là câu hỏi.
 
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
 1. ĐỀ GỐC CÓ CẤU TRÚC DỰ KIẾN: ${detectedStruct.summaryText}.
@@ -832,10 +838,10 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: [số thứ tự tiếp theo]
 LOAI: tu_luan
-NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số ."]
+NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số .". TUYỆT ĐỐI KHÔNG chứa lời giải trong đây.]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ. Để trống nếu không có hình]
-DAP_AN: [Đáp án tóm tắt / kết quả chính]
-HUONG_DAN_GIAI: [Lời giải chi tiết từng bước: Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
+DAP_AN: [Kết quả / đáp số cuối ngắn gọn — VD: "$y'=\\frac{-1}{(x-1)^2}$, hàm đồng biến trên $(-\\infty;1)\\cup(1;+\\infty)$". KHÔNG phải lời giải dài.]
+HUONG_DAN_GIAI: [Lời giải chi tiết từng bước dành cho giáo viên (học sinh KHÔNG nhìn thấy trên đề): Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
@@ -1053,6 +1059,8 @@ QUY TẮC BẮT BUỘC:
 6. Nếu câu hỏi có bảng số liệu: Viết bảng bằng cú pháp \\begin{tabular}{|c|c|...} ... \\end{tabular} chuẩn ngoài dấu $.
 7. VỚI MỌI CÂU TRẮC NGHIỆM: Các trường A:, B:, C:, D: BẮT BUỘC chứa nội dung phương án thực tế (từ ngữ, con số, biểu thức đầy đủ bằng LaTeX $...$). TUYỆT ĐỐI CẤM xuất ra chữ cái A, B, C, D đơn lẻ như "A: A", "B: B", "C: C", "D: D" hoặc để trống phương án.
 8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
+9. VỚI CÂU TỰ LUẬN: NOI_DUNG CHỈ chứa đề bài (yêu cầu, dữ kiện, hàm số). TUYỆT ĐỐI CẤM đặt lời giải vào NOI_DUNG. DAP_AN CHỈ là đáp số/kết quả ngắn gọn cuối cùng. HUONG_DAN_GIAI mới chứa lời giải chi tiết (ẩn với học sinh, chỉ giáo viên xem khi bật "Xem đáp án").
+10. CÂU "QUAN SÁT ĐỒ THỊ": Nếu câu hỏi tương tự có dạng "Đường cong trong hình dưới đây là đồ thị hàm số nào?" → NOI_DUNG là đề dẫn, TIKZ BẮT BUỘC vẽ đồ thị hàm số ĐÚNG (đáp án đúng) đủ đặc trưng, CAU_LENH là câu hỏi lựa chọn.
 
 ===DE===
 TIEU_DE: ${deTitle}
@@ -1132,10 +1140,10 @@ DIEM_MOI_CAU: 1.0
 ===CAU===
 STT: ${config.numPart1 + config.numPart2 + config.numPart3 + 1}
 LOAI: tu_luan
-NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số ."]
+NOI_DUNG: [Đề bài tự luận ĐẦY ĐỦ — BẮT BUỘC nêu rõ công thức hàm số và câu hỏi yêu cầu, ví dụ: "Cho hàm số $y = \\frac{2x-1}{x-1}$. Khảo sát sự biến thiên và vẽ đồ thị của hàm số đã cho." TUYỆT ĐỐI CẤM ghi cụt như "Cho hàm số .". TUYỆT ĐỐI KHÔNG đặt lời giải vào đây.]
 TIKZ: [Mã \\begin{tikzpicture}...\\end{tikzpicture} nếu câu KHTN có hình vẽ/đồ thị. Để trống với Văn/Anh/Sử/Địa]
-DAP_AN: [Đáp án tóm tắt / kết quả chính]
-HUONG_DAN_GIAI: [Lời giải chi tiết từng bước: Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
+DAP_AN: [Kết quả / đáp số cuối ngắn gọn. KHÔNG phải lời giải dài. VD: "Hàm số đồng biến trên $(-\\infty;1)$ và $(1;+\\infty)$".]
+HUONG_DAN_GIAI: [Lời giải chi tiết từng bước dành cho giáo viên (học sinh KHÔNG nhìn thấy trên đề): Tập xác định, Đạo hàm, Chiều biến thiên, Cực trị, Tiệm cận, Bảng biến thiên, Đồ thị / Kết luận]
 MUC_DO: van_dung_cao
 DIEM: 1.0
 ===CAU===
@@ -1497,6 +1505,26 @@ export function parseExam(rawText: string): ExamData {
     });
   });
 
+  // === POST-PARSE: Xóa TikZ trùng lặp — AI hay copy cùng 1 mã cho nhiều câu ===
+  // Thu thập tất cả câu có TikZ, nếu cùng mã → giữ lại câu đầu tiên, xóa các câu còn lại
+  const seenTikzCodes = new Map<string, number>(); // tikzCode → stt of first occurrence
+  sections.forEach((sec) => {
+    sec.cauHoi.forEach((q) => {
+      if (!q.tikzCode) return;
+      // Normalize: bỏ khoảng trắng dư thừa để so sánh chính xác hơn
+      const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
+      if (normalized.length < 30) return; // quá ngắn không đủ tin cậy để so
+      if (seenTikzCodes.has(normalized)) {
+        // Câu này có TikZ trùng với câu trước → xóa để tránh in hình sai
+        console.warn(`[parseExam] Phát hiện TikZ trùng lặp: Câu ${q.stt} có cùng mã TikZ với câu ${seenTikzCodes.get(normalized)}. Đã xóa TikZ của câu ${q.stt}.`);
+        q.tikzCode = undefined;
+        q.hinhAnh = undefined;
+      } else {
+        seenTikzCodes.set(normalized, q.stt);
+      }
+    });
+  });
+
   return {
     meta,
     phan: sections,
@@ -1557,8 +1585,8 @@ export function detectShapeType(questionText: string): string {
   // Bảng biến thiên — kiểm tra trước đồ thị
   if (/(bảng biến thiên|monoton)/i.test(text)) return 'variation_table';
 
-  // Đồ thị hàm số
-  if (/(đồ thị|hàm số|hàm bậc|parabol|đường cong|tiếp tuyến.*hàm|cực trị|cực đại|cực tiểu|điểm uốn|hàm mũ|hàm logarit|hàm lượng giác)/i.test(text)) return 'function_graph';
+  // Đồ thị hàm số — bao gồm cả câu dạng "quan sát hình/đồ thị/đường cong"
+  if (/(đồ thị|hàm số|hàm bậc|parabol|đường cong|tiếp tuyến.*hàm|cực trị|cực đại|cực tiểu|điểm uốn|hàm mũ|hàm logarit|hàm lượng giác|quan sát.*hình|nhìn.*hình|hình dưới đây.*hàm|đường cong.*hình|hình vẽ.*hàm số)/i.test(text)) return 'function_graph';
 
   // Đường tròn nội/ngoại tiếp tam giác — kiểm tra trước đường tròn đơn
   if (/(đường tròn nội tiếp|đường tròn ngoại tiếp|nội tiếp tam giác|ngoại tiếp tam giác)/i.test(text)) return 'circle_triangle';
