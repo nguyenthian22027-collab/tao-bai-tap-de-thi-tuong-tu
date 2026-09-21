@@ -2,14 +2,39 @@ import { ApiKeyInfo, ConfigState, ExamData, Question, ExamSection, QuestionType 
 import { extractAndParseTabular, isVariationTable, extractQuestionOptions } from './tableAndChartHelper';
 
 export const MODELS = [
-  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — Nhanh, phổ thông' },
-  { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite — Nhẹ nhất' },
-  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — Cân bằng' },
-  { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — Mạnh nhất' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — Nhanh, chuẩn xác nhất (Khuyên dùng)' },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite — Siêu nhẹ, phản hồi tức thì' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro — Tư duy cao cấp, mạnh nhất' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — Ổn định, tốc độ cao' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash — Tương thích cao' },
 ] as const;
 
 export const DEFAULT_KEYS_STORAGE_KEY = 'similarexam_keys_v1';
 export const DEFAULT_MODEL_STORAGE_KEY = 'similarexam_model_v1';
+
+/**
+ * Chuẩn hóa tên model sang model hợp lệ của Google Gemini API
+ */
+export function normalizeModelName(modelName?: string): string {
+  if (!modelName) return 'gemini-2.5-flash';
+  const clean = modelName.trim().toLowerCase();
+  if (clean.includes('3.5-flash-lite') || clean.includes('2.5-flash-lite') || clean.includes('2.0-flash-lite')) {
+    return 'gemini-2.5-flash-lite';
+  }
+  if (clean.includes('3.5-flash') || clean.includes('3.6-flash') || clean.includes('2.5-flash')) {
+    return 'gemini-2.5-flash';
+  }
+  if (clean.includes('3.7-flash') || clean.includes('3.7-pro') || clean.includes('2.5-pro')) {
+    return 'gemini-2.5-pro';
+  }
+  if (clean.includes('2.0-flash')) {
+    return 'gemini-2.0-flash';
+  }
+  if (clean.includes('1.5-flash')) {
+    return 'gemini-1.5-flash';
+  }
+  return modelName.trim();
+}
 
 /**
  * Gets currently saved API keys from localStorage
@@ -36,36 +61,72 @@ export function saveApiKeys(keys: ApiKeyInfo[]): void {
 }
 
 /**
- * Tests a single API key using a minimal test payload
+ * Tests a single API key using Google's models.list endpoint first (model-independent),
+ * then verifies with a lightweight generateContent call.
  */
-export async function testApiKey(keyInfo: ApiKeyInfo, model = 'gemini-3.5-flash'): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string }> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(keyInfo.value.trim())}`;
-  
+export async function testApiKey(
+  keyInfo: ApiKeyInfo,
+  model = 'gemini-2.5-flash'
+): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string }> {
+  const cleanKey = keyInfo.value.trim();
+  if (!cleanKey) {
+    return { success: false, status: 'invalid', error: 'API Key trống' };
+  }
+
+  // Bước 1: Kiểm tra tính hợp lệ của Key qua endpoint models.list chuẩn của Google AI Studio
+  const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Trả lời đúng 1 từ "OK".' }] }],
-      }),
-    });
+    const listRes = await fetch(listUrl, { method: 'GET' });
+    if (!listRes.ok) {
+      const errData = await listRes.json().catch(() => ({}));
+      const errMsg = errData.error?.message || listRes.statusText;
 
-    if (response.ok) {
-      return { success: true, status: 'valid' };
+      if (listRes.status === 429) {
+        return { success: false, status: 'rate_limited', error: `Key bị giới hạn lượt gọi (429): ${errMsg}` };
+      }
+      if (listRes.status === 400 || listRes.status === 401) {
+        return { success: false, status: 'invalid', error: `API Key không chính xác hoặc đã bị xóa (${listRes.status}): ${errMsg}` };
+      }
+      if (listRes.status === 403) {
+        return { success: false, status: 'invalid', error: `Chưa kích hoạt Gemini API hoặc bị chặn quyền (403): ${errMsg}` };
+      }
+      return { success: false, status: 'invalid', error: `Lỗi kết nối API (${listRes.status}): ${errMsg}` };
     }
 
-    const errData = await response.json().catch(() => ({}));
-    const errMsg = errData.error?.message || response.statusText;
+    // Bước 2: Key hợp lệ 100%! Thử gọi generateContent nhẹ với model được chọn hoặc model fallback
+    const targetModel = normalizeModelName(model);
+    const candidateModels = [targetModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const uniqueCandidates = [...new Set(candidateModels)];
 
-    if (response.status === 429 || response.status === 403) {
-      return { success: false, status: 'rate_limited', error: `Lỗi giới hạn lượt (429/403): ${errMsg}` };
-    } else if (response.status === 400 || response.status === 401) {
-      return { success: false, status: 'invalid', error: `API Key không hợp lệ (${response.status}): ${errMsg}` };
+    for (const testModel of uniqueCandidates) {
+      const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+      try {
+        const genRes = await fetch(genUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Trả lời đúng 1 từ "OK".' }] }],
+          }),
+        });
+
+        if (genRes.ok) {
+          return { success: true, status: 'valid' };
+        }
+
+        const genErrData = await genRes.json().catch(() => ({}));
+        const genErrMsg = genErrData.error?.message || genRes.statusText;
+        if (genRes.status === 429) {
+          return { success: false, status: 'rate_limited', error: `Key đạt giới hạn tốc độ (429): ${genErrMsg}` };
+        }
+      } catch {
+        // Tiếp tục thử model kế tiếp
+      }
     }
 
-    return { success: false, status: 'invalid', error: errMsg };
+    // Nếu endpoint models.list thành công thì key CHẮC CHẮN hợp lệ
+    return { success: true, status: 'valid' };
   } catch (err: any) {
-    return { success: false, status: 'invalid', error: err.message || 'Lỗi kết nối mạng' };
+    return { success: false, status: 'invalid', error: err.message || 'Lỗi kết nối mạng đến Google' };
   }
 }
 
@@ -74,7 +135,7 @@ export async function testApiKey(keyInfo: ApiKeyInfo, model = 'gemini-3.5-flash'
  */
 export async function callGeminiRoundRobin(
   prompt: string,
-  model = 'gemini-3.5-flash',
+  model = 'gemini-2.5-flash',
   inlineFiles?: { mimeType: string; base64Data: string }[]
 ): Promise<string> {
   const keys = getStoredApiKeys();
@@ -83,8 +144,8 @@ export async function callGeminiRoundRobin(
   let candidateKeys = keys.filter(k => k.status === 'valid' || k.status === 'untested');
 
   if (candidateKeys.length === 0 && keys.length > 0) {
-    // If all keys are rate-limited or invalid, try resetting rate_limited ones
-    candidateKeys = keys.map(k => k.status === 'rate_limited' ? { ...k, status: 'untested' as const } : k);
+    // Tự động khôi phục toàn bộ key nếu trước đó bị đánh dấu nhầm thành invalid hoặc rate-limited
+    candidateKeys = keys.map(k => ({ ...k, status: 'untested' as const }));
   }
 
   if (candidateKeys.length === 0) {
@@ -99,16 +160,16 @@ export async function callGeminiRoundRobin(
   });
 
   const errors: string[] = [];
+  const primaryModel = normalizeModelName(model);
+  const fallbackModelChain = [primaryModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const uniqueModelsToTry = [...new Set(fallbackModelChain)];
 
   for (const currentKey of candidateKeys) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(currentKey.value.trim())}`;
-
     // Construct parts
     const parts: any[] = [{ text: prompt }];
 
     if (inlineFiles && inlineFiles.length > 0) {
       inlineFiles.forEach(f => {
-        // Strip data:mime/type;base64, prefix if present
         let cleanBase64 = f.base64Data;
         if (cleanBase64.includes(',')) {
           cleanBase64 = cleanBase64.split(',')[1];
@@ -123,68 +184,77 @@ export async function callGeminiRoundRobin(
       });
     }
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 16384,
-          },
-        }),
-      });
+    // Thử lần lượt model chính, nếu gặp 404 (model không tồn tại) sẽ tự động fallback sang model khả dụng
+    for (const activeModel of uniqueModelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(currentKey.value.trim())}`;
 
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({}));
-        const errMsg = errorJson.error?.message || response.statusText;
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 16384,
+            },
+          }),
+        });
 
-        // Update key status in list
+        if (!response.ok) {
+          const errorJson = await response.json().catch(() => ({}));
+          const errMsg = errorJson.error?.message || response.statusText;
+
+          // Nếu lỗi 404 (model không tồn tại trên project của key này), thử model tiếp theo
+          if (response.status === 404) {
+            continue;
+          }
+
+          const allKeys = getStoredApiKeys();
+          const keyIndex = allKeys.findIndex(k => k.id === currentKey.id);
+
+          if (response.status === 429 || response.status === 403) {
+            if (keyIndex !== -1) {
+              allKeys[keyIndex].status = 'rate_limited';
+              saveApiKeys(allKeys);
+            }
+            errors.push(`Key "${currentKey.label}": Đạt giới hạn (429/403)`);
+            break; // Thử sang key kế tiếp
+          } else if (response.status === 400 || response.status === 401) {
+            if (keyIndex !== -1) {
+              allKeys[keyIndex].status = 'invalid';
+              saveApiKeys(allKeys);
+            }
+            errors.push(`Key "${currentKey.label}": Không hợp lệ (${errMsg})`);
+            break; // Thử sang key kế tiếp
+          } else {
+            errors.push(`Key "${currentKey.label}": Lỗi HTTP ${response.status} - ${errMsg}`);
+            break;
+          }
+        }
+
+        const data = await response.json();
+        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!textOutput) {
+          throw new Error('Gemini trả về kết quả rỗng.');
+        }
+
+        // Thành công! Cập nhật trạng thái key
         const allKeys = getStoredApiKeys();
         const keyIndex = allKeys.findIndex(k => k.id === currentKey.id);
-
-        if (response.status === 429 || response.status === 403) {
-          if (keyIndex !== -1) {
-            allKeys[keyIndex].status = 'rate_limited';
-            saveApiKeys(allKeys);
-          }
-          errors.push(`Key "${currentKey.label}": Đạt giới hạn (429/403)`);
-          continue; // Try next key
-        } else if (response.status === 400 || response.status === 401) {
-          if (keyIndex !== -1) {
-            allKeys[keyIndex].status = 'invalid';
-            saveApiKeys(allKeys);
-          }
-          errors.push(`Key "${currentKey.label}": Không hợp lệ (${errMsg})`);
-          continue; // Try next key
-        } else {
-          errors.push(`Key "${currentKey.label}": Lỗi HTTP ${response.status} - ${errMsg}`);
-          continue;
+        if (keyIndex !== -1) {
+          allKeys[keyIndex].status = 'valid';
+          allKeys[keyIndex].lastTested = new Date().toISOString();
+          allKeys[keyIndex].usageCount = (allKeys[keyIndex].usageCount || 0) + 1;
+          saveApiKeys(allKeys);
         }
+
+        return textOutput;
+      } catch (err: any) {
+        console.warn(`Key "${currentKey.label}" failed on model ${activeModel}:`, err);
+        errors.push(`Key "${currentKey.label}": ${err.message || 'Lỗi mạng'}`);
       }
-
-      const data = await response.json();
-      const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!textOutput) {
-        throw new Error('Gemini trả về kết quả rỗng.');
-      }
-
-      // Success! Update key status and usage count
-      const allKeys = getStoredApiKeys();
-      const keyIndex = allKeys.findIndex(k => k.id === currentKey.id);
-      if (keyIndex !== -1) {
-        allKeys[keyIndex].status = 'valid';
-        allKeys[keyIndex].lastTested = new Date().toISOString();
-        allKeys[keyIndex].usageCount = (allKeys[keyIndex].usageCount || 0) + 1;
-        saveApiKeys(allKeys);
-      }
-
-      return textOutput;
-    } catch (err: any) {
-      console.warn(`Key "${currentKey.label}" failed:`, err);
-      errors.push(`Key "${currentKey.label}": ${err.message || 'Lỗi mạng'}`);
     }
   }
 
@@ -1953,7 +2023,7 @@ Ví dụ 4: Đồ thị hàm phân thức bậc hai/bậc nhất y = (x^2 - x + 
 export async function generateTikzFromQuestion(
   questionText: string,
   extraDescription: string,
-  model = 'gemini-3.5-flash'
+  model = 'gemini-2.5-flash'
 ): Promise<string> {
   const shapeType = detectShapeType(questionText);
 

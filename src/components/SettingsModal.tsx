@@ -90,7 +90,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
                 <p className="text-[11px] text-slate-500 flex items-center gap-1">
                   <Info className="w-3 h-3 text-indigo-500" />
-                  Mặc định nên dùng Gemini 3.5 Flash để đạt tốc độ nhanh và chính xác nhất.
+                  Mặc định nên dùng Gemini 2.5 Flash để đạt tốc độ nhanh và chính xác nhất.
                 </p>
               </div>
 
@@ -112,7 +112,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </select>
                 <p className="text-[11px] text-slate-500 flex items-center gap-1">
                   <Info className="w-3 h-3 text-indigo-500" />
-                  Có thể chọn Flash Lite hoặc 3.6 Flash để phản hồi tức thì khi sửa từng câu.
+                  Có thể chọn Flash Lite hoặc 2.0 Flash để phản hồi tức thì khi sửa từng câu.
                 </p>
               </div>
             </div>

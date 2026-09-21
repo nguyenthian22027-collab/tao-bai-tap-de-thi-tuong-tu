@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { ApiKeyInfo, ConfigState, SourceState, ExamData, ToastMessage, ExamHistoryItem, FirebaseUserProfile } from './types';
 import { useLocalStorage } from './lib/useLocalStorage';
 import { useUndoRedo } from './lib/useUndoRedo';
-import { buildExamPrompt, callGeminiRoundRobin, parseExam, DEFAULT_KEYS_STORAGE_KEY, DEFAULT_MODEL_STORAGE_KEY, generateTikzFromQuestion, detectShapeType } from './lib/gemini';
+import { buildExamPrompt, callGeminiRoundRobin, parseExam, DEFAULT_KEYS_STORAGE_KEY, DEFAULT_MODEL_STORAGE_KEY, generateTikzFromQuestion, detectShapeType, normalizeModelName } from './lib/gemini';
 import { renderTikzToSvg } from './lib/tikzRenderer';
 import { svgStringToPngBase64 } from './lib/tableAndChartHelper';
 import {
@@ -24,18 +24,18 @@ import {
   clearAllHistory,
   saveCurrentDraft,
   loadCurrentDraft,
+  clearCurrentDraft,
+  hasDraft,
 } from './lib/historyDb';
 import { Header } from './components/Header';
-import { SettingsModal } from './components/SettingsModal';
-import { SourcePanel } from './components/SourcePanel';
+import { SourceUpload } from './components/SourceUpload';
 import { ConfigPanel } from './components/ConfigPanel';
-import { GenerateButton } from './components/GenerateButton';
-import { ExamTabs } from './components/ExamTabs';
+import { ExamViewer } from './components/ExamViewer';
 import { ExportToolbar } from './components/ExportToolbar';
-import { ShuffleModal } from './components/ShuffleModal';
-import { HistoryPanel } from './components/HistoryPanel';
-import { StatusToast } from './components/StatusToast';
-import { AdminPanelModal } from './components/AdminPanelModal';
+import { ToastContainer } from './components/Toast';
+import { SettingsModal } from './components/SettingsModal';
+import { HistoryDrawer } from './components/HistoryDrawer';
+import { AdminModal } from './components/AdminModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { LicenseStatusModal } from './components/LicenseStatusModal';
 import { GuideModal } from './components/GuideModal';
@@ -44,9 +44,31 @@ export function App() {
   // 1. Storage & State Management
   const [apiKeys, setApiKeys] = useLocalStorage<ApiKeyInfo[]>(DEFAULT_KEYS_STORAGE_KEY, []);
   const [models, setModels] = useLocalStorage<{ genModel: string; editModel: string }>(DEFAULT_MODEL_STORAGE_KEY, {
-    genModel: 'gemini-3.5-flash',
-    editModel: 'gemini-3.5-flash-lite',
+    genModel: 'gemini-2.5-flash',
+    editModel: 'gemini-2.5-flash-lite',
   });
+
+  // Tự động chuẩn hóa nếu người dùng trước đó đã lưu model cũ (3.5, 3.6, 3.7) vào localStorage
+  useEffect(() => {
+    if (
+      models.genModel?.startsWith('gemini-3.') ||
+      models.editModel?.startsWith('gemini-3.') ||
+      !models.genModel
+    ) {
+      setModels({
+        genModel: normalizeModelName(models.genModel),
+        editModel: normalizeModelName(models.editModel),
+      });
+    }
+  }, [models, setModels]);
+
+  // Tự động khôi phục key nếu tất cả đang bị đánh dấu nhầm là 'invalid' do model 3.5 cũ
+  useEffect(() => {
+    if (apiKeys.length > 0 && apiKeys.every((k) => k.status === 'invalid')) {
+      const resetKeys = apiKeys.map((k) => ({ ...k, status: 'untested' as const }));
+      setApiKeys(resetKeys);
+    }
+  }, []);
 
   // Auth & License State (Firebase)
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
