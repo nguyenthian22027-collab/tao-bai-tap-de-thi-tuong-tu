@@ -362,6 +362,16 @@ export function analyzeExamStructure(sourceText: string): {
   part4Count: number;
   summaryText: string;
 } {
+  // Normalize PDF spaced text: "P h ầ n" → "Phần", "c â u" → "câu", etc.
+  sourceText = sourceText
+    .replace(/P\s*h\s*ầ\s*n/g, 'Phần')
+    .replace(/(?<![A-Za-zÀ-ỹ])c\s*â\s*u(?![A-Za-zÀ-ỹ])/gi, 'câu')
+    .replace(/đ\s*ế\s*n/g, 'đến')
+    .replace(/t\s*ừ\s+c\s*â\s*u/gi, 'từ câu')
+    .replace(/T\s*Ự\s*L\s*U\s*Ậ\s*N/g, 'TỰ LUẬN')
+    .replace(/C\s*â\s*u\s+(\d+)/gi, (_, n) => `Câu ${n}`)
+    .replace(/Câu\s*(\d+)\s*[:.]?\s*\n/gi, (_, n) => `Câu ${n}:\n`);
+
   let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
 
   // 1. Quét các chỉ dẫn số lượng câu hỏi trong tiêu đề phần (VD: "từ câu 1 đến câu 12" -> 12 câu)
