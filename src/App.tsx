@@ -44,23 +44,9 @@ export function App() {
   // 1. Storage & State Management
   const [apiKeys, setApiKeys] = useLocalStorage<ApiKeyInfo[]>(DEFAULT_KEYS_STORAGE_KEY, []);
   const [models, setModels] = useLocalStorage<{ genModel: string; editModel: string }>(DEFAULT_MODEL_STORAGE_KEY, {
-    genModel: 'gemini-2.5-flash',
-    editModel: 'gemini-2.5-flash-lite',
+    genModel: 'gemini-3.5-flash',
+    editModel: 'gemini-3.5-flash-lite',
   });
-
-  // Tự động chuẩn hóa nếu người dùng trước đó đã lưu model cũ (3.5, 3.6, 3.7) vào localStorage
-  useEffect(() => {
-    if (
-      models.genModel?.startsWith('gemini-3.') ||
-      models.editModel?.startsWith('gemini-3.') ||
-      !models.genModel
-    ) {
-      setModels({
-        genModel: normalizeModelName(models.genModel),
-        editModel: normalizeModelName(models.editModel),
-      });
-    }
-  }, [models, setModels]);
 
   // Tự động khôi phục key nếu tất cả đang bị đánh dấu nhầm là 'invalid' do model 3.5 cũ
   useEffect(() => {

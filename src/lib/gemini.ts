@@ -2,37 +2,20 @@ import { ApiKeyInfo, ConfigState, ExamData, Question, ExamSection, QuestionType 
 import { extractAndParseTabular, isVariationTable, extractQuestionOptions } from './tableAndChartHelper';
 
 export const MODELS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — Nhanh, chuẩn xác nhất (Khuyên dùng)' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite — Siêu nhẹ, phản hồi tức thì' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro — Tư duy cao cấp, mạnh nhất' },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash — Ổn định, tốc độ cao' },
-  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash — Tương thích cao' },
+  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — Nhanh, phổ thông' },
+  { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite — Nhẹ nhất' },
+  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — Cân bằng' },
+  { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — Mạnh nhất' },
 ] as const;
 
 export const DEFAULT_KEYS_STORAGE_KEY = 'similarexam_keys_v1';
 export const DEFAULT_MODEL_STORAGE_KEY = 'similarexam_model_v1';
 
 /**
- * Chuẩn hóa tên model sang model hợp lệ của Google Gemini API
+ * Chuẩn hóa tên model (giữ nguyên model của hệ thống)
  */
 export function normalizeModelName(modelName?: string): string {
-  if (!modelName) return 'gemini-2.5-flash';
-  const clean = modelName.trim().toLowerCase();
-  if (clean.includes('3.5-flash-lite') || clean.includes('2.5-flash-lite') || clean.includes('2.0-flash-lite')) {
-    return 'gemini-2.5-flash-lite';
-  }
-  if (clean.includes('3.5-flash') || clean.includes('3.6-flash') || clean.includes('2.5-flash')) {
-    return 'gemini-2.5-flash';
-  }
-  if (clean.includes('3.7-flash') || clean.includes('3.7-pro') || clean.includes('2.5-pro')) {
-    return 'gemini-2.5-pro';
-  }
-  if (clean.includes('2.0-flash')) {
-    return 'gemini-2.0-flash';
-  }
-  if (clean.includes('1.5-flash')) {
-    return 'gemini-1.5-flash';
-  }
+  if (!modelName) return 'gemini-3.5-flash';
   return modelName.trim();
 }
 
@@ -66,14 +49,14 @@ export function saveApiKeys(keys: ApiKeyInfo[]): void {
  */
 export async function testApiKey(
   keyInfo: ApiKeyInfo,
-  model = 'gemini-2.5-flash'
+  model = 'gemini-3.5-flash'
 ): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string }> {
   const cleanKey = keyInfo.value.trim();
   if (!cleanKey) {
     return { success: false, status: 'invalid', error: 'API Key trống' };
   }
 
-  // Bước 1: Kiểm tra tính hợp lệ của Key qua endpoint models.list chuẩn của Google AI Studio
+  // Bước 1: Kiểm tra tính hợp lệ của Key qua endpoint models.list chuẩn của Google AI Studio (Không phụ thuộc tên model)
   const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
   try {
     const listRes = await fetch(listUrl, { method: 'GET' });
@@ -93,9 +76,8 @@ export async function testApiKey(
       return { success: false, status: 'invalid', error: `Lỗi kết nối API (${listRes.status}): ${errMsg}` };
     }
 
-    // Bước 2: Key hợp lệ 100%! Thử gọi generateContent nhẹ với model được chọn hoặc model fallback
-    const targetModel = normalizeModelName(model);
-    const candidateModels = [targetModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Bước 2: Key hợp lệ 100%! Thử gọi generateContent nhẹ
+    const candidateModels = [model, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     const uniqueCandidates = [...new Set(candidateModels)];
 
     for (const testModel of uniqueCandidates) {
@@ -119,7 +101,7 @@ export async function testApiKey(
           return { success: false, status: 'rate_limited', error: `Key đạt giới hạn tốc độ (429): ${genErrMsg}` };
         }
       } catch {
-        // Tiếp tục thử model kế tiếp
+        // Tiếp tục thử model dự phòng nếu có
       }
     }
 
@@ -135,7 +117,7 @@ export async function testApiKey(
  */
 export async function callGeminiRoundRobin(
   prompt: string,
-  model = 'gemini-2.5-flash',
+  model = 'gemini-3.5-flash',
   inlineFiles?: { mimeType: string; base64Data: string }[]
 ): Promise<string> {
   const keys = getStoredApiKeys();
@@ -2023,7 +2005,7 @@ Ví dụ 4: Đồ thị hàm phân thức bậc hai/bậc nhất y = (x^2 - x + 
 export async function generateTikzFromQuestion(
   questionText: string,
   extraDescription: string,
-  model = 'gemini-2.5-flash'
+  model = 'gemini-3.5-flash'
 ): Promise<string> {
   const shapeType = detectShapeType(questionText);
 

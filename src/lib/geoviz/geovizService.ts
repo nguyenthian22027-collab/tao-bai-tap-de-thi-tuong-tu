@@ -31,7 +31,7 @@ export interface GeovizResult {
  */
 export async function generateGeovizTikzFromQuestion(
   questionText: string,
-  model = 'gemini-2.5-flash'
+  model = 'gemini-3.5-flash'
 ): Promise<GeovizResult> {
   // === PHA 1: AI trích xuất ràng buộc hình học ===
   const prompt = buildGeovizPrompt(questionText);
