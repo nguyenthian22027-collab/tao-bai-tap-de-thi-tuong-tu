@@ -459,7 +459,12 @@ export function buildExamPrompt(
     • Hình trụ (cylinder) → vẽ ellipse cho mặt trên/dưới + 2 đường thẳng bên; TUYỆT ĐỐI không dùng hộp chữ nhật 3D
     • Hình cầu (sphere) → \\draw circle + \\draw[dashed] ellipse cho mặt cắt xích đạo
     • Hình chóp (pyramid) / Lăng trụ 3D → phối cảnh nghiêng, cạnh khuất là nét đứt [dashed]
-    • Đồ thị hàm số → \\begin{axis}[...]...\\end{axis} (pgfplots); vẽ đúng domain hàm
+    • Đồ thị hàm số (Toán 12):
+        - Phân thức bậc nhất/bậc nhất y=(ax+b)/(cx+d): 2 nhánh, tiệm cận đứng x=-d/c nét đứt đỏ, tiệm cận ngang y=a/c nét đứt đỏ. Dùng \\begin{axis}...\\end{axis} (pgfplots), vẽ 2 domain riêng cách tiệm cận ±0.3.
+        - Phân thức bậc hai/bậc nhất y=(ax²+bx+c)/(dx+e): 2 nhánh, tiệm cận đứng x=-e/d nét đứt đỏ, tiệm cận XIÊN y=ax/d+... nét đứt xám, vẽ tiệm cận xiên bằng \\draw[dashed,gray].
+        - Đồ thị trên đoạn [a;b]: giới hạn domain=[a:b], đánh dấu 2 điểm mút đặc (mark=*) và chiếu xuống trục tọa độ bằng \\draw[dashed].
+        - Hàm bậc 3, bậc 4: dùng \\addplot[domain=...] {biểu thức}; đánh dấu cực trị (mark=*, màu đỏ).
+        → Mọi đồ thị hàm số: dùng \\begin{axis}[...]...\\end{axis} (pgfplots); vẽ đúng domain hàm
     • Bảng biến thiên → Nếu câu hỏi đã có bảng biến thiên dạng \\begin{tabular} trong đề bài (trường NOI_DUNG) thì trường TIKZ BẮT BUỘC ĐỂ TRỐNG (TUYỆT ĐỐI KHÔNG vẽ thêm hình tròn hay hình học lạ). Nếu đề không có \\begin{tabular} mà vẽ TikZ thì vẽ đúng khung bảng biến thiên gồm \\draw + \\node + dấu +/- và mũi tên tăng giảm, TUYỆT ĐỐI KHÔNG vẽ hình tròn.
     • Tam giác / Đa giác phẳng → \\draw (A)--(B)--(C)--cycle; nhãn điểm đúng vị trí
     • Đồ thị chu trình nhiệt ($p-V, p-T, V-T$) → Trục tọa độ mũi tên, các đoạn chu trình khép kín $1 \\to 2 \\to 3 \\to 1$ có mũi tên chỉ chiều chu trình [postaction={decorate, decoration={markings, mark=at position 0.55 with {\\arrow{Latex}}}}]
@@ -1662,6 +1667,31 @@ Ví dụ 3: Đồ thị hàm số bậc ba y = x^3 - 3x có cực đại tại x
     \\addplot[thick,blue,domain=-2.5:2.5] {x^3 - 3*x};
     \\addplot[mark=*,mark size=2pt,red] coordinates {(-1,2)} node[above right]{$(-1;2)$};
     \\addplot[mark=*,mark size=2pt,red] coordinates {(1,-2)} node[below right]{$(1;-2)$};
+  \\end{axis}
+\\end{tikzpicture}
+
+Ví dụ 4: Đồ thị hàm phân thức bậc hai/bậc nhất y = (x^2 - x + 1)/(x - 1) có tiệm cận xiên y = x và tiệm cận đứng x = 1 (Toán 12 nâng cao):
+\\begin{tikzpicture}
+  \\begin{axis}[
+    axis lines=center, xlabel={$x$}, ylabel={$y$},
+    xmin=-4, xmax=6, ymin=-6, ymax=8,
+    xtick={-3,-2,-1,0,1,2,3,4,5}, ytick={-4,-2,0,2,4,6},
+    tick label style={font=\\small},
+    width=8cm, height=8cm,
+    samples=200, smooth,
+  ]
+    % Tiệm cận đứng x=1 (nét đứt đỏ)
+    \\draw[dashed, red, thick] (axis cs:1,-6) -- (axis cs:1,8);
+    % Tiệm cận xiên y = x (nét đứt xám)
+    \\draw[dashed, gray, thick] (axis cs:-4,-4) -- (axis cs:6,6) node[right]{$y=x$};
+    % Nhánh trái x < 1
+    \\addplot[thick, blue, domain=-4:0.6] {(x^2 - x + 1)/(x - 1)};
+    % Nhánh phải x > 1
+    \\addplot[thick, blue, domain=1.4:5] {(x^2 - x + 1)/(x - 1)};
+    % Giao điểm y (x=0 -> y=-1)
+    \\addplot[mark=*, mark size=2pt, red] coordinates {(0,-1)} node[left]{$-1$};
+    % Nhãn tiệm cận đứng
+    \\node[above right, red, font=\\small] at (axis cs:1,7) {$x=1$};
   \\end{axis}
 \\end{tikzpicture}`;
 
