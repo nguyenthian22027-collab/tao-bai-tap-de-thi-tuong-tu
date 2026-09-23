@@ -28,14 +28,16 @@ import {
   hasDraft,
 } from './lib/historyDb';
 import { Header } from './components/Header';
-import { SourceUpload } from './components/SourceUpload';
-import { ConfigPanel } from './components/ConfigPanel';
-import { ExamViewer } from './components/ExamViewer';
-import { ExportToolbar } from './components/ExportToolbar';
-import { ToastContainer } from './components/Toast';
 import { SettingsModal } from './components/SettingsModal';
-import { HistoryDrawer } from './components/HistoryDrawer';
-import { AdminModal } from './components/AdminModal';
+import { SourcePanel } from './components/SourcePanel';
+import { ConfigPanel } from './components/ConfigPanel';
+import { GenerateButton } from './components/GenerateButton';
+import { ExamTabs } from './components/ExamTabs';
+import { ExportToolbar } from './components/ExportToolbar';
+import { ShuffleModal } from './components/ShuffleModal';
+import { HistoryPanel } from './components/HistoryPanel';
+import { StatusToast } from './components/StatusToast';
+import { AdminPanelModal } from './components/AdminPanelModal';
 import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { LicenseStatusModal } from './components/LicenseStatusModal';
 import { GuideModal } from './components/GuideModal';
@@ -444,7 +446,7 @@ export function App() {
             q.hinhAnh = undefined;
           } else if ((tikzCountMap.get(normalized) || 0) > 1) {
             if (seenTikzSet.has(normalized)) {
-              // Câu bị trùng lặp y hệt từ câu trước -> xóa bỏ mã trùng
+              // Câu bị trùng lặp y hệt từ câu trước -> xóa bỏ mã trùng để lượt 2 vẽ lại đúng số liệu
               q.tikzCode = '';
               q.hinhAnh = undefined;
             } else {
@@ -454,7 +456,46 @@ export function App() {
         }
       });
 
-      // Bước 5b: Render SVG sắc nét cho các câu đã có mã TikZ riêng biệt từ AI
+      // Bước 5b (LƯỢT 2 TỰ ĐỘNG): Gọi AI riêng từng câu để vẽ hình chuẩn xác cho câu chưa có TikZ hoặc bị xóa trùng
+      if (config.tikzMode !== 'no') {
+        const needsFigurePattern = /(đường cong trong hình|hình vẽ dưới đây|như hình bên|trong hình bên|quan sát hình|cho hình vẽ|đồ thị hàm số (?:ở|trong) hình|hình bên là đồ thị|đồ thị như hình|hình dưới đây là đồ thị)/i;
+
+        const questionsNeedingTikz = allQuestions.filter((q) => {
+          if (q.tikzCode && q.tikzCode.includes('tikzpicture')) return false;
+          if (q.noiDung && /\\begin\{tabular/i.test(q.noiDung)) return false;
+
+          const textToTest = `${q.noiDung || ''} ${q.cauLenh || ''}`;
+          return needsFigurePattern.test(textToTest);
+        });
+
+        if (questionsNeedingTikz.length > 0) {
+          addToast('info', `🎨 Lượt 2: Đang tự động vẽ TikZ chính xác cho ${questionsNeedingTikz.length} câu có hình...`);
+
+          for (let i = 0; i < questionsNeedingTikz.length; i++) {
+            const q = questionsNeedingTikz[i];
+            try {
+              const fullPromptForTikz = [
+                `Câu ${q.stt}: ${q.noiDung}`,
+                q.cauLenh ? `Câu hỏi: ${q.cauLenh}` : '',
+                q.optionA ? `A. ${q.optionA}` : '',
+                q.optionB ? `B. ${q.optionB}` : '',
+                q.optionC ? `C. ${q.optionC}` : '',
+                q.optionD ? `D. ${q.optionD}` : '',
+                q.dapAn ? `Phương án đúng: ${q.dapAn}` : '',
+              ].filter(Boolean).join('\n');
+
+              const generatedTikz = await generateTikzFromQuestion(fullPromptForTikz, '', models.genModel);
+              if (generatedTikz && generatedTikz.includes('tikzpicture')) {
+                q.tikzCode = generatedTikz;
+              }
+            } catch (err) {
+              console.warn(`[Pass2-TikZ] Không thể sinh TikZ riêng cho câu ${q.stt}:`, err);
+            }
+          }
+        }
+      }
+
+      // Bước 5c: Render SVG sắc nét cho các câu đã có mã TikZ riêng biệt từ AI
       const questionsWithTikz = allQuestions.filter((q) => q.tikzCode && q.tikzCode.includes('tikzpicture'));
       if (questionsWithTikz.length > 0) {
         addToast('info', `📐 Đang kết xuất hình vẽ SVG cho ${questionsWithTikz.length} câu hỏi...`);
