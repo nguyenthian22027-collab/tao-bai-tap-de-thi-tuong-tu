@@ -11,6 +11,7 @@ export interface ApiKeyInfo {
   status: 'untested' | 'testing' | 'valid' | 'invalid' | 'rate_limited';
   lastTested?: string;
   usageCount: number;
+  lastError?: string;
 }
 
 export enum QuestionType {

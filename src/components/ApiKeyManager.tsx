@@ -52,7 +52,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     const res = await testApiKey(newKeyItem);
     const finalKeys = updated.map((k) =>
       k.id === newKeyItem.id
-        ? { ...k, status: res.status, lastTested: new Date().toISOString() }
+        ? {
+            ...k,
+            status: res.status,
+            lastTested: new Date().toISOString(),
+            lastError: res.error,
+            value: res.cleanedKey || k.value,
+          }
         : k
     );
     onUpdateKeys(finalKeys);
@@ -84,7 +90,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       const keyVal = commaIdx > 0 ? line.slice(0, commaIdx).trim() : line.trim();
       const keyLabel = commaIdx > 0 ? line.slice(commaIdx + 1).trim() : `API Key #${currentKeys.length + 1}`;
 
-      if (!keyVal.startsWith('AIza') && keyVal.length < 20) continue; // bỏ qua dòng không phải key
+      if (!keyVal.includes('AIza') && keyVal.length < 20) continue; // bỏ qua dòng không phải key
 
       const newKeyItem: ApiKeyInfo = {
         id: `key_${Date.now()}_${i}`,
@@ -101,7 +107,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       const res = await testApiKey(newKeyItem);
       currentKeys = currentKeys.map(k =>
         k.id === newKeyItem.id
-          ? { ...k, status: res.status, lastTested: new Date().toISOString() }
+          ? {
+              ...k,
+              status: res.status,
+              lastTested: new Date().toISOString(),
+              lastError: res.error,
+              value: res.cleanedKey || k.value,
+            }
           : k
       );
       onUpdateKeys(currentKeys);
@@ -134,7 +146,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     onUpdateKeys(
       keys.map((k) =>
         k.id === id
-          ? { ...k, status: res.status, lastTested: new Date().toISOString() }
+          ? {
+              ...k,
+              status: res.status,
+              lastTested: new Date().toISOString(),
+              lastError: res.error,
+              value: res.cleanedKey || k.value,
+            }
           : k
       )
     );
@@ -161,7 +179,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       const res = await testApiKey(k);
       currentKeys = currentKeys.map((item, idx) =>
         idx === i
-          ? { ...item, status: res.status, lastTested: new Date().toISOString() }
+          ? {
+              ...item,
+              status: res.status,
+              lastTested: new Date().toISOString(),
+              lastError: res.error,
+              value: res.cleanedKey || item.value,
+            }
           : item
       );
       onUpdateKeys(currentKeys);
@@ -272,6 +296,11 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                   <div className="font-mono text-xs text-slate-500">
                     {maskKey(k.value)}
                   </div>
+                  {k.lastError && (k.status === 'invalid' || k.status === 'rate_limited') && (
+                    <div className="text-[11px] text-rose-600 bg-rose-50 border border-rose-200/80 rounded px-2 py-1 mt-1 font-sans leading-relaxed">
+                      ⚠️ {k.lastError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2 self-end sm:self-center">
@@ -372,6 +401,25 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Hướng dẫn lấy key cho giáo viên */}
+      <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs space-y-1.5 text-indigo-950">
+        <div className="font-semibold text-indigo-900 flex items-center space-x-1.5">
+          <span>💡</span>
+          <span>Lưu ý quan trọng cho Thầy Cô khi lấy API Key:</span>
+        </div>
+        <ul className="list-disc pl-4 space-y-1 text-slate-700 text-[11px] leading-relaxed">
+          <li>
+            <strong>Dùng Gmail cá nhân (@gmail.com):</strong> Không nên dùng tài khoản email trường cấp (<code>@...edu.vn</code>) vì thường bị Quản trị viên trường chặn quyền truy cập AI.
+          </li>
+          <li>
+            <strong>Đăng ký miễn phí tại:</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-semibold hover:underline">Google AI Studio (aistudio.google.com)</a> ➔ Bấm <em>"Create API Key"</em>.
+          </li>
+          <li>
+            Mã Gemini API Key chuẩn luôn bắt đầu bằng <code>AIzaSy...</code> (khoảng 39 ký tự). Hệ thống tự động làm sạch khoảng trắng thừa khi dán.
+          </li>
+        </ul>
       </div>
     </div>
   );

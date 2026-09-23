@@ -44,72 +44,109 @@ export function saveApiKeys(keys: ApiKeyInfo[]): void {
 }
 
 /**
- * Tests a single API key using Google's models.list endpoint first (model-independent),
- * then verifies with a lightweight generateContent call.
+ * Làm sạch API Key: loại bỏ khoảng trắng thừa, dấu ngoặc kép, ký tự unicode ẩn và trích xuất đúng chuỗi AIzaSy...
+ */
+export function sanitizeApiKey(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+  // Loại bỏ dấu ngoặc kép, nháy đơn nếu người dùng copy cả ngoặc
+  cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+  // Trích xuất mã Google API Key nếu người dùng paste dính tiền tố (như "API_KEY=AIza..." hoặc "key: AIza...")
+  const aizaMatch = cleaned.match(/AIzaSy[A-Za-z0-9_-]{30,}/);
+  if (aizaMatch) {
+    return aizaMatch[0];
+  }
+  // Loại bỏ các ký tự ẩn unicode (zero-width space, non-breaking space, newline...)
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '').trim();
+  return cleaned;
+}
+
+/**
+ * Tests a single API key using Google's models.list endpoint and generateContent fallback.
  */
 export async function testApiKey(
   keyInfo: ApiKeyInfo,
   model = 'gemini-3.5-flash'
-): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string }> {
-  const cleanKey = keyInfo.value.trim();
+): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string; cleanedKey?: string }> {
+  const cleanKey = sanitizeApiKey(keyInfo.value);
   if (!cleanKey) {
-    return { success: false, status: 'invalid', error: 'API Key trống' };
+    return { success: false, status: 'invalid', error: 'API Key trống hoặc không đúng định dạng' };
   }
+
+  // Phát hiện nhầm lẫn phổ biến: Key của OpenAI (ChatGPT) hay Anthropic (Claude)
+  if (cleanKey.startsWith('sk-proj-') || cleanKey.startsWith('sk-ant-') || cleanKey.startsWith('sk-')) {
+    return {
+      success: false,
+      status: 'invalid',
+      error: 'Đây là API Key của OpenAI/ChatGPT, không phải Google Gemini. Vui lòng lấy Gemini API Key miễn phí tại aistudio.google.com (mã bắt đầu bằng AIzaSy...)',
+    };
+  }
+
+  let lastErrMsg = '';
 
   // Bước 1: Kiểm tra tính hợp lệ của Key qua endpoint models.list chuẩn của Google AI Studio (Không phụ thuộc tên model)
   const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
   try {
     const listRes = await fetch(listUrl, { method: 'GET' });
-    if (!listRes.ok) {
-      const errData = await listRes.json().catch(() => ({}));
-      const errMsg = errData.error?.message || listRes.statusText;
-
-      if (listRes.status === 429) {
-        return { success: false, status: 'rate_limited', error: `Key bị giới hạn lượt gọi (429): ${errMsg}` };
-      }
-      if (listRes.status === 400 || listRes.status === 401) {
-        return { success: false, status: 'invalid', error: `API Key không chính xác hoặc đã bị xóa (${listRes.status}): ${errMsg}` };
-      }
-      if (listRes.status === 403) {
-        return { success: false, status: 'invalid', error: `Chưa kích hoạt Gemini API hoặc bị chặn quyền (403): ${errMsg}` };
-      }
-      return { success: false, status: 'invalid', error: `Lỗi kết nối API (${listRes.status}): ${errMsg}` };
+    if (listRes.ok) {
+      return { success: true, status: 'valid', cleanedKey: cleanKey };
     }
 
-    // Bước 2: Key hợp lệ 100%! Thử gọi generateContent nhẹ
-    const candidateModels = [model, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-    const uniqueCandidates = [...new Set(candidateModels)];
+    const errData = await listRes.json().catch(() => ({}));
+    const errMsg = errData.error?.message || listRes.statusText;
+    lastErrMsg = errMsg;
 
-    for (const testModel of uniqueCandidates) {
-      const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-      try {
-        const genRes = await fetch(genUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: 'Trả lời đúng 1 từ "OK".' }] }],
-          }),
-        });
-
-        if (genRes.ok) {
-          return { success: true, status: 'valid' };
-        }
-
-        const genErrData = await genRes.json().catch(() => ({}));
-        const genErrMsg = genErrData.error?.message || genRes.statusText;
-        if (genRes.status === 429) {
-          return { success: false, status: 'rate_limited', error: `Key đạt giới hạn tốc độ (429): ${genErrMsg}` };
-        }
-      } catch {
-        // Tiếp tục thử model dự phòng nếu có
-      }
+    if (listRes.status === 429) {
+      return { success: false, status: 'rate_limited', error: `Key đạt giới hạn tốc độ (429): ${errMsg}` };
     }
-
-    // Nếu endpoint models.list thành công thì key CHẮC CHẮN hợp lệ
-    return { success: true, status: 'valid' };
-  } catch (err: any) {
-    return { success: false, status: 'invalid', error: err.message || 'Lỗi kết nối mạng đến Google' };
+  } catch (netErr: any) {
+    lastErrMsg = netErr.message || 'Lỗi kết nối';
   }
+
+  // Bước 2: Dự phòng thử gọi trực tiếp generateContent với các model chuẩn (2.5-flash, 2.0-flash, 1.5-flash)
+  const candidateModels = [model, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const uniqueCandidates = [...new Set(candidateModels)];
+
+  for (const testModel of uniqueCandidates) {
+    const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+    try {
+      const genRes = await fetch(genUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'OK' }] }],
+        }),
+      });
+
+      if (genRes.ok) {
+        return { success: true, status: 'valid', cleanedKey: cleanKey };
+      }
+
+      const genErrData = await genRes.json().catch(() => ({}));
+      const genErrMsg = genErrData.error?.message || genRes.statusText;
+
+      if (genRes.status === 429) {
+        return { success: false, status: 'rate_limited', error: `Key đạt giới hạn tốc độ (429): ${genErrMsg}` };
+      }
+      if (genErrMsg) {
+        lastErrMsg = genErrMsg;
+      }
+    } catch {
+      // Tiếp tục thử model kế tiếp
+    }
+  }
+
+  // Phân tích thông điệp lỗi để đưa ra hướng dẫn dễ hiểu nhất cho giáo viên
+  let friendlyError = lastErrMsg || 'API Key không hợp lệ';
+  if (lastErrMsg.includes('API key not valid') || lastErrMsg.includes('API_KEY_INVALID')) {
+    friendlyError = 'Google báo: Mã API Key không chính xác hoặc đã bị xóa. Vui lòng kiểm tra lại mã đã copy từ Google AI Studio.';
+  } else if (lastErrMsg.includes('has not been used') || lastErrMsg.includes('disabled') || lastErrMsg.includes('PERMISSION_DENIED')) {
+    friendlyError = 'Google báo: Tài khoản chưa kích hoạt Generative Language API hoặc bị chặn quyền (Nếu dùng email trường .edu.vn, vui lòng đổi sang Gmail cá nhân @gmail.com).';
+  } else if (lastErrMsg.includes('Failed to fetch') || lastErrMsg.includes('NetworkError')) {
+    friendlyError = 'Không thể kết nối đến máy chủ Google (kiểm tra mạng Internet, tắt phần mềm chặn quảng cáo/VPN hoặc thử mạng 4G).';
+  }
+
+  return { success: false, status: 'invalid', error: friendlyError };
 }
 
 /**
