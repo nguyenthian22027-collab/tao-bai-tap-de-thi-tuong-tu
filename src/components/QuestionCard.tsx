@@ -283,10 +283,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
       const result = await generateGeovizTikzFromQuestion(fullQuestionPrompt);
       const newTikz = result.tikzCode;
+      const cleanNoiDung = question.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
 
       question.tikzCode = newTikz;
       question.hinhAnh = undefined;
-      onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: undefined });
+      question.noiDung = cleanNoiDung;
+      onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: undefined, noiDung: cleanNoiDung });
 
       // Kích hoạt render tức thời
       setRenderedTikzSvg('');
@@ -300,7 +302,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         const png = renderResult.png || (await svgStringToPngBase64(renderResult.svg));
         if (png) {
           question.hinhAnh = png;
-          onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png });
+          onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png, noiDung: cleanNoiDung });
         }
       } else {
         setRenderedTikzSvg('');
@@ -392,8 +394,11 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           setRenderedTikzSvg(svg);
           // Tự động chuyển đổi thành PNG base64 để nhúng vào Word
           const png = await svgStringToPngBase64(svg);
-          if (png && isMounted) {
+          if (png && isMounted && question.hinhAnh !== png) {
             question.hinhAnh = png;
+            if (onUpdateQuestion) {
+              onUpdateQuestion({ ...question, hinhAnh: png });
+            }
           }
         } else {
           setRenderedTikzSvg('');
@@ -415,11 +420,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Xóa hình vẽ khỏi câu hỏi
   const handleDeleteFigure = () => {
+    const cleanNoiDung = question.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
     question.tikzCode = '';
     question.hinhAnh = undefined;
+    question.noiDung = cleanNoiDung;
     setRenderedTikzSvg('');
     if (onUpdateQuestion) {
-      onUpdateQuestion({ ...question, tikzCode: '', hinhAnh: undefined });
+      onUpdateQuestion({ ...question, tikzCode: '', hinhAnh: undefined, noiDung: cleanNoiDung });
     }
   };
 
@@ -436,10 +443,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         setRenderedTikzSvg(result.svg);
         setTikzRenderError('');
         const png = result.png || (await svgStringToPngBase64(result.svg));
+        const cleanNoiDung = question.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
         if (png) {
           question.hinhAnh = png;
+          question.noiDung = cleanNoiDung;
           if (onUpdateQuestion) {
-            onUpdateQuestion({ ...question, hinhAnh: png });
+            onUpdateQuestion({ ...question, hinhAnh: png, noiDung: cleanNoiDung });
           }
         }
       } else {
@@ -465,10 +474,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       if (result.svg) {
         setRenderedTikzSvg(result.svg);
         const png = result.png || (await svgStringToPngBase64(result.svg));
+        const cleanNoiDung = question.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
         question.tikzCode = customTikzCode;
         if (png) question.hinhAnh = png;
+        question.noiDung = cleanNoiDung;
         if (onUpdateQuestion) {
-          onUpdateQuestion({ ...question, tikzCode: customTikzCode, hinhAnh: png || undefined });
+          onUpdateQuestion({ ...question, tikzCode: customTikzCode, hinhAnh: png || undefined, noiDung: cleanNoiDung });
         }
         setShowTikzEditModal(false);
       } else {
@@ -1147,10 +1158,12 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
                     const newTikz = await generateTikzFromQuestion(fullQuestionPrompt, tikzAiDescription);
                     if (newTikz) {
+                      const cleanNoiDung = question.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
                       question.tikzCode = newTikz;
                       question.hinhAnh = undefined;
+                      question.noiDung = cleanNoiDung;
                       if (onUpdateQuestion) {
-                        onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: undefined });
+                        onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: undefined, noiDung: cleanNoiDung });
                       }
                       setTikzAiDescription('');
                       setShowTikzAiModal(false);
@@ -1164,7 +1177,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                           if (png) {
                             question.hinhAnh = png;
                             if (onUpdateQuestion) {
-                              onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png });
+                              onUpdateQuestion({ ...question, tikzCode: newTikz, hinhAnh: png, noiDung: cleanNoiDung });
                             }
                           }
                         } else {

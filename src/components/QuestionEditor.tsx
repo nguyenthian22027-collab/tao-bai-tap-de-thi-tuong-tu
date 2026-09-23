@@ -43,7 +43,12 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
           const reader = new FileReader();
           reader.onload = (evt) => {
             const base64 = evt.target?.result as string;
-            setQData((prev) => ({ ...prev, hinhAnh: base64 }));
+            setQData((prev) => ({
+              ...prev,
+              hinhAnh: base64,
+              tikzCode: '',
+              noiDung: prev.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim(),
+            }));
             onAddToast('success', '✓ Đã dán ảnh minh họa từ bộ nhớ tạm (Clipboard)!');
           };
           reader.readAsDataURL(file);
@@ -60,7 +65,12 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
     const reader = new FileReader();
     reader.onload = (evt) => {
       const base64 = evt.target?.result as string;
-      setQData((prev) => ({ ...prev, hinhAnh: base64 }));
+      setQData((prev) => ({
+        ...prev,
+        hinhAnh: base64,
+        tikzCode: '',
+        noiDung: prev.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim(),
+      }));
       onAddToast('success', `✓ Đã đính kèm ảnh: ${file.name}`);
     };
     reader.readAsDataURL(file);
@@ -420,7 +430,7 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
               rows={2}
               placeholder="\begin{tikzpicture} ... \end{tikzpicture}"
               value={qData.tikzCode || ''}
-              onChange={(e) => setQData({ ...qData, tikzCode: e.target.value })}
+              onChange={(e) => setQData({ ...qData, tikzCode: e.target.value, hinhAnh: e.target.value ? undefined : qData.hinhAnh })}
               className="w-full p-2 text-xs font-mono border border-slate-300 rounded-xl bg-slate-900 text-emerald-400 focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -461,7 +471,8 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
                   <button
                     type="button"
                     onClick={() => {
-                      setQData({ ...qData, hinhAnh: undefined });
+                      const cleanNoiDung = qData.noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim();
+                      setQData({ ...qData, hinhAnh: undefined, tikzCode: '', noiDung: cleanNoiDung });
                       onAddToast('info', 'Đã xóa ảnh minh họa câu hỏi');
                     }}
                     className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"

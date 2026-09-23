@@ -97,6 +97,7 @@ function extractQuestionImages(q: Question): string[] {
   const images: string[] = [];
   if (q.hinhAnh && q.hinhAnh.trim()) {
     images.push(q.hinhAnh.trim());
+    return images;
   }
 
   // Check markdown image syntax in noiDung: ![alt](src)
@@ -204,10 +205,8 @@ export async function ensureQuestionImages(q: Question): Promise<string[]> {
     }
   }
 
-  const images = extractQuestionImages(q);
-  if (images.length > 0) return images;
-
-  // 1. Try DOM rendered SVG first (fastest if already rendered on page)
+  // 1. ƯU TIÊN SỐ 1: Bắt hình SVG thực tế đang hiển thị trên DOM của người dùng
+  // (Nếu người dùng vừa sửa TikZ, render lại, hoặc dùng GeoViz / AI, hình trên DOM luôn là hình mới nhất!)
   if (typeof document !== 'undefined') {
     const svgEl = document.querySelector(
       `[data-question-id="${q.id}"] .tikz-container svg, [data-question-id="${q.id}"] .chart-container svg`
@@ -226,9 +225,10 @@ export async function ensureQuestionImages(q: Question): Promise<string[]> {
     }
   }
 
-  // 2. If question has TikZ code or extracted TikZ, compile it to PNG directly
-  const activeTikz = q.tikzCode || extractAndCleanTikz(q.noiDung).tikzCode;
-  if (activeTikz) {
+  // 2. ƯU TIÊN SỐ 2: Nếu câu hỏi có mã TikZ (q.tikzCode hoặc TikZ trong q.noiDung)
+  // TikZ luôn được ưu tiên hơn hình ảnh cũ! Biên dịch TikZ ra PNG để đưa vào Word
+  const activeTikz = q.tikzCode || extractAndCleanTikz(q.noiDung || '').tikzCode;
+  if (activeTikz && activeTikz.trim()) {
     try {
       const pngBase64 = await renderTikzToPng(activeTikz);
       if (pngBase64) {
@@ -240,8 +240,8 @@ export async function ensureQuestionImages(q: Question): Promise<string[]> {
     }
   }
 
-  // 3. If question contains statistical frequency grouped data, generate chart PNG
-  const { chartSvg } = extractAndGenerateStatisticalChart(q.noiDung);
+  // 3. ƯU TIÊN SỐ 3: Nếu câu hỏi chứa số liệu ghép nhóm thống kê tự động vẽ biểu đồ
+  const { chartSvg } = extractAndGenerateStatisticalChart(q.noiDung || '');
   if (chartSvg) {
     try {
       const pngBase64 = await svgStringToPngBase64(chartSvg);
@@ -253,6 +253,11 @@ export async function ensureQuestionImages(q: Question): Promise<string[]> {
       console.warn('Failed to compile chart SVG to PNG for question', q.stt, err);
     }
   }
+
+  // 4. ƯU TIÊN CUỐI: Chỉ khi KHÔNG CÓ TikZ, KHÔNG CÓ bảng biến thiên, KHÔNG CÓ biểu đồ
+  // mới lấy hình ảnh tải lên hoặc hình markdown từ đề gốc
+  const images = extractQuestionImages(q);
+  if (images.length > 0) return images;
 
   return [];
 }
