@@ -104,6 +104,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
     qData.dapAn,
     qData.huongDanGiai,
     qData.hinhAnh,
+    qData.cauLenh,
   ]);
 
   if (!isOpen) return null;
@@ -249,11 +250,24 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
                 Nội dung câu hỏi chung (hỗ trợ LaTeX $...$):
               </label>
               <textarea
-                rows={5}
+                rows={4}
                 value={qData.noiDung}
                 onChange={(e) => setQData({ ...qData, noiDung: e.target.value })}
                 className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50 font-sans"
               />
+
+              <div className="space-y-1 pt-1">
+                <label className="font-semibold text-slate-700 block text-xs">
+                  Lời dẫn phụ / Câu lệnh hỏi sau hình vẽ (in đậm, nổi bật dưới hình):
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: Hàm số đã cho đồng biến trên khoảng nào dưới đây? hoặc Giá trị lớn nhất M là:"
+                  value={qData.cauLenh || ''}
+                  onChange={(e) => setQData({ ...qData, cauLenh: e.target.value })}
+                  className="w-full p-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50 font-sans"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -263,12 +277,17 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
               </label>
               <div
                 ref={previewRef}
-                className="p-3 text-xs border border-dashed border-indigo-200 rounded-xl bg-indigo-50/30 min-h-[110px] max-h-[160px] space-y-2 overflow-y-auto text-slate-800"
+                className="p-3 text-xs border border-dashed border-indigo-200 rounded-xl bg-indigo-50/30 min-h-[140px] max-h-[190px] space-y-2 overflow-y-auto text-slate-800"
               >
                 <p className="font-semibold text-indigo-900">Câu {qData.stt}: {qData.noiDung}</p>
                 {qData.hinhAnh && (
                   <div className="flex justify-center p-1.5 bg-white rounded-lg border border-indigo-100 my-1">
                     <img src={qData.hinhAnh} alt="Xem trước ảnh" className="max-h-24 object-contain rounded" />
+                  </div>
+                )}
+                {qData.cauLenh && (
+                  <div className="text-xs font-semibold text-indigo-950 italic border-l-2 border-indigo-400 pl-2 py-1 bg-white/80 rounded-r shadow-2xs">
+                    {qData.cauLenh}
                   </div>
                 )}
                 {is4LuaChon && (

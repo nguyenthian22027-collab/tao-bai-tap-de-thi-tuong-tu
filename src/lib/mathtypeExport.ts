@@ -185,6 +185,16 @@ export function examToMarkdown(
         lines.push(`[[IMG_PLACEHOLDER_Q_${q.id}]]`);
         lines.push('');
 
+        // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (Áp dụng cho mọi câu hỏi khi có câu lệnh: MCQ, Đúng/Sai, Trả lời ngắn, Tự luận)
+        if (q.cauLenh && q.cauLenh.trim()) {
+          const trimmedCauLenh = q.cauLenh.trim();
+          const cleanCauLenh = trimmedCauLenh.startsWith('**') && trimmedCauLenh.endsWith('**')
+            ? trimmedCauLenh.slice(2, -2).trim()
+            : trimmedCauLenh;
+          lines.push(`**${sanitizeMathText(cleanCauLenh)}**`);
+          lines.push('');
+        }
+
         // 1. Trắc nghiệm 4 lựa chọn (MCQ) — Layout gọn gàng (4 cột hoặc 2 cột)
         if (
           q.loai === QuestionType.TRAC_NGHIEM_4_LUA_CHON ||
@@ -229,12 +239,8 @@ export function examToMarkdown(
           }
         }
 
-        // 2. Trắc nghiệm Đúng / Sai (4 mệnh đề) — Có câu lệnh hỏi & fallback đầy đủ
+        // 2. Trắc nghiệm Đúng / Sai (4 mệnh đề) — Fallback đầy đủ
         if (q.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI) {
-          if (q.cauLenh) {
-            lines.push(`*${sanitizeMathText(q.cauLenh)}*`);
-            lines.push('');
-          }
           const propA = q.menhDeA || expOptA;
           const propB = q.menhDeB || expOptB;
           const propC = q.menhDeC || expOptC;

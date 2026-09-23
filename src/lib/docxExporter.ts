@@ -1216,6 +1216,16 @@ export async function exportExamToDocxLatex(
             );
           }
 
+          if (q.cauLenh) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: q.cauLenh, bold: true, italics: true, size: 22, color: '0F172A' })],
+                spacing: { before: 40, after: 40 },
+                indent: { left: 360 },
+              })
+            );
+          }
+
           if (is4LuaChon && expOptA) {
             const options = [
               { key: 'A', text: expOptA || '' },
@@ -1425,9 +1435,9 @@ export async function exportExamToDocxLatex(
           const clRuns: TextRun[] = [];
           parseLineTokens(q.cauLenh).forEach((t) => {
             if (t.type === 'math') {
-              clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22 }));
+              clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22, bold: true }));
             } else {
-              clRuns.push(new TextRun({ text: t.content, bold: t.bold ?? false, italics: t.italic ?? true, size: 22, color: '0F172A' }));
+              clRuns.push(new TextRun({ text: t.content, bold: true, italics: t.italic ?? true, size: 22, color: '0F172A' }));
             }
           });
           children.push(new Paragraph({ children: clRuns, indent: { left: 360 }, spacing: { before: 80, after: 60 } }));
@@ -2622,6 +2632,10 @@ export async function exportExamToDocxOmml(
             bodyXml += `<w:p><w:pPr><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${q.stt}. </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(promptForDisplay)}</w:t></w:r></w:p>`;
           }
 
+          if (q.cauLenh) {
+            bodyXml += `<w:p><w:pPr><w:ind w:left="360"/><w:spacing w:before="40" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${xmlEscape(q.cauLenh)}</w:t></w:r></w:p>`;
+          }
+
           if (is4LuaChon && expOptA) {
             const options = [
               { key: 'A', text: expOptA || '' },
@@ -2728,7 +2742,7 @@ export async function exportExamToDocxOmml(
 
         // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (áp dụng cho mọi câu hỏi, đặt ngay trước các lựa chọn A, B, C, D hoặc mệnh đề a, b, c, d)
         if (q.cauLenh) {
-          const clTokens: FormattedToken[] = [...parseLineTokens(q.cauLenh)];
+          const clTokens: FormattedToken[] = parseLineTokens(q.cauLenh).map((t) => ({ ...t, bold: true }));
           bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
         }
 
