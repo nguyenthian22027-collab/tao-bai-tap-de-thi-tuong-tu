@@ -113,6 +113,29 @@ export function App() {
     resetState: resetExamState,
   } = useUndoRedo<ExamData | null>(null, 50);
 
+  // Quản lý trọn bộ các đề thi khi tạo nhiều đề (soDeCanTao >= 1)
+  const [examList, setExamList] = useState<ExamData[]>([]);
+  const [activeExamIndex, setActiveExamIndex] = useState<number>(0);
+
+  const handleUpdateCurrentExam = (newExam: ExamData) => {
+    setExam(newExam);
+    setExamList((prev) => {
+      if (prev.length === 0) return [newExam];
+      const copy = [...prev];
+      if (copy[activeExamIndex]) {
+        copy[activeExamIndex] = newExam;
+      }
+      return copy;
+    });
+  };
+
+  const handleSelectExamIndex = (idx: number) => {
+    if (examList[idx]) {
+      setActiveExamIndex(idx);
+      resetExamState(examList[idx]);
+    }
+  };
+
   // UI Toggles & Modals
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -396,111 +419,102 @@ export function App() {
       }
 
 
-      // 1. Build structured prompt
-      const prompt = buildExamPrompt(sourceTextForPrompt, config, source.mathTypeCount || 0);
+      const totalExams = config.mode === 'cau_le' ? 1 : Math.max(1, Math.min(5, config.soDeCanTao || 1));
+      const generatedExams: ExamData[] = [];
 
+      for (let deIdx = 1; deIdx <= totalExams; deIdx++) {
+        if (totalExams > 1) {
+          addToast('info', `⏳ Đang tạo Đề số ${deIdx}/${totalExams}...`);
+        }
 
-      // 2. Call Gemini API via round-robin
-      const rawResponse = await callGeminiRoundRobin(prompt, models.genModel, inlineFiles);
+        // 1. Build structured prompt cho mã đề deIdx
+        const prompt = buildExamPrompt(sourceTextForPrompt, config, source.mathTypeCount || 0, deIdx);
 
-      // 3. Parse block output format without JSON.parse
-      const parsedExamData = parseExam(rawResponse);
+        // 2. Call Gemini API via round-robin
+        const rawResponse = await callGeminiRoundRobin(prompt, models.genModel, inlineFiles);
 
-      if (!parsedExamData.phan || parsedExamData.phan.length === 0) {
-        throw new Error('AI không tạo đúng cấu trúc đề thi. Vui lòng thử lại!');
-      }
+        // 3. Parse block output format without JSON.parse
+        const parsedExamData = parseExam(rawResponse);
 
-      // 4. Trừ 1 lượt dùng thử trên Cloud Firestore nếu đang dùng gói Dùng thử
-      if (currentUser && userProfile && userProfile.tier === 'trial') {
-        try {
-          const remaining = await decrementTrialCredit(currentUser.uid);
-          if (remaining <= 0) {
-            addToast('warning', '⚠️ Bạn đã dùng hết 5 lượt dùng thử! Hãy liên hệ NGUYỄN BỈNH KHÔI (0909 461 641) để kích hoạt bản quyền Pro không giới hạn.');
-            setIsLicenseStatusOpen(true);
-          } else {
-            addToast('info', `🎁 Bạn còn ${remaining}/5 lượt tạo đề dùng thử. (Liên hệ NGUYỄN BỈNH KHÔI - 0909 461 641 để nâng cấp Pro)`);
+        if (!parsedExamData.phan || parsedExamData.phan.length === 0) {
+          throw new Error(`AI không tạo đúng cấu trúc cho Đề số ${deIdx}. Vui lòng thử lại!`);
+        }
+
+        if (totalExams > 1) {
+          parsedExamData.meta.deSo = deIdx;
+          parsedExamData.meta.tongSoDe = totalExams;
+          parsedExamData.meta.tieuDe = `${config.tieuDe || 'ĐỀ THI TƯƠNG TỰ'} - ĐỀ SỐ ${deIdx}`;
+        }
+
+        // 5. Quét và TỰ ĐỘNG VẼ HÌNH SVG CHÍNH XÁC cho mọi câu có hình học trong đề này
+        const allQuestions = parsedExamData.phan.flatMap((p) => p.cauHoi);
+
+        // Bước 5a: Phát hiện và xử lý nếu AI vô tình sao chép trùng 100% mã TikZ giữa các câu
+        const tikzCountMap = new Map<string, number>();
+        allQuestions.forEach((q) => {
+          if (q.tikzCode && q.tikzCode.trim().length > 20) {
+            const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
+            tikzCountMap.set(normalized, (tikzCountMap.get(normalized) || 0) + 1);
           }
-        } catch (creditErr) {
-          console.warn('Lỗi trừ lượt dùng thử:', creditErr);
-        }
-      }
-
-      // 5. Quét và TỰ ĐỘNG VẼ HÌNH SVG CHÍNH XÁC cho mọi câu có hình học
-      const allQuestions = parsedExamData.phan.flatMap((p) => p.cauHoi);
-
-      // Bước 5a: Phát hiện và xử lý nếu AI vô tình sao chép trùng 100% mã TikZ giữa các câu
-      const tikzCountMap = new Map<string, number>();
-      allQuestions.forEach((q) => {
-        if (q.tikzCode && q.tikzCode.trim().length > 20) {
-          const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
-          tikzCountMap.set(normalized, (tikzCountMap.get(normalized) || 0) + 1);
-        }
-      });
-
-      const seenTikzSet = new Set<string>();
-      allQuestions.forEach((q) => {
-        if (q.tikzCode) {
-          const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
-          if (q.tikzCode.includes('[CAN_VE]')) {
-            q.tikzCode = '';
-            q.hinhAnh = undefined;
-          } else if ((tikzCountMap.get(normalized) || 0) > 1) {
-            if (seenTikzSet.has(normalized)) {
-              // Câu bị trùng lặp y hệt từ câu trước -> xóa bỏ mã trùng để lượt 2 vẽ lại đúng số liệu
-              q.tikzCode = '';
-              q.hinhAnh = undefined;
-            } else {
-              seenTikzSet.add(normalized);
-            }
-          }
-        }
-      });
-
-      // Bước 5b (LƯỢT 2 TỰ ĐỘNG): Gọi AI riêng từng câu để vẽ hình chuẩn xác cho câu chưa có TikZ hoặc bị xóa trùng
-      if (config.tikzMode !== 'no') {
-        const needsFigurePattern = /(đường cong trong hình|hình vẽ dưới đây|như hình bên|trong hình bên|quan sát hình|cho hình vẽ|đồ thị hàm số (?:ở|trong) hình|hình bên là đồ thị|đồ thị như hình|hình dưới đây là đồ thị)/i;
-
-        const questionsNeedingTikz = allQuestions.filter((q) => {
-          if (q.tikzCode && q.tikzCode.includes('tikzpicture')) return false;
-          if (q.noiDung && /\\begin\{tabular/i.test(q.noiDung)) return false;
-
-          const textToTest = `${q.noiDung || ''} ${q.cauLenh || ''}`;
-          return needsFigurePattern.test(textToTest);
         });
 
-        if (questionsNeedingTikz.length > 0) {
-          addToast('info', `🎨 Lượt 2: Đang tự động vẽ TikZ chính xác cho ${questionsNeedingTikz.length} câu có hình...`);
-
-          for (let i = 0; i < questionsNeedingTikz.length; i++) {
-            const q = questionsNeedingTikz[i];
-            try {
-              const fullPromptForTikz = [
-                `Câu ${q.stt}: ${q.noiDung}`,
-                q.cauLenh ? `Câu hỏi: ${q.cauLenh}` : '',
-                q.optionA ? `A. ${q.optionA}` : '',
-                q.optionB ? `B. ${q.optionB}` : '',
-                q.optionC ? `C. ${q.optionC}` : '',
-                q.optionD ? `D. ${q.optionD}` : '',
-                q.dapAn ? `Phương án đúng: ${q.dapAn}` : '',
-              ].filter(Boolean).join('\n');
-
-              const generatedTikz = await generateTikzFromQuestion(fullPromptForTikz, '', models.genModel);
-              if (generatedTikz && generatedTikz.includes('tikzpicture')) {
-                q.tikzCode = generatedTikz;
+        const seenTikzSet = new Set<string>();
+        allQuestions.forEach((q) => {
+          if (q.tikzCode) {
+            const normalized = q.tikzCode.replace(/\s+/g, ' ').trim();
+            if (q.tikzCode.includes('[CAN_VE]')) {
+              q.tikzCode = '';
+              q.hinhAnh = undefined;
+            } else if ((tikzCountMap.get(normalized) || 0) > 1) {
+              if (seenTikzSet.has(normalized)) {
+                q.tikzCode = '';
+                q.hinhAnh = undefined;
+              } else {
+                seenTikzSet.add(normalized);
               }
-            } catch (err) {
-              console.warn(`[Pass2-TikZ] Không thể sinh TikZ riêng cho câu ${q.stt}:`, err);
+            }
+          }
+        });
+
+        // Bước 5b (LƯỢT 2 TỰ ĐỘNG): Gọi AI riêng từng câu để vẽ hình chuẩn xác cho câu chưa có TikZ hoặc bị xóa trùng
+        if (config.tikzMode !== 'no') {
+          const needsFigurePattern = /(đường cong trong hình|hình vẽ dưới đây|như hình bên|trong hình bên|quan sát hình|cho hình vẽ|đồ thị hàm số (?:ở|trong) hình|hình bên là đồ thị|đồ thị như hình|hình dưới đây là đồ thị)/i;
+
+          const questionsNeedingTikz = allQuestions.filter((q) => {
+            if (q.tikzCode && q.tikzCode.includes('tikzpicture')) return false;
+            if (q.noiDung && /\\begin\{tabular/i.test(q.noiDung)) return false;
+
+            const textToTest = `${q.noiDung || ''} ${q.cauLenh || ''}`;
+            return needsFigurePattern.test(textToTest);
+          });
+
+          if (questionsNeedingTikz.length > 0) {
+            for (let i = 0; i < questionsNeedingTikz.length; i++) {
+              const q = questionsNeedingTikz[i];
+              try {
+                const fullPromptForTikz = [
+                  `Câu ${q.stt}: ${q.noiDung}`,
+                  q.cauLenh ? `Câu hỏi: ${q.cauLenh}` : '',
+                  q.optionA ? `A. ${q.optionA}` : '',
+                  q.optionB ? `B. ${q.optionB}` : '',
+                  q.optionC ? `C. ${q.optionC}` : '',
+                  q.optionD ? `D. ${q.optionD}` : '',
+                  q.dapAn ? `Phương án đúng: ${q.dapAn}` : '',
+                ].filter(Boolean).join('\n');
+
+                const generatedTikz = await generateTikzFromQuestion(fullPromptForTikz, '', models.genModel);
+                if (generatedTikz && generatedTikz.includes('tikzpicture')) {
+                  q.tikzCode = generatedTikz;
+                }
+              } catch (err) {
+                console.warn(`[Pass2-TikZ] Không thể sinh TikZ riêng cho câu ${q.stt}:`, err);
+              }
             }
           }
         }
-      }
 
-      // Bước 5c: Render SVG sắc nét cho các câu đã có mã TikZ riêng biệt từ AI
-      const questionsWithTikz = allQuestions.filter((q) => q.tikzCode && q.tikzCode.includes('tikzpicture'));
-      if (questionsWithTikz.length > 0) {
-        addToast('info', `📐 Đang kết xuất hình vẽ SVG cho ${questionsWithTikz.length} câu hỏi...`);
-
-        let successCount = 0;
+        // Bước 5c: Render SVG sắc nét cho các câu đã có mã TikZ riêng biệt từ AI
+        const questionsWithTikz = allQuestions.filter((q) => q.tikzCode && q.tikzCode.includes('tikzpicture'));
         for (let i = 0; i < questionsWithTikz.length; i++) {
           const q = questionsWithTikz[i];
           try {
@@ -509,38 +523,54 @@ export function App() {
               const png = await svgStringToPngBase64(svg);
               if (png) {
                 q.hinhAnh = png;
-                successCount++;
               }
             }
           } catch (renderErr) {
             console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
           }
-
-          // Cập nhật trạng thái từng câu để giao diện hiển thị ngay
-          resetExamState({ ...parsedExamData });
-          await new Promise((r) => setTimeout(r, 100));
         }
 
-        if (successCount > 0) {
-          addToast('success', `✅ Đã vẽ sẵn hình SVG cho ${successCount}/${questionsWithTikz.length} câu hỏi!`);
+        generatedExams.push(parsedExamData);
+
+        // Tự động lưu từng đề vào Lịch sử IndexedDB
+        try {
+          await saveExamToHistory(parsedExamData);
+        } catch (histErr) {
+          console.warn(`Lỗi tự động lưu lịch sử đề ${deIdx}:`, histErr);
+        }
+
+        // Nếu là Đề số 1, hiển thị ngay lập tức lên màn hình để giáo viên theo dõi
+        if (deIdx === 1) {
+          setExamList([...generatedExams]);
+          setActiveExamIndex(0);
+          resetExamState(parsedExamData);
         }
       }
 
-      // Bước 5c: ĐÃ XÓA — Không tự sinh TikZ cho câu không có hình trong đề gốc.
-      // Logic mới: AI chỉ sinh TikZ khi câu gốc được đánh dấu [CÓ_HÌNH] trong sourceTextForPrompt.
-      // Điều này đảm bảo câu tương tự chỉ có hình khi câu gốc có hình.
+      // Trừ 1 lượt dùng thử trên Cloud Firestore nếu đang dùng gói Dùng thử
+      if (currentUser && userProfile && userProfile.tier === 'trial') {
+        try {
+          const remaining = await decrementTrialCredit(currentUser.uid);
+          if (remaining <= 0) {
+            addToast('warning', '⚠️ Bạn đã dùng hết 5 lượt dùng thử! Hãy liên hệ NGUYỄN BỈNH KHÔI (0909 461 641) để kích hoạt bản quyền Pro không giới hạn.');
+            setIsLicenseStatusOpen(true);
+          } else {
+            addToast('info', `🎁 Bạn còn ${remaining}/5 lượt tạo đề dùng thử.`);
+          }
+        } catch (creditErr) {
+          console.warn('Lỗi trừ lượt dùng thử:', creditErr);
+        }
+      }
 
+      setExamList(generatedExams);
+      setActiveExamIndex(0);
+      resetExamState(generatedExams[0]);
+      await refreshHistory();
 
-      // 6. Hiển thị đề thi hoàn tất ĐÃ CÓ SẴN HÌNH VẼ SVG
-      resetExamState(parsedExamData);
-      addToast('success', '✨ Đã tạo xong đề thi tương tự kèm đầy đủ hình vẽ SVG!');
-
-      // 7. Tự động lưu vào Lịch sử IndexedDB (đã có hình ảnh đầy đủ)
-      try {
-        await saveExamToHistory(parsedExamData);
-        await refreshHistory();
-      } catch (histErr) {
-        console.warn('Lỗi tự động lưu lịch sử:', histErr);
+      if (totalExams > 1) {
+        addToast('success', `✨ Đã tạo thành công trọn bộ ${totalExams} đề thi tương tự!`);
+      } else {
+        addToast('success', '✨ Đã tạo xong đề thi tương tự kèm đầy đủ hình vẽ SVG!');
       }
 
     } catch (err: any) {
@@ -680,6 +710,9 @@ export function App() {
             {exam && (
               <ExportToolbar
                 exam={exam}
+                examList={examList}
+                activeExamIndex={activeExamIndex}
+                onSelectExamIndex={handleSelectExamIndex}
                 includeAnswers={config.includeAnswers}
                 onOpenShuffleModal={() => setIsShuffleOpen(true)}
                 onSaveToHistory={handleSaveToHistory}
@@ -692,7 +725,7 @@ export function App() {
             <ExamTabs
               exam={exam}
               source={source}
-              onChangeExam={setExam}
+              onChangeExam={handleUpdateCurrentExam}
               undo={undo}
               redo={redo}
               canUndo={canUndo}
@@ -733,7 +766,11 @@ export function App() {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         history={history}
-        onSelectExam={resetExamState}
+        onSelectExam={(loadedExam) => {
+          setExamList([loadedExam]);
+          setActiveExamIndex(0);
+          resetExamState(loadedExam);
+        }}
         onDeleteHistoryItem={handleDeleteHistoryItem}
         onClearHistory={handleClearHistory}
         onRefreshHistory={refreshHistory}

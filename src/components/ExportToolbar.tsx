@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import { ExamData } from '../types';
 import { exportExamToDocx, ExportFormat, ExportDocxMode } from '../lib/docxExporter';
 import { exportMathTypeOleDocx, MathTypeExportMode } from '../lib/mathtypeExport';
-import { Download, Shuffle, Printer, FileText, FileCode, CheckCircle2, Cpu, Loader2, Files, FileCheck, BookmarkPlus } from 'lucide-react';
+import { Download, Shuffle, Printer, FileText, FileCode, CheckCircle2, Cpu, Loader2, Files, FileCheck, BookmarkPlus, FileArchive } from 'lucide-react';
 
 export type ExportScope = 'exam_only' | 'both_in_one' | 'separate_files';
 
 interface ExportToolbarProps {
   exam: ExamData;
+  examList?: ExamData[];
+  activeExamIndex?: number;
+  onSelectExamIndex?: (index: number) => void;
   includeAnswers: boolean;
   onOpenShuffleModal: () => void;
   onSaveToHistory?: () => void;
@@ -17,6 +21,9 @@ interface ExportToolbarProps {
 
 export const ExportToolbar: React.FC<ExportToolbarProps> = ({
   exam,
+  examList,
+  activeExamIndex = 0,
+  onSelectExamIndex,
   includeAnswers,
   onOpenShuffleModal,
   onSaveToHistory,
@@ -37,6 +44,47 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 20000);
+  };
+
+  // Tải trọn bộ các đề tương tự thành file ZIP
+  const handleExportAllZip = async () => {
+    if (onCheckLicense && !onCheckLicense()) return;
+    if (!examList || examList.length <= 1) return;
+
+    setIsExporting('all_zip');
+    try {
+      const zip = new JSZip();
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const safeMon = (exam.meta?.mon || 'mon').toLowerCase().replace(/\s+/g, '-');
+
+      for (let i = 0; i < examList.length; i++) {
+        const curExam = examList[i];
+        const deNum = curExam.meta?.deSo || i + 1;
+
+        if (exportScope === 'separate_files') {
+          // File Đề thi
+          const blobExam = await exportExamToDocx(curExam, 'omml', 'exam_only');
+          zip.file(`De_So_${deNum}_De_Thi.docx`, blobExam);
+
+          // File Đáp án & Hướng dẫn giải
+          const blobAns = await exportExamToDocx(curExam, 'omml', 'answers_only');
+          zip.file(`De_So_${deNum}_Dap_An.docx`, blobAns);
+        } else {
+          const mode: ExportDocxMode = exportScope === 'exam_only' ? 'exam_only' : 'both_in_one';
+          const blob = await exportExamToDocx(curExam, 'omml', mode);
+          zip.file(`De_So_${deNum}.docx`, blob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, `tron-bo-${examList.length}-de-tuong-tu-${safeMon}-${dateStr}.zip`);
+      onAddToast('success', `✅ Đã tải thành công file ZIP trọn bộ ${examList.length} đề thi tương tự!`);
+    } catch (err: any) {
+      console.error('All Zip Export error:', err);
+      onAddToast('error', `Tải trọn bộ ZIP thất bại: ${err.message || 'Lỗi không xác định'}`);
+    } finally {
+      setIsExporting(null);
+    }
   };
 
   // Xuất MathType OLE thật sự (Equation.DSMT4)
@@ -142,6 +190,56 @@ export const ExportToolbar: React.FC<ExportToolbarProps> = ({
           {exportScope === 'separate_files' && '📦 Chế độ: 2 file riêng biệt'}
         </span>
       </div>
+
+      {/* Thanh chọn đề và nút tải trọn bộ ZIP khi có nhiều đề tương tự */}
+      {examList && examList.length > 1 && (
+        <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+              <Files className="w-4 h-4 text-indigo-600" />
+              <span>Trọn bộ {examList.length} đề thi tương tự đã tạo:</span>
+            </span>
+
+            <button
+              type="button"
+              onClick={handleExportAllZip}
+              disabled={!!isExporting}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              title="Đóng gói tất cả các đề vào 1 file ZIP duy nhất để tải nhanh"
+            >
+              {isExporting === 'all_zip' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang nén {examList.length} đề vào ZIP...</span>
+                </>
+              ) : (
+                <>
+                  <FileArchive className="w-4 h-4" />
+                  <span>📦 Tải Trọn Bộ {examList.length} Đề (.ZIP)</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-indigo-100">
+            <span className="text-[11px] font-semibold text-slate-600 mr-1">Xem & sửa đề:</span>
+            {examList.map((item, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onSelectExamIndex && onSelectExamIndex(idx)}
+                className={`px-3 py-1 text-xs rounded-lg font-bold transition-all cursor-pointer border ${
+                  activeExamIndex === idx
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-100'
+                }`}
+              >
+                📝 Đề số {idx + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
         <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
