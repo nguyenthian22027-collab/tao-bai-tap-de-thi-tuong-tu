@@ -2,9 +2,9 @@ import { ApiKeyInfo, ConfigState, ExamData, Question, ExamSection, QuestionType 
 import { extractAndParseTabular, isVariationTable, extractQuestionOptions } from './tableAndChartHelper';
 
 export const MODELS = [
+  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — Mặc định, ổn định & thông minh' },
   { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — Nhanh, phổ thông' },
   { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite — Nhẹ nhất' },
-  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — Cân bằng' },
   { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — Mạnh nhất' },
 ] as const;
 
@@ -12,10 +12,12 @@ export const DEFAULT_KEYS_STORAGE_KEY = 'similarexam_keys_v1';
 export const DEFAULT_MODEL_STORAGE_KEY = 'similarexam_model_v1';
 
 /**
- * Chuẩn hóa tên model (giữ nguyên model của hệ thống)
+ * Chuẩn hóa tên model (mặc định gemini-3.6-flash theo yêu cầu)
  */
 export function normalizeModelName(modelName?: string): string {
-  if (!modelName) return 'gemini-3.5-flash';
+  if (!modelName || modelName.includes('2.5') || modelName.includes('2.0') || modelName.includes('1.5')) {
+    return 'gemini-3.6-flash';
+  }
   return modelName.trim();
 }
 
@@ -86,7 +88,7 @@ export function saveApiKeys(keys: ApiKeyInfo[]): void {
  */
 export async function testApiKey(
   keyInfo: ApiKeyInfo,
-  model = 'gemini-3.5-flash'
+  model = 'gemini-3.6-flash'
 ): Promise<{ success: boolean; status: ApiKeyInfo['status']; error?: string; cleanedKey?: string }> {
   const cleanKey = sanitizeApiKey(keyInfo.value);
   if (!cleanKey) {
@@ -129,8 +131,8 @@ export async function testApiKey(
     lastErrMsg = netErr.message || 'Lỗi kết nối';
   }
 
-  // Bước 2: Dự phòng thử gọi trực tiếp generateContent với các model chuẩn hiện hành (3.5-flash, 3.5-flash-lite, 3.6-flash)
-  const candidateModels = [model, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+  // Bước 2: Dự phòng thử gọi trực tiếp generateContent với các model chuẩn hiện hành (3.6-flash, 3.5-flash, 3.7-flash)
+  const candidateModels = [model, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'];
   const uniqueCandidates = [...new Set(candidateModels)];
 
   for (const testModel of uniqueCandidates) {
@@ -188,7 +190,7 @@ export async function testApiKey(
  */
 export async function callGeminiRoundRobin(
   prompt: string,
-  model = 'gemini-3.5-flash',
+  model = 'gemini-3.6-flash',
   inlineFiles?: { mimeType: string; base64Data: string }[]
 ): Promise<string> {
   const keys = getStoredApiKeys();
@@ -214,7 +216,7 @@ export async function callGeminiRoundRobin(
 
   const errors: string[] = [];
   const primaryModel = normalizeModelName(model);
-  const fallbackModelChain = [primaryModel, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+  const fallbackModelChain = [primaryModel, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'];
   const uniqueModelsToTry = [...new Set(fallbackModelChain)];
 
   for (const currentKey of candidateKeys) {
@@ -2110,7 +2112,7 @@ Ví dụ 4: Đồ thị hàm phân thức bậc hai/bậc nhất y = (x^2 - x + 
 export async function generateTikzFromQuestion(
   questionText: string,
   extraDescription: string,
-  model = 'gemini-3.5-flash'
+  model = 'gemini-3.6-flash'
 ): Promise<string> {
   const shapeType = detectShapeType(questionText);
 

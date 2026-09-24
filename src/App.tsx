@@ -46,13 +46,23 @@ export function App() {
   // 1. Storage & State Management
   const [apiKeys, setApiKeys] = useLocalStorage<ApiKeyInfo[]>(DEFAULT_KEYS_STORAGE_KEY, []);
   const [models, setModels] = useLocalStorage<{ genModel: string; editModel: string }>(DEFAULT_MODEL_STORAGE_KEY, {
-    genModel: 'gemini-3.5-flash',
-    editModel: 'gemini-3.5-flash-lite',
+    genModel: 'gemini-3.6-flash',
+    editModel: 'gemini-3.6-flash',
   });
 
-  // Tự động khôi phục key nếu tất cả đang bị đánh dấu nhầm là 'invalid' do model 3.5 cũ
+  // Tự động nâng cấp model sang gemini-3.6-flash nếu localStorage còn lưu model cũ (3.5 hoặc 2.x)
   useEffect(() => {
-    if (apiKeys.length > 0 && apiKeys.every((k) => k.status === 'invalid')) {
+    if (models.genModel !== 'gemini-3.6-flash' && models.genModel !== 'gemini-3.7-flash') {
+      setModels({
+        genModel: 'gemini-3.6-flash',
+        editModel: 'gemini-3.6-flash',
+      });
+    }
+  }, []);
+
+  // Tự động khôi phục key nếu tất cả đang bị đánh dấu nhầm là 'invalid' hoặc 'rate_limited'
+  useEffect(() => {
+    if (apiKeys.length > 0 && apiKeys.every((k) => k.status === 'invalid' || k.status === 'rate_limited')) {
       const resetKeys = apiKeys.map((k) => ({ ...k, status: 'untested' as const }));
       setApiKeys(resetKeys);
     }
