@@ -193,6 +193,10 @@ export async function callGeminiRoundRobin(
   model = 'gemini-3.6-flash',
   inlineFiles?: { mimeType: string; base64Data: string }[]
 ): Promise<string> {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 4000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   const keys = getStoredApiKeys();
 
   // If no keys in localStorage, try using process.env or throw user error
@@ -323,7 +327,22 @@ export async function callGeminiRoundRobin(
     }
   }
 
-  throw new Error(`Tất cả API Key đều thất bại:\n${errors.join('\n')}`);
+  // Kiểm tra xem tất cả lỗi có phải do server quá tải (503) không
+  const allServerOverload = errors.every(e => e.includes('(503)') || e.includes('(502)') || e.includes('(504)') || e.includes('(529)') || e.includes('Máy chủ quá tải'));
+  if (allServerOverload && attempt < MAX_RETRIES) {
+    // Đợi rồi thử lại
+    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+    continue;
+  }
+
+  // Sau khi hết retry hoặc lỗi khác → throw
+  if (allServerOverload) {
+    throw new Error(`⚠️ Máy chủ Google AI đang quá tải tạm thời. Đã thử lại ${MAX_RETRIES} lần nhưng vẫn không thành công. Vui lòng chờ 30-60 giây rồi nhấn tạo lại.`);
+  }
+  throw new Error(`Tất cả API Key đều thất bại:\n${errors.slice(0, 5).join('\n')}`);
+  } // end retry loop
+
+  throw new Error('Không thể kết nối tới Gemini API. Vui lòng kiểm tra kết nối mạng và thử lại.');
 }
 
 /**
