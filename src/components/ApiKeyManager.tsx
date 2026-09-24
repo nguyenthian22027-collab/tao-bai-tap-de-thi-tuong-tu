@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ApiKeyInfo } from '../types';
-import { testApiKey } from '../lib/gemini';
+import { testApiKey, sanitizeApiKey } from '../lib/gemini';
 import { Plus, Trash2, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Key, ShieldCheck } from 'lucide-react';
 
 interface ApiKeyManagerProps {
@@ -28,8 +28,10 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   };
 
   const handleAddKey = async () => {
-    if (!newValue.trim()) {
-      onAddToast('warning', 'Vui lòng nhập chuỗi API Key');
+    const rawVal = newValue.trim();
+    const cleanVal = sanitizeApiKey(rawVal);
+    if (!cleanVal) {
+      onAddToast('warning', 'Vui lòng nhập chuỗi API Key hợp lệ');
       return;
     }
 
@@ -37,7 +39,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     const newKeyItem: ApiKeyInfo = {
       id: `key_${Date.now()}`,
       label,
-      value: newValue.trim(),
+      value: cleanVal,
       status: 'testing',
       lastTested: new Date().toISOString(),
       usageCount: 0,
@@ -57,7 +59,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             status: res.status,
             lastTested: new Date().toISOString(),
             lastError: res.error,
-            value: res.cleanedKey || k.value,
+            value: res.cleanedKey || cleanVal,
           }
         : k
     );
@@ -71,7 +73,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   };
 
   // Thêm nhiều key cùng lúc từ textarea
-  // Mỗi dòng: AIzaSy... hoặc AIzaSy...,Tên key
+  // Mỗi dòng: AQ... hoặc AIzaSy... kèm tên tùy chọn
   const handleBulkAdd = async () => {
     const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length === 0) {
@@ -85,17 +87,18 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // Hỗ trợ format: "AIzaSy..." hoặc "AIzaSy...,Tên key"
+      // Hỗ trợ format: "AQ..." hoặc "AQ...,Tên key" hoặc "AIzaSy..."
       const commaIdx = line.indexOf(',');
-      const keyVal = commaIdx > 0 ? line.slice(0, commaIdx).trim() : line.trim();
+      const rawKeyVal = commaIdx > 0 ? line.slice(0, commaIdx).trim() : line.trim();
       const keyLabel = commaIdx > 0 ? line.slice(commaIdx + 1).trim() : `API Key #${currentKeys.length + 1}`;
+      const cleanKeyVal = sanitizeApiKey(rawKeyVal);
 
-      if (!keyVal.includes('AIza') && keyVal.length < 20) continue; // bỏ qua dòng không phải key
+      if (!cleanKeyVal || cleanKeyVal.length < 20) continue; // bỏ qua dòng không phải key
 
       const newKeyItem: ApiKeyInfo = {
         id: `key_${Date.now()}_${i}`,
         label: keyLabel,
-        value: keyVal,
+        value: cleanKeyVal,
         status: 'testing',
         lastTested: new Date().toISOString(),
         usageCount: 0,
@@ -112,7 +115,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               status: res.status,
               lastTested: new Date().toISOString(),
               lastError: res.error,
-              value: res.cleanedKey || k.value,
+              value: res.cleanedKey || cleanKeyVal,
             }
           : k
       );
@@ -138,11 +141,14 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     const target = keys.find((k) => k.id === id);
     if (!target) return;
 
+    const cleanVal = sanitizeApiKey(target.value);
+    const updatedTarget = { ...target, value: cleanVal || target.value };
+
     onUpdateKeys(
-      keys.map((k) => (k.id === id ? { ...k, status: 'testing' } : k))
+      keys.map((k) => (k.id === id ? { ...updatedTarget, status: 'testing' } : k))
     );
 
-    const res = await testApiKey(target);
+    const res = await testApiKey(updatedTarget);
     onUpdateKeys(
       keys.map((k) =>
         k.id === id
@@ -151,7 +157,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               status: res.status,
               lastTested: new Date().toISOString(),
               lastError: res.error,
-              value: res.cleanedKey || k.value,
+              value: res.cleanedKey || updatedTarget.value,
             }
           : k
       )
@@ -171,12 +177,14 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     let currentKeys = [...keys];
     for (let i = 0; i < currentKeys.length; i++) {
       const k = currentKeys[i];
+      const cleanVal = sanitizeApiKey(k.value);
+      const cleanItem = { ...k, value: cleanVal || k.value };
       currentKeys = currentKeys.map((item, idx) =>
-        idx === i ? { ...item, status: 'testing' } : item
+        idx === i ? { ...cleanItem, status: 'testing' } : item
       );
       onUpdateKeys(currentKeys);
 
-      const res = await testApiKey(k);
+      const res = await testApiKey(cleanItem);
       currentKeys = currentKeys.map((item, idx) =>
         idx === i
           ? {
@@ -184,7 +192,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               status: res.status,
               lastTested: new Date().toISOString(),
               lastError: res.error,
-              value: res.cleanedKey || item.value,
+              value: res.cleanedKey || cleanItem.value,
             }
           : item
       );
@@ -357,7 +365,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             />
             <input
               type="password"
-              placeholder="Dán AIzaSy... vào đây"
+              placeholder="Dán API Key (AQ... hoặc AIzaSy...)"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddKey()}
@@ -375,16 +383,16 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
           /* Mode 2: dán nhiều key cùng lúc */
           <div className="space-y-2">
             <p className="text-xs text-slate-500">
-              Dán nhiều API Key, <strong>mỗi dòng 1 key</strong>. Hỗ trợ 2 định dạng:
+              Dán nhiều API Key, <strong>mỗi dòng 1 key</strong>. Hỗ trợ cả 2 định dạng:
             </p>
             <div className="bg-slate-100 rounded-lg px-3 py-2 text-xs font-mono text-slate-600 space-y-0.5">
-              <div>AIzaSyXXXXXXXXXXXXXXXXXXXXXXXX</div>
-              <div className="text-slate-400">AIzaSyYYYYYYYYYYYYYYYYYYYYYYYY,Key công ty A</div>
+              <div>AQ.Ab8RN6... (chuẩn mới Google AI Studio)</div>
+              <div className="text-slate-400">AIzaSyYYYYYYYYYYYYYYYYYYYYYYYY,Key cá nhân A (chuẩn cũ)</div>
             </div>
             <textarea
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              placeholder={"Dán các API Key vào đây...\nMỗi dòng 1 key\nAIzaSy...\nAIzaSy...,Tên key"}
+              placeholder={"Dán các API Key vào đây...\nMỗi dòng 1 key\nAQ.Ab8RN...\nAIzaSy...,Tên key"}
               rows={5}
               className="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white resize-none"
             />
@@ -417,7 +425,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             <strong>Đăng ký miễn phí tại:</strong> <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-semibold hover:underline">Google AI Studio (aistudio.google.com)</a> ➔ Bấm <em>"Create API Key"</em>.
           </li>
           <li>
-            Mã Gemini API Key chuẩn luôn bắt đầu bằng <code>AIzaSy...</code> (khoảng 39 ký tự). Hệ thống tự động làm sạch khoảng trắng thừa khi dán.
+            Hệ thống hỗ trợ 100% cả <strong>chuẩn mới nhất (bắt đầu bằng <code>AQ....</code>)</strong> và <strong>chuẩn cũ (<code>AIzaSy...</code>)</strong>. Hệ thống tự động làm sạch dấu phẩy, khoảng trắng thừa hoặc ký tự lạ khi dán.
           </li>
         </ul>
       </div>

@@ -20,12 +20,50 @@ export function normalizeModelName(modelName?: string): string {
 }
 
 /**
- * Gets currently saved API keys from localStorage
+ * Làm sạch API Key: loại bỏ khoảng trắng thừa, dấu ngoặc kép, ký tự unicode ẩn,
+ * dấu phẩy/chấm phẩy cuối chuỗi, và trích xuất đúng chuỗi Google Gemini API Key
+ * (hỗ trợ cả chuẩn mới AQ.... và chuẩn cũ AIzaSy...).
+ */
+export function sanitizeApiKey(raw: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
+  // Loại bỏ dấu ngoặc kép, nháy đơn nếu người dùng copy cả ngoặc
+  cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
+
+  // Trích xuất mã Google API Key nếu người dùng paste dính tiền tố (như "API_KEY=...", "key: ...")
+  // 1. Chuẩn mới của Google AI Studio (bắt đầu bằng AQ.)
+  const aqMatch = cleaned.match(/AQ\.[A-Za-z0-9_-]{30,}/);
+  if (aqMatch) {
+    return aqMatch[0];
+  }
+
+  // 2. Chuẩn cũ của Google (bắt đầu bằng AIzaSy)
+  const aizaMatch = cleaned.match(/AIzaSy[A-Za-z0-9_-]{30,}/);
+  if (aizaMatch) {
+    return aizaMatch[0];
+  }
+
+  // Loại bỏ các ký tự ẩn unicode (zero-width space, non-breaking space, newline...)
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '').trim();
+
+  // Loại bỏ dấu phẩy, chấm phẩy, dấu hai chấm ở đầu hoặc cuối chuỗi nếu người dùng vô tình copy dính
+  cleaned = cleaned.replace(/^[,;:.\s]+|[,;:.\s]+$/g, '').trim();
+
+  return cleaned;
+}
+
+/**
+ * Gets currently saved API keys from localStorage (tự động làm sạch các key đã lưu)
  */
 export function getStoredApiKeys(): ApiKeyInfo[] {
   try {
     const raw = localStorage.getItem(DEFAULT_KEYS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed: ApiKeyInfo[] = JSON.parse(raw);
+    return parsed.map((k) => ({
+      ...k,
+      value: sanitizeApiKey(k.value) || k.value.trim(),
+    }));
   } catch (e) {
     console.error('Failed to parse API keys from localStorage:', e);
     return [];
@@ -41,24 +79,6 @@ export function saveApiKeys(keys: ApiKeyInfo[]): void {
   } catch (e) {
     console.error('Failed to save API keys to localStorage:', e);
   }
-}
-
-/**
- * Làm sạch API Key: loại bỏ khoảng trắng thừa, dấu ngoặc kép, ký tự unicode ẩn và trích xuất đúng chuỗi AIzaSy...
- */
-export function sanitizeApiKey(raw: string): string {
-  if (!raw) return '';
-  let cleaned = raw.trim();
-  // Loại bỏ dấu ngoặc kép, nháy đơn nếu người dùng copy cả ngoặc
-  cleaned = cleaned.replace(/^["'`]|["'`]$/g, '').trim();
-  // Trích xuất mã Google API Key nếu người dùng paste dính tiền tố (như "API_KEY=AIza..." hoặc "key: AIza...")
-  const aizaMatch = cleaned.match(/AIzaSy[A-Za-z0-9_-]{30,}/);
-  if (aizaMatch) {
-    return aizaMatch[0];
-  }
-  // Loại bỏ các ký tự ẩn unicode (zero-width space, non-breaking space, newline...)
-  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00A0\s]/g, '').trim();
-  return cleaned;
 }
 
 /**
@@ -78,16 +98,22 @@ export async function testApiKey(
     return {
       success: false,
       status: 'invalid',
-      error: 'Đây là API Key của OpenAI/ChatGPT, không phải Google Gemini. Vui lòng lấy Gemini API Key miễn phí tại aistudio.google.com (mã bắt đầu bằng AIzaSy...)',
+      error: 'Đây là API Key của OpenAI/ChatGPT, không phải Google Gemini. Vui lòng lấy Gemini API Key miễn phí tại aistudio.google.com (mã bắt đầu bằng AQ.... hoặc AIzaSy...)',
     };
   }
 
   let lastErrMsg = '';
 
   // Bước 1: Kiểm tra tính hợp lệ của Key qua endpoint models.list chuẩn của Google AI Studio (Không phụ thuộc tên model)
+  // Gửi cả query param ?key= và header x-goog-api-key để tương thích 100% với cả chuẩn AQ.... và AIzaSy...
   const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
   try {
-    const listRes = await fetch(listUrl, { method: 'GET' });
+    const listRes = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        'x-goog-api-key': cleanKey,
+      },
+    });
     if (listRes.ok) {
       return { success: true, status: 'valid', cleanedKey: cleanKey };
     }
@@ -103,8 +129,8 @@ export async function testApiKey(
     lastErrMsg = netErr.message || 'Lỗi kết nối';
   }
 
-  // Bước 2: Dự phòng thử gọi trực tiếp generateContent với các model chuẩn (2.5-flash, 2.0-flash, 1.5-flash)
-  const candidateModels = [model, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // Bước 2: Dự phòng thử gọi trực tiếp generateContent với các model chuẩn hiện hành (3.5-flash, 3.5-flash-lite, 3.6-flash)
+  const candidateModels = [model, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
   const uniqueCandidates = [...new Set(candidateModels)];
 
   for (const testModel of uniqueCandidates) {
@@ -112,7 +138,10 @@ export async function testApiKey(
     try {
       const genRes = await fetch(genUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': cleanKey,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'OK' }] }],
         }),
@@ -138,8 +167,13 @@ export async function testApiKey(
 
   // Phân tích thông điệp lỗi để đưa ra hướng dẫn dễ hiểu nhất cho giáo viên
   let friendlyError = lastErrMsg || 'API Key không hợp lệ';
-  if (lastErrMsg.includes('API key not valid') || lastErrMsg.includes('API_KEY_INVALID')) {
-    friendlyError = 'Google báo: Mã API Key không chính xác hoặc đã bị xóa. Vui lòng kiểm tra lại mã đã copy từ Google AI Studio.';
+  if (
+    lastErrMsg.includes('API key not valid') ||
+    lastErrMsg.includes('API_KEY_INVALID') ||
+    lastErrMsg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED') ||
+    lastErrMsg.includes('UNAUTHENTICATED')
+  ) {
+    friendlyError = 'Google báo: Mã API Key không chính xác hoặc dính ký tự lạ. Vui lòng kiểm tra lại mã đã copy từ Google AI Studio (mã bắt đầu bằng AQ.... hoặc AIzaSy...).';
   } else if (lastErrMsg.includes('has not been used') || lastErrMsg.includes('disabled') || lastErrMsg.includes('PERMISSION_DENIED')) {
     friendlyError = 'Google báo: Tài khoản chưa kích hoạt Generative Language API hoặc bị chặn quyền (Nếu dùng email trường .edu.vn, vui lòng đổi sang Gmail cá nhân @gmail.com).';
   } else if (lastErrMsg.includes('Failed to fetch') || lastErrMsg.includes('NetworkError')) {
@@ -180,10 +214,13 @@ export async function callGeminiRoundRobin(
 
   const errors: string[] = [];
   const primaryModel = normalizeModelName(model);
-  const fallbackModelChain = [primaryModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const fallbackModelChain = [primaryModel, 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'];
   const uniqueModelsToTry = [...new Set(fallbackModelChain)];
 
   for (const currentKey of candidateKeys) {
+    const cleanKey = sanitizeApiKey(currentKey.value);
+    if (!cleanKey) continue;
+
     // Construct parts
     const parts: any[] = [{ text: prompt }];
 
@@ -205,12 +242,15 @@ export async function callGeminiRoundRobin(
 
     // Thử lần lượt model chính, nếu gặp 404 (model không tồn tại) sẽ tự động fallback sang model khả dụng
     for (const activeModel of uniqueModelsToTry) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(currentKey.value.trim())}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
 
       try {
         const response = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': cleanKey,
+          },
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
