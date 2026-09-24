@@ -288,6 +288,10 @@ export async function callGeminiRoundRobin(
             }
             errors.push(`Key "${currentKey.label}": Không hợp lệ (${errMsg})`);
             break; // Thử sang key kế tiếp
+          } else if (response.status === 503 || response.status === 502 || response.status === 504 || response.status === 529) {
+            // Lỗi server tạm thời (quá tải) — thử model tiếp theo trong chuỗi fallback
+            errors.push(`Key "${currentKey.label}" [${activeModel}]: Máy chủ quá tải (${response.status}), thử model khác...`);
+            continue;
           } else {
             errors.push(`Key "${currentKey.label}": Lỗi HTTP ${response.status} - ${errMsg}`);
             break;
