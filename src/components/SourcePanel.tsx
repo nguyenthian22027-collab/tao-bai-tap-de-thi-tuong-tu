@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SourceState, ImageFileItem } from '../types';
 import { readDocxFile } from '../lib/docxReader';
+import { extractTextFromPdf } from '../lib/pdfHelper';
 import {
   Upload,
   FileText,
@@ -152,10 +153,22 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         onAddToast('warning', 'File PDF lớn hơn 25MB, quá trình gửi tới AI có thể mất chút thời gian.');
       }
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const base64 = event.target?.result as string;
+
+        // Trích xuất văn bản từ PDF qua pdf.js để phân tích cấu trúc đề và hiển thị xem trước
+        let extractedText = '';
+        try {
+          extractedText = await extractTextFromPdf(file);
+        } catch (e) {
+          console.warn('PDF text extraction error:', e);
+        }
+        const wordCount = extractedText ? extractedText.trim().split(/\s+/).length : 0;
+
         onChangeSource({
           type: 'pdf',
+          textContent: extractedText,
+          wordCount,
           fileData: [
             {
               id: `pdf_${Date.now()}`,
@@ -166,7 +179,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             },
           ],
         });
-        onAddToast('success', `✓ Đã tải file PDF: ${file.name}`);
+        onAddToast('success', `✓ Đã tải file PDF: ${file.name}${wordCount > 0 ? ` (${wordCount} từ)` : ''}`);
       };
       reader.readAsDataURL(file);
       return;
@@ -468,23 +481,26 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* B. PDF File Display */}
       {isPdf && (
-        <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl flex items-center justify-between text-xs text-indigo-950">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-              <FileCode className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-semibold block truncate max-w-[200px] sm:max-w-xs">
-                {source.fileData![0].fileName}
-              </span>
-              <span className="text-[10px] text-slate-500">
-                {((source.fileData![0].fileSize || 0) / (1024 * 1024)).toFixed(2)} MB • Gemini Vision sẽ đọc trực tiếp
-              </span>
-            </div>
+        <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-2 text-xs text-indigo-950">
+          <div className="flex items-center justify-between font-semibold">
+            <span className="flex items-center space-x-2">
+              <FileCode className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className="truncate max-w-[200px] sm:max-w-xs">{source.fileData![0].fileName}</span>
+            </span>
+            <span className="text-[11px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-medium">
+              {source.wordCount ? `${source.wordCount} từ` : `${((source.fileData![0].fileSize || 0) / (1024 * 1024)).toFixed(2)} MB`}
+            </span>
           </div>
-          <span className="bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg text-[11px] font-semibold">
-            Đã sẵn sàng
-          </span>
+
+          {source.textContent ? (
+            <p className="text-[11px] text-slate-600 line-clamp-3 bg-white p-2.5 rounded-lg border border-indigo-100 italic">
+              "{source.textContent.slice(0, 250)}..."
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-500 italic">
+              File PDF nhị phân • AI Vision sẽ đọc trực tiếp đề bài và hình ảnh.
+            </p>
+          )}
         </div>
       )}
 

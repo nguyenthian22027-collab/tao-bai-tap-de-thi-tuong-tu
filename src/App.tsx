@@ -387,8 +387,8 @@ export function App() {
       }
 
       // Phát hiện câu nào trong đề gốc có hình vẽ và gắn nhãn [CÓ_HÌNH] để AI biết câu nào cần vẽ TikZ
-      // Chỉ áp dụng với source text (không áp dụng với file ảnh/PDF nhị phân vì AI tự đọc hình)
-      if (source.textContent && source.type !== 'image' && source.type !== 'pdf') {
+      // Áp dụng cho cả text trực tiếp, docx và văn bản trích xuất từ PDF
+      if (source.textContent && source.type !== 'image') {
         const figureKeywords = ['xem hình bên', 'như hình bên', 'trong hình bên', 'hình vẽ dưới đây', 'cho hình vẽ', 'bảng biến thiên dưới đây', 'đồ thị hàm số dưới đây', 'hình minh họa', '\\begin{tikzpicture}', '[hình]', '[ảnh]', '.png', '.jpg', 'base64,', '!['];
         const cauRegex = /^(Câu\s*\d+[\s.:)]|\d+[\s.])/;
 

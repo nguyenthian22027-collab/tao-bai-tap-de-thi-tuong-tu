@@ -405,6 +405,14 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
      - Dùng \\draw[thick, blue, smooth, domain=-2.5:2.5, samples=80] plot (\\x, {...});
      - Cực trị: chấm tròn \\fill[red] (x_1, y_1) circle (2pt); và gióng nét đứt xuống 2 trục tọa độ \\draw[dashed] (x_1,0) -- (x_1,y_1) -- (0,y_1);
   4. LƯU Ý SỐNG CÒN VỀ PGFPLOTS: Nếu dùng \\addplot thì BẮT BUỘC phải đặt trong \\begin{axis}[...] ... \\end{axis}. TUYỆT ĐỐI KHÔNG viết \\addplot trơ trọi ngoài \\begin{axis}!
+• ĐẶC TRƯNG ĐỀ THI TOÁN 12 (GDPT 2025 — TUYỆT ĐỐI TUÂN THỦ):
+  - Phần I: 12 câu trắc nghiệm 4 lựa chọn (khảo sát hàm số, cực trị, tiệm cận, GTLN/GTNN, đọc đồ thị, vector 3D).
+  - Phần II: 2 hoặc 4 câu Đúng/Sai. Mỗi câu gồm đề dẫn chung + 4 mệnh đề a, b, c, d (tính đạo hàm, GTLN/GTNN, tiệm cận, ứng dụng thực tế).
+    * DAP_AN_A, DAP_AN_B, DAP_AN_C, DAP_AN_D chỉ ghi D hoặc S. Tỉ lệ cân đối (thường 2 Đúng - 2 Sai), TUYỆT ĐỐI KHÔNG để 4 câu cùng Đúng hoặc cùng Sai.
+  - Phần III: 4 hoặc 6 câu Trả lời ngắn (điền đáp số).
+    * DAP_AN BẮT BUỘC chỉ là một con số ngắn gọn (VD: 3 hoặc -1.5 hoặc 12 hoặc 4/3). TUYỆT ĐỐI KHÔNG ghi chữ giải thích kèm theo trong DAP_AN.
+  - Phần Tự luận (nếu đề gốc có): BẮT BUỘC sinh đủ 100% các câu tự luận như đề gốc (thường gồm 1 câu khảo sát hàm số chứa tham số m, 1 câu bài toán thực tế kinh tế/vật lý tối ưu hóa, 1 câu hình học không gian hoặc hình học thực tế).
+  - ĐÁNH SỐ THỨ TỰ (STT): Trong mỗi phần (Phần I, Phần II, Phần III, Tự luận), STT BẮT BUỘC bắt đầu lại từ 1 (Câu 1, Câu 2...) theo đúng chuẩn format của Bộ GD&ĐT!
 • QUY TẮC VẼ HÌNH HỌC KHÔNG GIAN 3D (HÌNH CHÓP, LĂNG TRỤ, HÌNH HỘP):
   - MỌI ĐỈNH (S, A, B, C, D, H, M, N...) BẮT BUỘC ĐỊNH NGHĨA TỌA ĐỘ TRƯỚC BẰNG \\coordinate (Tên) at (x,y); TRƯỚC KHI NỐI BẰNG \\draw.
   - TUYỆT ĐỐI KHÔNG gọi tên điểm chưa có \\coordinate (để triệt tiêu 100% lỗi "No shape named ... is known").
@@ -547,13 +555,14 @@ export function analyzeExamStructure(sourceText: string): {
 } {
   // Normalize PDF spaced text: "P h ầ n" → "Phần", "c â u" → "câu", etc.
   sourceText = sourceText
-    .replace(/P\s*h\s*ầ\s*n/g, 'Phần')
+    .replace(/P\s*H\s*Ầ\s*N/gi, 'Phần')
     .replace(/(?<![A-Za-zÀ-ỹ])c\s*â\s*u(?![A-Za-zÀ-ỹ])/gi, 'câu')
-    .replace(/đ\s*ế\s*n/g, 'đến')
+    .replace(/đ\s*ế\s*n/gi, 'đến')
     .replace(/t\s*ừ\s+c\s*â\s*u/gi, 'từ câu')
-    .replace(/T\s*Ự\s*L\s*U\s*Ậ\s*N/g, 'TỰ LUẬN')
+    .replace(/T\s*Ự\s*L\s*U\s*Ậ\s*N/gi, 'TỰ LUẬN')
     .replace(/C\s*â\s*u\s+(\d+)/gi, (_, n) => `Câu ${n}`)
-    .replace(/Câu\s*(\d+)\s*[:.]?\s*\n/gi, (_, n) => `Câu ${n}:\n`);
+    .replace(/Câu\s*(\d+)\s*[:.]?\s*\n/gi, (_, n) => `Câu ${n}:\n`)
+    .replace(/[.…]*\s*[.…]{10,}/g, ''); // Loại bỏ các dòng chấm chấm kéo dài của phiếu nháp làm bài
 
   let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
 
@@ -571,14 +580,15 @@ export function analyzeExamStructure(sourceText: string): {
     p3 = Math.max(0, parseInt(p3Match[2], 10) - parseInt(p3Match[1], 10) + 1);
   }
 
-  // 2. Quét Phần Tự luận (Phần IV hoặc B. PHẦN TỰ LUẬN)
-  const tuLuanMatch = sourceText.match(/(?:Phần\s+(?:IV|B)|TỰ\s+LUẬN)[^\n]*?(?:\((\d+[,.]?\d*)\s*điểm\))?[\s\S]*?(?:------------------------\s*HẾT|HẾT|$)/i);
+  // 2. Quét Phần Tự luận (B. PHẦN TỰ LUẬN, Phần IV hoặc TỰ LUẬN)
+  const tuLuanMatch = sourceText.match(/(?:(?:B[.:]\s*)?Phần\s+(?:IV|B|TỰ\s+LUẬN)|TỰ\s+LUẬN)[^\n]*?(?:\((\d+[,.]?\d*)\s*điểm\))?[\s\S]*?(?:------------------------\s*HẾT|HẾT|$)/i);
   if (tuLuanMatch) {
     const tuLuanSection = tuLuanMatch[0];
-    const tlCauMatches = [...tuLuanSection.matchAll(/(?:^|\n)\s*Câu\s+(\d+)[.:]/gi)];
+    const tlCauMatches = [...tuLuanSection.matchAll(/Câu\s*(\d+)\s*[:.]/gi)];
     if (tlCauMatches.length > 0) {
-      p4 = tlCauMatches.length;
-    } else if (/1[\s,.]?0\s*điểm|3[\s,.]?0\s*điểm/i.test(tuLuanSection)) {
+      const maxNum = Math.max(...tlCauMatches.map((m) => parseInt(m[1], 10) || 0));
+      p4 = Math.max(tlCauMatches.length, maxNum > 0 && maxNum <= 10 ? maxNum : 0);
+    } else if (/1[\s,.]?0\s*điểm|2[\s,.]?0\s*điểm|3[\s,.]?0\s*điểm/i.test(tuLuanSection)) {
       p4 = 3;
     }
   }
@@ -586,7 +596,7 @@ export function analyzeExamStructure(sourceText: string): {
   // 3. Fallback thông minh nếu không bắt được qua tiêu đề
   if (p1 === 0 && p2 === 0 && p3 === 0) {
     // Đếm số câu tổng quát nếu có
-    const allCau = [...sourceText.matchAll(/(?:^|\n)\s*(?:Câu|Question)\s+(\d+)[.:]/gi)];
+    const allCau = [...sourceText.matchAll(/(?:^|\n|\s)(?:Câu|Question)\s+(\d+)[.:]/gi)];
     if (allCau.length >= 12) {
       p1 = 12;
       p2 = allCau.length >= 16 ? 4 : 2;
@@ -1643,13 +1653,19 @@ export function parseExam(rawText: string): ExamData {
     }
   });
 
-  // Re-number questions globally if needed
-  let globalCount = 1;
-  sections.forEach((sec) => {
-    sec.cauHoi.forEach((q) => {
-      q.stt = globalCount++;
+  // Đánh số thứ tự câu hỏi:
+  // - Nếu các phần phía sau có câu bắt đầu lại từ 1 (chuẩn GDPT 2025: Phần I từ 1..12, Phần II từ 1..4, Phần III từ 1..6, Tự luận từ 1..3),
+  //   thì BẢO TỒN số thứ tự STT chuẩn theo từng phần của Bộ GD&ĐT.
+  // - Nếu là đề trắc nghiệm liền mạch (như đề Tiếng Anh 40 câu), đánh số liên tục 1..N.
+  const hasRestartingSections = sections.length > 1 && sections.slice(1).some(sec => sec.cauHoi[0]?.stt === 1);
+  if (!hasRestartingSections) {
+    let globalCount = 1;
+    sections.forEach((sec) => {
+      sec.cauHoi.forEach((q) => {
+        q.stt = globalCount++;
+      });
     });
-  });
+  }
 
   // === POST-PARSE: Xóa TikZ trùng lặp — AI hay copy cùng 1 mã cho nhiều câu ===
   // Thu thập tất cả câu có TikZ, nếu cùng mã → giữ lại câu đầu tiên, xóa các câu còn lại
