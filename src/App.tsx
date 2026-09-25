@@ -479,6 +479,7 @@ export function App() {
               if (seenTikzSet.has(normalized)) {
                 q.tikzCode = '';
                 q.hinhAnh = undefined;
+                (q as any)._hadDuplicateTikz = true; // Đánh dấu để Lượt 2 vẽ lại hình riêng biệt
               } else {
                 seenTikzSet.add(normalized);
               }
@@ -488,11 +489,14 @@ export function App() {
 
         // Bước 5b (LƯỢT 2 TỰ ĐỘNG): Gọi AI riêng từng câu để vẽ hình chuẩn xác cho câu chưa có TikZ hoặc bị xóa trùng
         if (config.tikzMode !== 'no') {
-          const needsFigurePattern = /(đường cong trong hình|hình vẽ dưới đây|như hình bên|trong hình bên|quan sát hình|cho hình vẽ|đồ thị hàm số (?:ở|trong) hình|hình bên là đồ thị|đồ thị như hình|hình dưới đây là đồ thị)/i;
+          const needsFigurePattern = /(đường cong trong hình|hình vẽ dưới đây|như hình bên|trong hình bên|quan sát hình|cho hình vẽ|đồ thị hàm số (?:ở|trong) hình|hình bên là đồ thị|đồ thị như hình|hình dưới đây là đồ thị|nhìn vào hình|nhìn vào đồ thị|cho đồ thị|sơ đồ mạch điện|mạch điện như hình|chu trình nhiệt|xilanh|piston|con lắc lò xo|con lắc đơn)/i;
 
           const questionsNeedingTikz = allQuestions.filter((q) => {
             if (q.tikzCode && q.tikzCode.includes('tikzpicture')) return false;
             if (q.noiDung && /\\begin\{tabular/i.test(q.noiDung)) return false;
+
+            // Nếu câu này từng bị xóa TikZ do AI lười copy trùng lặp -> BẮT BUỘC vẽ lại riêng
+            if ((q as any)._hadDuplicateTikz) return true;
 
             const textToTest = `${q.noiDung || ''} ${q.cauLenh || ''}`;
             return needsFigurePattern.test(textToTest);

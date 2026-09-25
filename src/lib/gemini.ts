@@ -261,7 +261,7 @@ export async function callGeminiRoundRobin(
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
-              temperature: 0.7,
+              temperature: 0.35,
               maxOutputTokens: 16384,
             },
           }),
@@ -392,15 +392,32 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
   - TIKZ: Mã \\begin{tikzpicture}...\\end{tikzpicture} vẽ hình
   - CAU_LENH: Câu hỏi yêu cầu tính toán sau hình (VD: "Giá trị lớn nhất $M$ và giá trị nhỏ nhất $m$ của hàm số $f(x)$ trên đoạn $[-1; 2]$ lần lượt là:" hoặc "Hàm số đã cho đồng biến trên khoảng nào dưới đây?"). TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu hỏi yêu cầu sau hình vẽ!
 • QUY TẮC VẼ ĐỒ THỊ HÀM SỐ MÔN TOÁN 12 (TUYỆT ĐỐI TUÂN THỦ):
-  1. Hàm phân thức bậc nhất/bậc nhất $y = \\frac{ax+b}{cx+d}$:
-     - BẮT BUỘC vẽ 2 nhánh hyperbol phân biệt qua domain, KHÔNG nối qua điểm gián đoạn $x = -d/c$.
-     - Tiệm cận đứng $x = -d/c$ và tiệm cận ngang $y = a/c$ BẮT BUỘC vẽ nét đứt: \\draw[dashed, red, thick] (axis cs:...)...
+  KHUYẾN KHÍCH 100%: Dùng cú pháp TikZ thuần \\draw plot (\\x, {...}) — SIÊU ỔN ĐỊNH, KHÔNG BAO GIỜ LỖI BIÊN DỊCH:
+  1. Hàm phân thức bậc nhất/bậc nhất $y = \\frac{ax+b}{cx+d}$ (tiệm cận đứng $x = x_0 = -d/c$, tiệm cận ngang $y = y_0 = a/c$):
+     - BẮT BUỘC vẽ 2 nhánh hyperbol riêng biệt né điểm gián đoạn $x_0$:
+       \\draw[thick, blue, smooth, domain=-3.5:(x_0-0.2), samples=60] plot (\\x, {(a*\\x+b)/(c*\\x+d)});
+       \\draw[thick, blue, smooth, domain=(x_0+0.2):3.5, samples=60] plot (\\x, {(a*\\x+b)/(c*\\x+d)});
+     - Tiệm cận đứng và ngang BẮT BUỘC vẽ nét đứt màu đỏ:
+       \\draw[dashed, red, thick] (x_0,-3.5) -- (x_0,3.5); \\draw[dashed, red, thick] (-3.5,y_0) -- (3.5,y_0);
   2. Hàm phân thức bậc hai/bậc nhất $y = \\frac{ax^2+bx+c}{dx+e}$:
-     - Tiệm cận đứng và tiệm cận xiên $y = ax+b$ BẮT BUỘC vẽ nét đứt: \\draw[dashed, red, thick] (axis cs:...)...
-  3. Đồ thị hàm số trên đoạn $[a; b]$:
-     - Giới hạn miền vẽ domain=a:b. Hai đầu mút BẮT BUỘC vẽ chấm tròn đặc: \\addplot[mark=*, mark size=2.5pt, black] coordinates {(a, f(a))} và {(b, f(b))}.
-  4. Hàm đa thức bậc ba, bậc bốn:
-     - Đánh dấu rõ các điểm cực đại, cực tiểu bằng \\addplot[mark=*, mark size=2pt, red] coordinates {...}.
+     - Tiệm cận đứng $x = x_0$ và tiệm cận xiên $y = mx+n$ vẽ nét đứt: \\draw[dashed, red, thick]...
+  3. Hàm đa thức bậc ba, bậc bốn:
+     - Dùng \\draw[thick, blue, smooth, domain=-2.5:2.5, samples=80] plot (\\x, {...});
+     - Cực trị: chấm tròn \\fill[red] (x_1, y_1) circle (2pt); và gióng nét đứt xuống 2 trục tọa độ \\draw[dashed] (x_1,0) -- (x_1,y_1) -- (0,y_1);
+  4. LƯU Ý SỐNG CÒN VỀ PGFPLOTS: Nếu dùng \\addplot thì BẮT BUỘC phải đặt trong \\begin{axis}[...] ... \\end{axis}. TUYỆT ĐỐI KHÔNG viết \\addplot trơ trọi ngoài \\begin{axis}!
+• QUY TẮC VẼ HÌNH HỌC KHÔNG GIAN 3D (HÌNH CHÓP, LĂNG TRỤ, HÌNH HỘP):
+  - MỌI ĐỈNH (S, A, B, C, D, H, M, N...) BẮT BUỘC ĐỊNH NGHĨA TỌA ĐỘ TRƯỚC BẰNG \\coordinate (Tên) at (x,y); TRƯỚC KHI NỐI BẰNG \\draw.
+  - TUYỆT ĐỐI KHÔNG gọi tên điểm chưa có \\coordinate (để triệt tiêu 100% lỗi "No shape named ... is known").
+  - Cạnh khuất vẽ nét đứt [dashed, thick], cạnh thấy vẽ nét liền [thick].
+  - Mẫu chuẩn hình chóp tam giác S.ABC:
+    \\begin{tikzpicture}[scale=0.85]
+      \\coordinate (A) at (0,0); \\coordinate (B) at (1.5,-1.2); \\coordinate (C) at (4.5,0);
+      \\coordinate (S) at (1.8,3.5);
+      \\draw[thick] (S) -- (A) -- (B) -- (C) -- (S) -- (B);
+      \\draw[dashed, thick] (A) -- (C);
+      \\fill (A) circle (1.5pt) node[left] {$A$}; \\fill (B) circle (1.5pt) node[below] {$B$};
+      \\fill (C) circle (1.5pt) node[right] {$C$}; \\fill (S) circle (1.5pt) node[above] {$S$};
+    \\end{tikzpicture}
 • QUY TẮC VẼ HÌNH TIKZ MÔN VẬT LÝ (TUYỆT ĐỐI TUÂN THỦ):
   Nếu câu gốc là môn Vật lý có hình vẽ/đồ thị, BẮT BUỘC dùng đúng cú pháp TikZ theo 5 dạng chuẩn sau:
   1. Đồ thị Chu trình nhiệt động lực học ($p-V, p-T, V-T$):
@@ -1322,7 +1339,12 @@ export function parseExam(rawText: string): ExamData {
 
       const colonIdx = trimmed.indexOf(':');
       if (colonIdx !== -1) {
-        const key = trimmed.slice(0, colonIdx).trim();
+        const rawKey = trimmed.slice(0, colonIdx);
+        const key = rawKey
+          .replace(/^[*_~`\-\d.]+\s*/, '')
+          .replace(/[*_~`\s]+$/, '')
+          .trim()
+          .toUpperCase();
         const val = trimmed.slice(colonIdx + 1).trim();
 
         const recognizedHeaderKeys = [
@@ -1347,19 +1369,20 @@ export function parseExam(rawText: string): ExamData {
           currentHeaderKey = key;
           if (key === 'MON') meta.mon = val;
           else if (key === 'LOP') meta.lop = val;
-          else if (key === 'THOI_GIAN') meta.thoiGian = parseInt(val, 10) || 90;
+          else if (key === 'THOI_GIAN') meta.thoiGian = parseInt(val.replace(/[^0-9]/g, ''), 10) || 90;
           else if (key === 'TIEU_DE') meta.tieuDe = val;
           else if (key === 'TRUONG') meta.truong = val;
           else if (key === 'NAM_HOC') meta.namHoc = val;
-          else if (key === 'DE_SO') meta.deSo = parseInt(val, 10) || 1;
-          else if (key === 'TONG_SO_DE') meta.tongSoDe = parseInt(val, 10) || 1;
+          else if (key === 'DE_SO') meta.deSo = parseInt(val.replace(/[^0-9]/g, ''), 10) || 1;
+          else if (key === 'TONG_SO_DE') meta.tongSoDe = parseInt(val.replace(/[^0-9]/g, ''), 10) || 1;
           else if (key === 'TEN') sectionName = val;
           else if (key === 'LOAI') {
-            if (val === 'trac_nghiem_dung_sai') sectionType = 'trac_nghiem_dung_sai';
-            else if (val === 'trac_nghiem_tra_loi_ngan') sectionType = 'trac_nghiem_tra_loi_ngan';
-            else if (val === 'tu_luan') sectionType = 'tu_luan';
+            const cleanLoai = val.replace(/^[*_`"']+|[*_`"']+$/g, '').trim().toLowerCase();
+            if (cleanLoai.includes('dung_sai')) sectionType = 'trac_nghiem_dung_sai';
+            else if (cleanLoai.includes('tra_loi_ngan')) sectionType = 'trac_nghiem_tra_loi_ngan';
+            else if (cleanLoai.includes('tu_luan')) sectionType = 'tu_luan';
             else sectionType = 'trac_nghiem_4_lua_chon';
-          } else if (key === 'DIEM_MOI_CAU') diemMoiCau = parseFloat(val) || 0.25;
+          } else if (key === 'DIEM_MOI_CAU') diemMoiCau = parseFloat(val.replace(/[^0-9.]/g, '')) || 0.25;
           else if (['GHI_CHU', 'MO_TA', 'DE_DAN', 'BAI_DOC'].includes(key)) {
             sectionGhiChu = val;
           }
@@ -1419,8 +1442,13 @@ export function parseExam(rawText: string): ExamData {
 
         const cIdx = lineTrim.indexOf(':');
         if (cIdx !== -1) {
-          const k = lineTrim.slice(0, cIdx).trim();
-          const v = lineTrim.slice(cIdx + 1).trim();
+          const rawK = lineTrim.slice(0, cIdx);
+          const k = rawK
+            .replace(/^[*_~`\-\d.]+\s*/, '')
+            .replace(/[*_~`\s]+$/, '')
+            .trim()
+            .toUpperCase();
+          let v = lineTrim.slice(cIdx + 1).trim();
 
           const recognizedKeys = [
             'STT',
@@ -1450,11 +1478,12 @@ export function parseExam(rawText: string): ExamData {
           if (recognizedKeys.includes(k)) {
             currentMultiLineKey = k;
 
-            if (k === 'STT') qObj.stt = parseInt(v, 10) || qIdx + 1;
+            if (k === 'STT') qObj.stt = parseInt(v.replace(/[^0-9]/g, ''), 10) || qIdx + 1;
             else if (k === 'LOAI') {
-              if (v === 'trac_nghiem_dung_sai') qObj.loai = QuestionType.TRAC_NGHIEM_DUNG_SAI;
-              else if (v === 'trac_nghiem_tra_loi_ngan') qObj.loai = QuestionType.TRAC_NGHIEM_TRA_LOI_NGAN;
-              else if (v === 'tu_luan') qObj.loai = QuestionType.TU_LUAN;
+              const cleanLoai = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim().toLowerCase();
+              if (cleanLoai.includes('dung_sai')) qObj.loai = QuestionType.TRAC_NGHIEM_DUNG_SAI;
+              else if (cleanLoai.includes('tra_loi_ngan')) qObj.loai = QuestionType.TRAC_NGHIEM_TRA_LOI_NGAN;
+              else if (cleanLoai.includes('tu_luan')) qObj.loai = QuestionType.TU_LUAN;
               else qObj.loai = QuestionType.TRAC_NGHIEM_4_LUA_CHON;
             } else if (k === 'NOI_DUNG') qObj.noiDung = v;
             else if (k === 'A') qObj.optionA = v;
@@ -1470,12 +1499,15 @@ export function parseExam(rawText: string): ExamData {
             else if (k === 'DAP_AN_B') qObj.dapAnB = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
             else if (k === 'DAP_AN_C') qObj.dapAnC = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
             else if (k === 'DAP_AN_D') qObj.dapAnD = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
-            else if (k === 'DAP_AN') qObj.dapAn = v;
+            else if (k === 'DAP_AN') {
+              // Làm sạch đáp án nếu bị dính formatting markdown bold như **A** hoặc dấu ngoặc kép
+              qObj.dapAn = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim();
+            }
             else if (k === 'HUONG_DAN_GIAI') qObj.huongDanGiai = v;
             else if (k === 'TIKZ') qObj.tikzCode = v;
             else if (k === 'HINH_ANH') qObj.hinhAnh = v;
-            else if (k === 'MUC_DO') qObj.mucDo = v;
-            else if (k === 'DIEM') qObj.diem = parseFloat(v) || (sectionType === 'trac_nghiem_4_lua_chon' ? 0.25 : 1.0);
+            else if (k === 'MUC_DO') qObj.mucDo = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim();
+            else if (k === 'DIEM') qObj.diem = parseFloat(v.replace(/[^0-9.]/g, '')) || (sectionType === 'trac_nghiem_4_lua_chon' ? 0.25 : 1.0);
             return;
           }
         }

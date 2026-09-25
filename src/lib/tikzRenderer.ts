@@ -8,12 +8,20 @@ const pngCache = new Map<string, string>();
  * and auto-healing undeclared origin coordinate (O).
  */
 export function normalizeTikzCode(code: string): string {
+  if (!code) return '';
   let clean = code.trim();
 
-  // Strip markdown code blocks ```latex ... ``` or ```tikz ... ```
-  clean = clean.replace(/^```(?:latex|tikz)?\s*/i, '').replace(/```\s*$/, '').trim();
+  // 1. Nếu có khối \begin{tikzpicture}...\end{tikzpicture}, bóc tách chính xác khối đó
+  // (loại bỏ hoàn toàn mọi lời thoại chào hỏi, giải thích tiếng Việt của AI ở đầu/cuối)
+  const tikzBlockMatch = clean.match(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/);
+  if (tikzBlockMatch) {
+    clean = tikzBlockMatch[0].trim();
+  }
 
-  // Strip standalone/document wrapper if user or AI included it
+  // 2. Loại bỏ các khối markdown code fence ```latex, ```tikz, ```tex, ```
+  clean = clean.replace(/^```[a-zA-Z0-9_-]*\s*/i, '').replace(/```\s*$/, '').trim();
+
+  // 3. Loại bỏ document wrapper nếu AI vô tình sinh cả file LaTeX hoàn chỉnh
   clean = clean.replace(/\\documentclass(\[[^\]]*\])?\{[^}]+\}/gi, '');
   clean = clean.replace(/\\usepackage(\[[^\]]*\])?\{[^}]+\}/gi, '');
   clean = clean.replace(/\\usetikzlibrary(\[[^\]]*\])?\{[^}]+\}/gi, '');
@@ -21,22 +29,28 @@ export function normalizeTikzCode(code: string): string {
   clean = clean.replace(/\\end\{document\}/gi, '');
   clean = clean.trim();
 
-  // Ensure it has \begin{tikzpicture} and \end{tikzpicture}
+  // 4. Đảm bảo luôn có cặp \begin{tikzpicture} và \end{tikzpicture}
   if (!clean.includes('\\begin{tikzpicture}')) {
     clean = `\\begin{tikzpicture}\n${clean}\n\\end{tikzpicture}`;
   }
 
-  // Auto-heal undeclared origin coordinate (O) or (o):
-  // When code references (O) or (o) (e.g. `(O) arc`, `(O) circle`, `-- (O)`, `at (O)`)
-  // but forgot to define `\coordinate (O)`
+  // 5. Auto-heal lỗi thường gặp: dùng \addplot nhưng quên đặt trong môi trường \begin{axis}
+  // (Tránh lỗi biên dịch "! Undefined control sequence \addplot" của pgfplots)
+  if (/\\addplot/i.test(clean) && !/\\begin\{axis\}/i.test(clean)) {
+    clean = clean
+      .replace(/(\\begin\{tikzpicture\}(?:\[[^\]]*\])?)/i, '$1\n  \\begin{axis}[axis lines=middle, xlabel={$x$}, ylabel={$y$}, smooth]')
+      .replace(/\\end\{tikzpicture\}/i, '  \\end{axis}\n\\end{tikzpicture}');
+  }
+
+  // 6. Auto-heal tọa độ gốc O hoặc o nếu code gọi (O) nhưng chưa định nghĩa \coordinate (O)
   const referencesO = /\([Oo]\)/.test(clean);
   const definesO = /\\coordinate\s*\([Oo]\)/.test(clean) || /\\node.*?\([Oo]\)/.test(clean);
   if (referencesO && !definesO) {
     clean = clean.replace(/(\\begin\{tikzpicture\}(?:\[[^\]]*\])?)/, '$1\n  \\coordinate (O) at (0,0);');
   }
 
-  // Tự động chuyển ký tự tiếng Việt có dấu sang không dấu để tránh lỗi pdflatex Unicode
-  // (pdflatex không hỗ trợ unicode thô trong node text nếu thiếu vntex)
+  // 7. Tự động chuyển ký tự tiếng Việt có dấu sang không dấu để tránh lỗi pdflatex Unicode
+  // (pdflatex trên TeXLive/Kroki không hỗ trợ unicode thô trong node text nếu thiếu vntex)
   const vnMap: Record<string, string> = {
     'à':'a','á':'a','ả':'a','ã':'a','ạ':'a','ă':'a','ằ':'a','ắ':'a','ẳ':'a','ẵ':'a','ặ':'a','â':'a','ầ':'a','ấ':'a','ẩ':'a','ẫ':'a','ậ':'a',
     'è':'e','é':'e','ẻ':'e','ẽ':'e','ẹ':'e','ê':'e','ề':'e','ế':'e','ể':'e','ễ':'e','ệ':'e',
