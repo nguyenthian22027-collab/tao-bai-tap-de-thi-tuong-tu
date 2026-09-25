@@ -5,7 +5,8 @@ export const MODELS = [
   { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash — Mặc định, ổn định & thông minh' },
   { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — Nhanh, phổ thông' },
   { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite — Nhẹ nhất' },
-  { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — Mạnh nhất' },
+  { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash — Mạnh hơn' },
+  { value: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash — Mới nhất' },
 ] as const;
 
 export const DEFAULT_KEYS_STORAGE_KEY = 'similarexam_keys_v1';
@@ -220,7 +221,7 @@ export async function callGeminiRoundRobin(
 
   const errors: string[] = [];
   const primaryModel = normalizeModelName(model);
-  const fallbackModelChain = [primaryModel, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash'];
+  const fallbackModelChain = [primaryModel, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
   const uniqueModelsToTry = [...new Set(fallbackModelChain)];
 
   for (const currentKey of candidateKeys) {
@@ -278,12 +279,17 @@ export async function callGeminiRoundRobin(
           const allKeys = getStoredApiKeys();
           const keyIndex = allKeys.findIndex(k => k.id === currentKey.id);
 
-          if (response.status === 429 || response.status === 403) {
+          if (response.status === 429) {
+            // Hết quota cho model này — thử model tiếp theo (quota theo model, không theo key)
+            errors.push(`Key "${currentKey.label}" [${activeModel}]: Hết quota (429), thử model khác...`);
+            continue;
+          } else if (response.status === 403) {
+            // Không có quyền — bỏ key này luôn (đây là vấn đề key, không phải model)
             if (keyIndex !== -1) {
               allKeys[keyIndex].status = 'rate_limited';
               saveApiKeys(allKeys);
             }
-            errors.push(`Key "${currentKey.label}": Đạt giới hạn (429/403)`);
+            errors.push(`Key "${currentKey.label}": Không có quyền truy cập (403)`);
             break; // Thử sang key kế tiếp
           } else if (response.status === 400 || response.status === 401) {
             if (keyIndex !== -1) {
@@ -327,16 +333,22 @@ export async function callGeminiRoundRobin(
     }
   }
 
-  // Kiểm tra xem tất cả lỗi có phải do server quá tải (503) không
-  const allServerOverload = errors.every(e => e.includes('(503)') || e.includes('(502)') || e.includes('(504)') || e.includes('(529)') || e.includes('Máy chủ quá tải'));
-  if (allServerOverload && attempt < MAX_RETRIES) {
-    // Đợi rồi thử lại
+  // Phân tích nguyên nhân tất cả lỗi
+  const allQuotaExceeded = errors.length > 0 && errors.every(e => e.includes('(429)') || e.includes('Hết quota'));
+  const allServerOverload = errors.length > 0 && errors.every(e => e.includes('(503)') || e.includes('(502)') || e.includes('(504)') || e.includes('(529)') || e.includes('Máy chủ quá tải'));
+  const mixedTemporary = errors.length > 0 && errors.every(e => e.includes('(429)') || e.includes('(503)') || e.includes('(502)') || e.includes('Hết quota') || e.includes('Máy chủ quá tải'));
+
+  if ((allServerOverload || mixedTemporary) && attempt < MAX_RETRIES) {
+    // Đợi rồi thử lại khi gặp lỗi tạm thời
     await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
     continue;
   }
 
-  // Sau khi hết retry hoặc lỗi khác → throw
-  if (allServerOverload) {
+  // Sau khi hết retry hoặc lỗi khác → throw với thông báo thân thiện
+  if (allQuotaExceeded) {
+    throw new Error(`⚠️ Tất cả API Key đã hết quota ngày hôm nay (lỗi 429). Quota miễn phí thường reset lúc 7:00 sáng hôm sau. Vui lòng thêm API Key mới hoặc thử lại vào ngày mai.`);
+  }
+  if (allServerOverload || mixedTemporary) {
     throw new Error(`⚠️ Máy chủ Google AI đang quá tải tạm thời. Đã thử lại ${MAX_RETRIES} lần nhưng vẫn không thành công. Vui lòng chờ 30-60 giây rồi nhấn tạo lại.`);
   }
   throw new Error(`Tất cả API Key đều thất bại:\n${errors.slice(0, 5).join('\n')}`);
