@@ -194,7 +194,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
               >
                 <span className="text-xs font-bold block">🔢 Đổi số liệu</span>
                 <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
-                  Giữ bài, thay đổi số liệu/biến
+                  Giữ 100% dạng bài, chỉ đổi số
                 </span>
               </button>
 
@@ -209,7 +209,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
               >
                 <span className="text-xs font-bold block">🔄 Cùng dạng</span>
                 <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
-                  Cùng dạng bài, bối cảnh mới
+                  Cùng dạng toán (ẩn ở mẫu, căn...), bối cảnh mới
                 </span>
               </button>
 

@@ -370,6 +370,29 @@ TUYỆT ĐỐI KHÔNG LẪN LỘN GIỮA CÁC MÔN: Đề gốc môn nào thì C
 
 [NHÓM 1] KHOA HỌC TỰ NHIÊN — Toán, Vật lý, Hóa học, Sinh học:
 • BẮT BUỘC dùng LaTeX $...$ (inline) hoặc $$...$$ (display) cho mọi công thức, ký hiệu, đơn vị đo.
+• QUY TẮC BẢO TOÀN DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ / HÌNH HỌC (QUY TẮC CỐT LÕI - BẮT BUỘC 100% TUÂN THỦ):
+  Khi tạo bài tập hoặc đề thi tương tự môn Toán (ở mọi khối lớp từ THCS lớp 6, 7, 8, 9 đến THPT lớp 10, 11, 12):
+  1. PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (Phân thức hữu tỉ):
+     - Nếu câu gốc là phương trình chứa ẩn ở mẫu thức (ví dụ dạng $\\frac{A(x)}{B(x)} = C$ hoặc $\\frac{a}{x-x_1} + \\frac{b}{x-x_2} = c$ hoặc $\\frac{P(x)}{Q(x)} = \\frac{R(x)}{S(x)}$):
+     - Câu hỏi tương tự BẮT BUỘC 100% PHẢI LÀ PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC!
+     - TUYỆT ĐỐI NGHIÊM CẤM biến đổi thành phương trình bậc hai $ax^2 + bx + c = 0$ hay phương trình bậc nhất KHÔNG có mẫu số!
+     - Bắt buộc đề bài phải có mẫu thức chứa biến $x$, có bước tìm điều kiện xác định (ĐKXĐ: mẫu thức khác 0), quy đồng khử mẫu và đối chiếu điều kiện để loại nghiệm ngoại lai.
+     - Thiết kế hệ số sao cho nghiệm đẹp (số nguyên hoặc phân số tối giản).
+  2. PHƯƠNG TRÌNH / BẤT PHƯƠNG TRÌNH VÔ TỈ (CHỨA CĂN THỨC):
+     - Nếu câu gốc chứa căn thức $\\sqrt{f(x)}$, câu tương tự BẮT BUỘC PHẢI CHỨA CĂN THỨC cùng dạng (ví dụ: $\\sqrt{A}=B$, $\\sqrt{A}=\\sqrt{B}$, hoặc căn thức kết hợp đặt ẩn phụ). TUYỆT ĐỐI KHÔNG bỏ căn thức!
+  3. BẤT PHƯƠNG TRÌNH (chứa ẩn ở mẫu, tích, bậc hai...):
+     - Nếu câu gốc là BPT chứa ẩn ở mẫu ($\\frac{P(x)}{Q(x)} > 0$ hoặc $\\ge 0$), câu tương tự BẮT BUỘC phải là BPT chứa ẩn ở mẫu thức (cần lập bảng xét dấu thương), TUYỆT ĐỐI KHÔNG được đổi thành BPT đa thức!
+  4. HỆ PHƯƠNG TRÌNH:
+     - Nếu câu gốc là hệ phương trình (bậc nhất 2 ẩn, hệ đối xứng, hệ đẳng cấp, hệ chứa căn...), câu tương tự BẮT BUỘC phải là hệ phương trình cùng cấu trúc.
+  5. PHƯƠNG TRÌNH BẬC HAI / BẬC NHẤT / BẬC BA / TRÙNG PHƯƠNG:
+     - Giữ nguyên đúng bậc và cấu trúc phương trình tương ứng.
+  6. PHƯƠNG TRÌNH / BPT MŨ, LOGARIT, LƯỢNG GIÁC:
+     - Giữ đúng dạng hàm số mũ, logarit hoặc lượng giác.
+  7. RÚT GỌN BIỂU THỨC (chứa căn, phân thức đại số):
+     - Giữ đúng dạng phân thức / căn thức cần rút gọn và yêu cầu phụ (tính giá trị, tìm $x$ nguyên...).
+  8. BÀI TOÁN HÌNH HỌC (chóp, lăng trụ, tam giác, đường tròn...):
+     - Giữ đúng dạng hình học và yêu cầu tương đương.
+  → ĐỊNH NGHĨA "CÙNG DẠNG BÀI": Là CÙNG DẠNG TOÁN, CÙNG BẢN CHẤT CẤU TRÚC ĐẠI SỐ, CÙNG BƯỚC SUY LUẬN & PHƯƠNG PHÁP GIẢI; CHỈ ĐỔI SỐ LIỆU / HỆ SỐ / NGỮ CẢNH. TUYỆT ĐỐI KHÔNG ĐƯỢC ĐỔI SANG DẠNG TOÁN KHÁC!
 • Có thể sinh TikZ nếu câu có hình vẽ hình học, đồ thị hàm số (pgfplots), hình không gian.
 • Bảng số liệu (bảng tần số, giá trị hàm số): dùng \\begin{tabular}...\\end{tabular}.
 • QUY TẮC BẢNG BIẾN THIÊN (TUYỆT ĐỐI TUÂN THỦ):
@@ -646,6 +669,12 @@ export function buildExamPrompt(
     nang_cao: 'NÂNG CAO / PHÂN LOẠI (Phát triển các câu hỏi vận dụng cao phân loại học sinh giỏi)',
   };
 
+  const modeTextMap = {
+    doi_so_lieu: 'ĐỔI SỐ LIỆU (BẢO TOÀN 100% DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ/HÌNH HỌC GỐC, chỉ thay đổi hệ số/số liệu sao cho nghiệm đẹp)',
+    cung_dang: 'CÙNG DẠNG BÀI (BẮT BUỘC 100% CÙNG DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ/HÌNH HỌC: ví dụ bài gốc là phương trình chứa ẩn ở mẫu thì bài mới BẮT BUỘC là phương trình chứa ẩn ở mẫu, TUYỆT ĐỐI KHÔNG đổi thành phương trình bậc hai không mẫu; bài gốc chứa căn thì bài mới phải chứa căn; giữ nguyên phương pháp giải và các bước biến đổi cốt lõi, chỉ thay đổi hệ số, ẩn số hoặc ngữ cảnh)',
+    hoan_toan_moi: 'HOÀN TOÀN MỚI (Cùng chủ đề và mức độ nhận thức, sáng tạo câu hỏi mới hoàn toàn)',
+  };
+
   const tikzShapeGuide = `QUY TẮC VẼ HÌNH TIKZ CHÍNH XÁC (BẮT BUỘC TUÂN THỦ):
   [A] NHẬN DẠNG LOẠI HÌNH TRƯỚC KHI VIẾT CODE — đọc kỹ đề bài, xác định loại hình, sau đó viết mã TikZ phù hợp:
     • Đường tròn / dây cung / tiếp tuyến → \\draw (O) circle (Rcm); \\coordinate (P) at ($(O)+(góc:Rcm)$);
@@ -698,6 +727,7 @@ NHIỆM VỤ: Dựa vào ảnh/văn bản bài tập gốc dưới đây, hãy s
 YÊU CẦU CẤU HÌNH:
 - Số bài cần sinh: ${config.soBai} bài
 - Độ khó: ${doKhoMap[config.doKho]}
+- Mức độ tương tự: ${modeTextMap[config.mucDoTuongTu]}
 - Chế độ TikZ: ${tikzInstruction}
 - Lời giải chi tiết: ${config.includeAnswers ? 'BẮT BUỘC có lời giải chi tiết từng bước và đáp số.' : 'Chỉ cần đề bài và đáp số ngắn gọn.'}
 ${config.extraPrompt ? `- YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
@@ -707,8 +737,14 @@ ${buildSubjectRules()}
 QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG:
 1. Nhận diện môn học từ bài gốc, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
 ${targetTypeInstruction}
-3. ${mathTypeNote || 'Đảm bảo tính chính xác về nội dung, số liệu đẹp, kết quả đúng đắn.'}
-4. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
+3. BẢO TOÀN TUYỆT ĐỐI DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ / HÌNH HỌC (QUAN TRỌNG NHẤT):
+   Mọi bài tập tương tự sinh ra PHẢI CÙNG DẠNG TOÁN 100% với bài gốc:
+   - Nếu bài gốc là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (phân thức đại số có chứa biến ở mẫu thức): TẤT CẢ ${config.soBai} bài sinh ra BẮT BUỘC 100% PHẢI LÀ PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC! TUYỆT ĐỐI NGHIÊM CẤM biến thành phương trình bậc hai $ax^2+bx+c=0$ hay phương trình bậc nhất KHÔNG có mẫu số! Bắt buộc phải có mẫu thức chứa biến $x$, có bước đặt điều kiện xác định mẫu thức khác 0, quy đồng khử mẫu và loại nghiệm ngoại lai.
+   - Nếu bài gốc chứa căn thức: Bài sinh ra BẮT BUỘC phải chứa căn thức cùng dạng.
+   - Nếu bài gốc là hệ phương trình / bất phương trình / lượng giác: Bài sinh ra giữ nguyên cấu trúc dạng toán đó.
+   - Chỉ thay đổi hệ số/số liệu sao cho nghiệm đẹp (số nguyên hoặc phân số tối giản).
+4. ${mathTypeNote || 'Đảm bảo tính chính xác về nội dung, số liệu đẹp, kết quả đúng đắn.'}
+5. TUÂN THỦ ĐỊNH DẠNG TẦNG CỐ ĐỊNH DƯỚI ĐÂY (Không thêm lời chào hỏi hay JSON):
 
 QUY TẮC LOẠI CÂU HỎI:
 - Câu TỰ LUẬN → LOAI: tu_luan, có NOI_DUNG (CHỈ đề bài, TUYỆT ĐỐI KHÔNG đặt lời giải vào đây), DAP_AN (chỉ kết quả/đáp số cuối ngắn gọn), HUONG_DAN_GIAI (lời giải chi tiết từng bước — trường riêng, học sinh KHÔNG nhìn thấy trên đề).
@@ -846,12 +882,6 @@ ${sourceContent}
 
 
   // Mode 1: Tạo nguyên đề thi (Mọi môn học)
-  const modeTextMap = {
-    doi_so_lieu: 'ĐỔI SỐ LIỆU (Giữ nguyên cấu trúc ma trận, chỉ thay đổi số liệu, tên biến, đồ thị)',
-    cung_dang: 'CÙNG DẠNG BÀI (Giữ phương pháp giải và ma trận đề, sáng tạo ngữ cảnh và dữ kiện mới)',
-    hoan_toan_moi: 'HOÀN TOÀN MỚI (Giữ chuẩn kiến thức kỹ năng, sáng tạo câu hỏi mới hoàn toàn)',
-  };
-
   const deTitle = config.soDeCanTao > 1
     ? `${config.tieuDe || 'ĐỀ THI TƯƠNG TỰ'} - ĐỀ SỐ ${deIndex}`
     : config.tieuDe || 'ĐỀ KIỂM TRA TƯƠNG TỰ';
@@ -884,6 +914,11 @@ QUY TẮC TRÌNH BÀY BẮT BUỘC:
 8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY (Không thêm JSON hay lời chào):
 9. VỚI CÂU TỰ LUẬN: NOI_DUNG CHỈ chứa đề bài (yêu cầu, dữ kiện, hàm số). TUYỆT ĐỐI CẤM đặt lời giải vào NOI_DUNG. DAP_AN CHỈ là đáp số/kết quả ngắn gọn cuối cùng. HUONG_DAN_GIAI mới chứa lời giải chi tiết (ẩn với học sinh, chỉ giáo viên xem).
 10. CÂU "QUAN SÁT ĐỒ THỊ": Nếu câu hỏi tương tự có dạng "Đường cong trong hình dưới đây là đồ thị hàm số nào?" → NOI_DUNG là đề dẫn ngắn, TIKZ BẮT BUỘC vẽ đồ thị hàm số ĐÚNG (đáp án đúng) có đủ đặc trưng, CAU_LENH là câu hỏi.
+11. BẢO TOÀN DẠNG TOÁN TỪNG CÂU 100% (QUAN TRỌNG NHẤT):
+    Mỗi câu hỏi tương tự BẮT BUỘC PHẢI CÙNG DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ / HÌNH HỌC với câu gốc tương ứng:
+    - Nếu câu gốc là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC: Câu mới BẮT BUỘC 100% là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (có mẫu chứa biến $x$, có bước đặt điều kiện xác định mẫu thức khác 0, quy đồng khử mẫu và loại nghiệm ngoại lai). TUYỆT ĐỐI NGHIÊM CẤM biến thành phương trình bậc hai $ax^2+bx+c=0$ hay phương trình bậc nhất KHÔNG có mẫu số!
+    - Nếu câu gốc chứa căn thức: Câu mới BẮT BUỘC chứa căn thức cùng dạng.
+    - Nếu câu gốc là hệ phương trình / bất phương trình / lượng giác: Câu mới giữ nguyên dạng cấu trúc đó.
 
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
 1. ĐỀ GỐC CÓ CẤU TRÚC DỰ KIẾN: ${detectedStruct.summaryText}.
@@ -1202,6 +1237,11 @@ QUY TẮC BẮT BUỘC:
 8. TUÂN THỦ CHÍNH XÁC ĐỊNH DẠNG TẦNG KHÔNG THAY ĐỔI DƯỚI ĐÂY:
 9. VỚI CÂU TỰ LUẬN: NOI_DUNG CHỈ chứa đề bài (yêu cầu, dữ kiện, hàm số). TUYỆT ĐỐI CẤM đặt lời giải vào NOI_DUNG. DAP_AN CHỈ là đáp số/kết quả ngắn gọn cuối cùng. HUONG_DAN_GIAI mới chứa lời giải chi tiết (ẩn với học sinh, chỉ giáo viên xem khi bật "Xem đáp án").
 10. CÂU "QUAN SÁT ĐỒ THỊ": Nếu câu hỏi tương tự có dạng "Đường cong trong hình dưới đây là đồ thị hàm số nào?" → NOI_DUNG là đề dẫn, TIKZ BẮT BUỘC vẽ đồ thị hàm số ĐÚNG (đáp án đúng) đủ đặc trưng, CAU_LENH là câu hỏi lựa chọn.
+11. BẢO TOÀN DẠNG TOÁN TỪNG CÂU 100% (QUAN TRỌNG NHẤT):
+    Mỗi câu hỏi tương tự BẮT BUỘC PHẢI CÙNG DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ / HÌNH HỌC với câu gốc tương ứng:
+    - Nếu câu gốc là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC: Câu mới BẮT BUỘC 100% là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (có mẫu chứa biến $x$, có bước đặt điều kiện xác định mẫu thức khác 0, quy đồng khử mẫu và loại nghiệm ngoại lai). TUYỆT ĐỐI NGHIÊM CẤM biến thành phương trình bậc hai $ax^2+bx+c=0$ hay phương trình bậc nhất KHÔNG có mẫu số!
+    - Nếu câu gốc chứa căn thức: Câu mới BẮT BUỘC chứa căn thức cùng dạng.
+    - Nếu câu gốc là hệ phương trình / bất phương trình / lượng giác: Câu mới giữ nguyên dạng cấu trúc đó.
 
 ===DE===
 TIEU_DE: ${deTitle}
