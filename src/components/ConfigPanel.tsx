@@ -44,6 +44,77 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
         </div>
       </div>
 
+      {/* ============================================================= */}
+      {/* THÔNG TIN MÔN HỌC & PHẠM VI — Hiển thị ở MỌI CHẾ ĐỘ         */}
+      {/* ============================================================= */}
+      <div className="space-y-2 pb-2 border-b border-slate-100">
+        <label className="text-xs font-bold text-slate-800 block">📚 Môn học & Phạm vi kiến thức:</label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {/* Môn học */}
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 block">Môn học</label>
+            <select
+              value={config.monHoc || ''}
+              onChange={(e) => onChangeConfig({ ...config, monHoc: e.target.value })}
+              className="w-full px-2 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="">🤖 Tự nhận diện</option>
+              <optgroup label="Khoa học tự nhiên">
+                <option value="toan">📐 Toán học</option>
+                <option value="ly">⚡ Vật lý</option>
+                <option value="hoa">🧪 Hóa học</option>
+                <option value="sinh">🌿 Sinh học</option>
+                <option value="khtn">🔬 KHTN (tích hợp)</option>
+                <option value="tin">💻 Tin học</option>
+              </optgroup>
+              <optgroup label="Khoa học xã hội">
+                <option value="van">📖 Ngữ văn</option>
+                <option value="anh">🇬🇧 Tiếng Anh</option>
+                <option value="su">🏛️ Lịch sử</option>
+                <option value="dia">🗺️ Địa lý</option>
+                <option value="gdcd">⚖️ GDCD / GDKTPL</option>
+                <option value="khxh">📚 KHXH (tích hợp)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          {/* Lớp */}
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-semibold text-slate-500 block">Lớp</label>
+            <select
+              value={config.lop || ''}
+              onChange={(e) => onChangeConfig({ ...config, lop: e.target.value })}
+              className="w-full px-2 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            >
+              <option value="">🤖 Tự nhận diện</option>
+              <optgroup label="THCS">
+                <option value="6">Lớp 6</option>
+                <option value="7">Lớp 7</option>
+                <option value="8">Lớp 8</option>
+                <option value="9">Lớp 9</option>
+              </optgroup>
+              <optgroup label="THPT">
+                <option value="10">Lớp 10</option>
+                <option value="11">Lớp 11</option>
+                <option value="12">Lớp 12</option>
+              </optgroup>
+            </select>
+          </div>
+
+          {/* Chủ đề / Chương — chiếm full width trên mobile */}
+          <div className="space-y-0.5 col-span-2 sm:col-span-1">
+            <label className="text-[10px] font-semibold text-slate-500 block">Chủ đề / Chương (nếu có)</label>
+            <input
+              type="text"
+              placeholder="VD: Chương 2: Lượng giác, Unit 5..."
+              value={config.chuDe || ''}
+              onChange={(e) => onChangeConfig({ ...config, chuDe: e.target.value })}
+              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* ========================================================= */}
       {/* MODE 1: NGUYÊN ĐỀ THI (Hỗ trợ mọi môn học & Tùy chọn y hệt đề gốc) */}
       {/* ========================================================= */}
@@ -641,6 +712,59 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
           {/* Yêu cầu thêm (Textarea theo ảnh người dùng) */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700 block">
+              Mức độ tương tự:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ ...config, mucDoTuongTu: 'doi_so_lieu' })}
+                className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                  config.mucDoTuongTu === 'doi_so_lieu'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-1 ring-indigo-500'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-xs font-bold block">🔢 Đổi số liệu</span>
+                <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                  Giữ 100% dạng bài, chỉ đổi số
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ ...config, mucDoTuongTu: 'cung_dang' })}
+                className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                  config.mucDoTuongTu === 'cung_dang'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-1 ring-indigo-500'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-xs font-bold block">🔄 Cùng dạng</span>
+                <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                  Cùng dạng toán (ẩn ở mẫu, căn...), bối cảnh mới
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onChangeConfig({ ...config, mucDoTuongTu: 'hoan_toan_moi' })}
+                className={`p-2 rounded-xl border text-left cursor-pointer transition-all ${
+                  config.mucDoTuongTu === 'hoan_toan_moi'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-1 ring-indigo-500'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-xs font-bold block">✨ Mới hoàn toàn</span>
+                <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                  Bài sáng tạo mới theo chủ đề
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Yêu cầu thêm */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-700 block">
               Yêu cầu thêm từ giáo viên:
             </label>
             <textarea
@@ -651,6 +775,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ config, onChangeConfig
               className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
+
         </div>
       )}
 

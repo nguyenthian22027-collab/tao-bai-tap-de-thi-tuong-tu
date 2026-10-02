@@ -121,6 +121,11 @@ export interface ConfigState {
   truong?: string;
   namHoc?: string;
 
+  // Thông tin môn học & phạm vi — giúp AI sinh đúng môn, đúng chương
+  monHoc?: string;  // VD: 'toan' | 'ly' | 'hoa' | 'anh' | 'van' | 'su' | 'dia' | 'gdcd' | 'tin' | 'sinh' | 'khtn'
+  lop?: string;     // VD: '6' | '7' | '8' | '9' | '10' | '11' | '12'
+  chuDe?: string;   // VD: 'Chương 2: Lượng giác', 'Unit 5: The environment'
+
   // Độ khó & TikZ (Dùng chung cho cả 'nguyen_de' và 'cau_le')
   soBai: number; // Số bài cần tạo khi mode === 'cau_le'
   doKho: 'tuong_duong' | 'de_hon' | 'kho_hon' | 'nang_cao';

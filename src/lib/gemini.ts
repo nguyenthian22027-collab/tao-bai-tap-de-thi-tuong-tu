@@ -675,6 +675,26 @@ export function buildExamPrompt(
     hoan_toan_moi: 'HOÀN TOÀN MỚI (Cùng chủ đề và mức độ nhận thức, sáng tạo câu hỏi mới hoàn toàn)',
   };
 
+  // Helper: Thông tin môn học & phạm vi do GV khai báo — đưa vào mọi prompt để AI không phải đoán
+  const monHocLabelMap: Record<string, string> = {
+    toan: 'Toán học', ly: 'Vật lý', hoa: 'Hóa học', sinh: 'Sinh học',
+    khtn: 'Khoa học tự nhiên (KHTN)', tin: 'Tin học', van: 'Ngữ văn',
+    anh: 'Tiếng Anh', su: 'Lịch sử', dia: 'Địa lý',
+    gdcd: 'Giáo dục công dân / GDKTPL', khxh: 'Khoa học xã hội (KHXH)',
+  };
+  const monHocText = config.monHoc ? monHocLabelMap[config.monHoc] || config.monHoc : '';
+  const lopText = config.lop ? `Lớp ${config.lop}` : '';
+  const chuDeText = config.chuDe?.trim() || '';
+
+  const subjectContextLines: string[] = [];
+  if (monHocText) subjectContextLines.push(`- Môn học: ${monHocText} (BẮT BUỘC sinh đề đúng môn này, áp dụng đúng quy tắc trình bày môn ${monHocText})`);
+  if (lopText) subjectContextLines.push(`- Lớp: ${lopText} (Nội dung và ngôn ngữ phù hợp với học sinh ${lopText})`);
+  if (chuDeText) subjectContextLines.push(`- Chủ đề / Chương: "${chuDeText}" (BẮT BUỘC mọi câu hỏi sinh ra PHẢI thuộc phạm vi chủ đề/chương này)`);
+  const subjectContextNote = subjectContextLines.length > 0
+    ? `\nTHÔNG TIN MÔN HỌC & PHẠM VI DO GIÁO VIÊN KHAI BÁO (ƯU TIÊN CAO NHẤT — ghi đè kết quả tự nhận diện):\n${subjectContextLines.join('\n')}\n`
+    : '';
+
+
   const tikzShapeGuide = `QUY TẮC VẼ HÌNH TIKZ CHÍNH XÁC (BẮT BUỘC TUÂN THỦ):
   [A] NHẬN DẠNG LOẠI HÌNH TRƯỚC KHI VIẾT CODE — đọc kỹ đề bài, xác định loại hình, sau đó viết mã TikZ phù hợp:
     • Đường tròn / dây cung / tiếp tuyến → \\draw (O) circle (Rcm); \\coordinate (P) at ($(O)+(góc:Rcm)$);
@@ -733,9 +753,9 @@ YÊU CẦU CẤU HÌNH:
 ${config.extraPrompt ? `- YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
 
 ${buildSubjectRules()}
-
+${subjectContextNote}
 QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG:
-1. Nhận diện môn học từ bài gốc, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
+1. Nhận diện môn học từ bài gốc${monHocText ? ` (Giáo viên đã xác nhận: ${monHocText})` : ''}, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
 ${targetTypeInstruction}
 3. BẢO TOÀN TUYỆT ĐỐI DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ / HÌNH HỌC (QUAN TRỌNG NHẤT):
    Mọi bài tập tương tự sinh ra PHẢI CÙNG DẠNG TOÁN 100% với bài gốc:
@@ -896,7 +916,7 @@ NHIỆM VỤ QUAN TRỌNG:
 Phân tích kỹ lưỡng đề thi gốc dưới đây và tạo 1 ĐỀ THI MỚI TƯƠNG TỰ (Mã đề: ${deIndex}) SAO CHÉP Y HỆT 100% CẤU TRÚC ĐỀ GỐC.
 
 ${buildSubjectRules()}
-
+${subjectContextNote}
 QUY TẮC TRÌNH BÀY BẮT BUỘC:
 1. LaTeX: Với môn KHTN (Toán, Lý, Hóa, Sinh) → BẮT BUỘC dùng LaTeX $...$ cho mọi công thức, ký hiệu. Với môn Ngoại ngữ, Ngữ văn, KHXH → KHÔNG dùng LaTeX (xem QUY TẮC NHẬN DIỆN MÔN HỌC ở trên).
 2. Với CÂU CÓ HÌNH VẼ / ĐỒ THỊ (Toán / Lý / KHTN):
@@ -1104,12 +1124,14 @@ ${sourceContent}
 NHIỆM VỤ: Tạo 1 đề thi Tiếng Anh hoàn chỉnh (Mã đề: ${deIndex}) từ nội dung đề thi gốc dưới đây theo ĐÚNG MA TRẬN TÙY CHỈNH.
 
 ${buildSubjectRules()}
-
+${subjectContextNote}
 CẤU TRÚC ĐỀ THI TIẾNG ANH THEO MA TRẬN YÊU CẦU:
 - Tiêu đề: ${deTitle}
 - Thời gian làm bài: ${config.thoiGian} phút
 - Độ khó đề thi: ${doKhoMap[config.doKho]}
 - Mức độ tương tự: ${modeTextMap[config.mucDoTuongTu]}
+${lopText ? `- Lớp: ${lopText}` : ''}
+${chuDeText ? `- Chủ đề trọng tâm: "${chuDeText}"` : ''}
 ${config.truong ? `- Tên trường/đơn vị: ${config.truong}` : ''}
 ${config.namHoc ? `- Năm học: ${config.namHoc}` : ''}
 ${config.extraPrompt ? `- Yêu cầu thêm từ giáo viên: "${config.extraPrompt}"` : ''}
@@ -1206,13 +1228,16 @@ NHIỆM VỤ: Tạo 1 đề thi tương tự (Mã đề: ${deIndex}) từ đề 
 LƯU Ý: Nhận diện môn học từ đề gốc và sinh nội dung đúng môn đó (Toán, Lý, Hóa, Sinh, Tin học, GDCD...).
 
 ${buildSubjectRules()}
-
+${subjectContextNote}
 CẤU TRÚC ĐỀ THI YÊU CẦU:
 - Tiêu đề: ${deTitle}
 - Độ khó đề thi: ${doKhoMap[config.doKho]}
 - Mức độ tương tự: ${modeTextMap[config.mucDoTuongTu]}
 - Thời gian làm bài: ${config.thoiGian} phút
 - Vẽ hình TikZ: ${tikzInstruction}
+${monHocText ? `- Môn học: ${monHocText}` : ''}
+${lopText ? `- Lớp: ${lopText}` : ''}
+${chuDeText ? `- Chủ đề / Chương: "${chuDeText}"` : ''}
 ${config.truong ? `- Tên trường/đơn vị: ${config.truong}` : ''}
 ${config.namHoc ? `- Năm học: ${config.namHoc}` : ''}
 ${config.extraPrompt ? `- Yêu cầu thêm từ giáo viên: "${config.extraPrompt}"` : ''}
