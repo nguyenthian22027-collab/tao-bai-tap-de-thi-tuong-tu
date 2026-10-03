@@ -669,11 +669,41 @@ export function buildExamPrompt(
     nang_cao: 'NÂNG CAO / PHÂN LOẠI (Phát triển các câu hỏi vận dụng cao phân loại học sinh giỏi)',
   };
 
+  // Nhãn ngắn cho tiêu đề
   const modeTextMap = {
     doi_so_lieu: 'ĐỔI SỐ LIỆU (BẢO TOÀN 100% DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ/HÌNH HỌC GỐC, chỉ thay đổi hệ số/số liệu sao cho nghiệm đẹp)',
     cung_dang: 'CÙNG DẠNG BÀI (BẮT BUỘC 100% CÙNG DẠNG TOÁN VÀ CẤU TRÚC ĐẠI SỐ/HÌNH HỌC: ví dụ bài gốc là phương trình chứa ẩn ở mẫu thì bài mới BẮT BUỘC là phương trình chứa ẩn ở mẫu, TUYỆT ĐỐI KHÔNG đổi thành phương trình bậc hai không mẫu; bài gốc chứa căn thì bài mới phải chứa căn; giữ nguyên phương pháp giải và các bước biến đổi cốt lõi, chỉ thay đổi hệ số, ẩn số hoặc ngữ cảnh)',
     hoan_toan_moi: 'HOÀN TOÀN MỚI (Cùng chủ đề và mức độ nhận thức, sáng tạo câu hỏi mới hoàn toàn)',
   };
+
+  // Chỉ thị hành vi chi tiết theo từng mức — đưa thẳng vào prompt dưới dạng lệnh cứng
+  const similarityInstructions: Record<string, string> = {
+    doi_so_lieu: `CHẾ ĐỘ: ĐỔI SỐ LIỆU — CÁC QUY TẮC BẮT BUỘC:
+• GIỮ NGUYÊN TUYỆT ĐỐI: dạng toán, cấu trúc đại số, loại phương trình/bất phương trình/bài toán, số lượng ẩn số, số bước giải, dạng hình học, công thức chủ đạo, dạng câu hỏi (tự luận/TN/đúng-sai/trả lời ngắn).
+• CHỈ ĐƯỢC THAY ĐỔI: hệ số số học, hằng số, số liệu cụ thể (độ dài, vận tốc, giá tiền...) — sao cho nghiệm vẫn đẹp (số nguyên hoặc phân số tối giản).
+• CẤM TUYỆT ĐỐI: đổi từ phương trình sang bất phương trình, từ hàm bậc 3 sang bậc 2, từ câu đọc hiểu sang câu ngữ pháp, từ câu tự luận sang trắc nghiệm, từ bài hình học không gian sang hình học phẳng.
+• Môn Lý/Hóa/Sinh: giữ đúng công thức vật lý/hóa học gốc, chỉ đổi giá trị số liệu.
+• Môn Anh: giữ đúng dạng bài (Pronunciation/Stress/Grammar/Reading/Writing), chỉ đổi từ vựng/chủ đề.
+• Môn Văn/Sử/Địa: giữ đúng dạng câu (đọc hiểu/nghị luận/phân tích biểu đồ), chỉ đổi đoạn trích/số liệu.`,
+
+    cung_dang: `CHẾ ĐỘ: CÙNG DẠNG BÀI — CÁC QUY TẮC BẮT BUỘC:
+• PHẢI CÙNG DẠNG TOÁN CỐT LÕI: phương trình ẩn ở mẫu → vẫn phải là phương trình ẩn ở mẫu; căn thức → vẫn phải có căn; hàm bậc 3 → vẫn bậc 3; hình chóp → vẫn là hình chóp.
+• ĐƯỢC THAY ĐỔI: hệ số, ẩn số, ngữ cảnh bài toán, số liệu, tên nhân vật/địa danh; có thể điều chỉnh phụ để bài phong phú hơn nhưng vẫn giữ bản chất dạng bài.
+• PHƯƠNG PHÁP GIẢI PHẢI TƯƠNG TỰ: nếu bài gốc cần quy đồng khử mẫu thì bài mới cũng cần quy đồng khử mẫu; nếu bài gốc cần đặt ẩn phụ thì bài mới cũng có thể cần đặt ẩn phụ.
+• Môn Anh: cùng kỹ năng ngôn ngữ (nếu bài gốc là Pronunciation thì bài mới vẫn là Pronunciation, không được đổi sang Stress); cùng cấu trúc ngữ pháp nhưng đổi từ vựng/chủ đề.
+• Môn Văn/Sử/Địa: cùng kiểu câu hỏi (phân tích/cảm nhận/trình bày/giải thích), đổi tác phẩm/sự kiện/vùng địa lý.`,
+
+    hoan_toan_moi: `CHẾ ĐỘ: MỚI HOÀN TOÀN — CÁC QUY TẮC BẮT BUỘC:
+• SÁNG TẠO câu hỏi mới hoàn toàn trong CÙNG CHỦ ĐỀ/CHƯƠNG/MÔN HỌC với đề gốc.
+• GIỮ NGUYÊN: mức độ nhận thức (nhận biết/thông hiểu/vận dụng), loại câu hỏi (tự luận/TN/đúng-sai/trả lời ngắn), số điểm.
+• TỰ DO SÁNG TẠO: có thể dùng dạng toán/bài hoàn toàn khác nhau nhưng vẫn thuộc cùng chương trình.
+• TUYỆT ĐỐI KHÔNG sao chép lại câu gốc, không đổi mỗi số liệu rồi coi là "mới hoàn toàn".
+• Nếu GV đã khai báo Chủ đề/Chương cụ thể ở trên → BẮT BUỘC câu mới phải thuộc phạm vi đó.`,
+  };
+
+  // Block chỉ thị đầy đủ — dùng trong từng prompt mode
+  const similarityBlock = `\n${similarityInstructions[config.mucDoTuongTu] || similarityInstructions.cung_dang}\n`;
+
 
   // Helper: Thông tin môn học & phạm vi do GV khai báo — đưa vào mọi prompt để AI không phải đoán
   const monHocLabelMap: Record<string, string> = {
@@ -753,7 +783,7 @@ YÊU CẦU CẤU HÌNH:
 ${config.extraPrompt ? `- YÊU CẦU THÊM TỪ GIÁO VIÊN: "${config.extraPrompt}"` : ''}
 
 ${buildSubjectRules()}
-${subjectContextNote}
+${subjectContextNote}${similarityBlock}
 QUY TẮC BẮT BUỘC VỀ ĐỊNH DẠNG:
 1. Nhận diện môn học từ bài gốc${monHocText ? ` (Giáo viên đã xác nhận: ${monHocText})` : ''}, áp dụng đúng quy tắc trình bày theo nhóm môn ở trên.
 ${targetTypeInstruction}
@@ -939,7 +969,7 @@ QUY TẮC TRÌNH BÀY BẮT BUỘC:
     - Nếu câu gốc là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC: Câu mới BẮT BUỘC 100% là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (có mẫu chứa biến $x$, có bước đặt điều kiện xác định mẫu thức khác 0, quy đồng khử mẫu và loại nghiệm ngoại lai). TUYỆT ĐỐI NGHIÊM CẤM biến thành phương trình bậc hai $ax^2+bx+c=0$ hay phương trình bậc nhất KHÔNG có mẫu số!
     - Nếu câu gốc chứa căn thức: Câu mới BẮT BUỘC chứa căn thức cùng dạng.
     - Nếu câu gốc là hệ phương trình / bất phương trình / lượng giác: Câu mới giữ nguyên dạng cấu trúc đó.
-
+${similarityBlock}
 QUY TẮC PHÂN TÍCH VÀ SAO CHÉP CẤU TRÚC ĐỀ GỐC:
 1. ĐỀ GỐC CÓ CẤU TRÚC DỰ KIẾN: ${detectedStruct.summaryText}.
    BẮT BUỘC đề mới phải sinh ĐỦ 100% SỐ CÂU của từng phần trên! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT câu nào, đặc biệt là các câu Tự luận cuối đề!
@@ -1148,7 +1178,7 @@ QUY TẮC BẮT BUỘC:
 3. Với câu True/False: BẮT BUỘC "A: True", "B: False", DAP_AN là A hoặc B.
 4. Với bài đọc Reading: Đặt bài đọc vào GHI_CHU của ===PHAN===, các câu hỏi con đặt bên dưới.
 5. Với câu Writing: NOI_DUNG chứa câu gốc và gợi ý đầu câu viết lại: "→ [Từ gợi ý] ............................................................................", DAP_AN chứa toàn bộ câu viết lại hoàn chỉnh.
-
+${similarityBlock}
 ===DE===
 TIEU_DE: ${deTitle}
 THOI_GIAN: ${config.thoiGian}
@@ -1267,7 +1297,7 @@ QUY TẮC BẮT BUỘC:
     - Nếu câu gốc là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC: Câu mới BẮT BUỘC 100% là PHƯƠNG TRÌNH CHỨA ẨN Ở MẪU THỨC (có mẫu chứa biến $x$, có bước đặt điều kiện xác định mẫu thức khác 0, quy đồng khử mẫu và loại nghiệm ngoại lai). TUYỆT ĐỐI NGHIÊM CẤM biến thành phương trình bậc hai $ax^2+bx+c=0$ hay phương trình bậc nhất KHÔNG có mẫu số!
     - Nếu câu gốc chứa căn thức: Câu mới BẮT BUỘC chứa căn thức cùng dạng.
     - Nếu câu gốc là hệ phương trình / bất phương trình / lượng giác: Câu mới giữ nguyên dạng cấu trúc đó.
-
+${similarityBlock}
 ===DE===
 TIEU_DE: ${deTitle}
 THOI_GIAN: ${config.thoiGian}
