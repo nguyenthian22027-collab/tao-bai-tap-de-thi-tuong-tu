@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ExamData, Question, QuestionType } from '../types';
 import { QuestionCard } from './QuestionCard';
 import { QuestionEditor } from './QuestionEditor';
-import { Plus, Undo2, Redo2, Eye, EyeOff, BookOpen } from 'lucide-react';
+import { MathStudioModal } from './MathStudioModal';
+import { Plus, Undo2, Redo2, Eye, EyeOff, BookOpen, TrendingUp } from 'lucide-react';
 
 interface ExamEditorProps {
   exam: ExamData;
@@ -31,6 +32,26 @@ export const ExamEditor: React.FC<ExamEditorProps> = ({
 }) => {
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [draggedQId, setDraggedQId] = useState<string | null>(null);
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [studioTargetQuestion, setStudioTargetQuestion] = useState<Question | null>(null);
+
+  const handleApplyImageFromStudio = (qId: string, pngBase64: string, tikzCode?: string) => {
+    const updatedSections = exam.phan.map((section) => {
+      const qIdx = section.cauHoi.findIndex((q) => q.id === qId);
+      if (qIdx === -1) return section;
+
+      const newQuestions = [...section.cauHoi];
+      newQuestions[qIdx] = {
+        ...newQuestions[qIdx],
+        hinhAnh: pngBase64,
+        tikzCode: tikzCode || newQuestions[qIdx].tikzCode,
+        noiDung: newQuestions[qIdx].noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim(),
+      };
+      return { ...section, cauHoi: newQuestions };
+    });
+
+    onChangeExam({ ...exam, phan: updatedSections });
+  };
 
   const handleEditClick = (q: Question) => {
     setEditingQuestion(q);
@@ -186,17 +207,31 @@ export const ExamEditor: React.FC<ExamEditorProps> = ({
           </button>
         </div>
 
-        <button
-          onClick={onToggleAnswer}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer transition-colors ${
-            showAnswer
-              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-              : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-          }`}
-        >
-          {showAnswer ? <Eye className="w-4 h-4 text-emerald-600" /> : <EyeOff className="w-4 h-4 text-slate-500" />}
-          <span>{showAnswer ? 'Hiện Đáp Án' : 'Ẩn Đáp Án'}</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              setStudioTargetQuestion(null);
+              setIsStudioOpen(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg cursor-pointer transition-colors"
+            title="Mở Xưởng vẽ hình Toán: Đồ thị hàm số, Bảng biến thiên, Miền nghiệm BPT, Sơ đồ cây xác suất"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+            <span>📐 Xưởng vẽ Toán</span>
+          </button>
+
+          <button
+            onClick={onToggleAnswer}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 cursor-pointer transition-colors ${
+              showAnswer
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            {showAnswer ? <Eye className="w-4 h-4 text-emerald-600" /> : <EyeOff className="w-4 h-4 text-slate-500" />}
+            <span>{showAnswer ? 'Hiện Đáp Án' : 'Ẩn Đáp Án'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Questions List */}
@@ -241,6 +276,10 @@ export const ExamEditor: React.FC<ExamEditorProps> = ({
                   onDragOver={handleDragOver}
                   onDrop={() => handleDrop(q.id)}
                   onUpdateQuestion={handleSaveQuestion}
+                  onOpenMathStudio={(targetQ) => {
+                    setStudioTargetQuestion(targetQ);
+                    setIsStudioOpen(true);
+                  }}
                 />
               ))}
             </div>
@@ -259,6 +298,18 @@ export const ExamEditor: React.FC<ExamEditorProps> = ({
           onAddToast={onAddToast}
         />
       )}
+
+      {/* Math Studio Modal (Xưởng vẽ hình & bảng Toán) */}
+      <MathStudioModal
+        isOpen={isStudioOpen}
+        onClose={() => {
+          setIsStudioOpen(false);
+          setStudioTargetQuestion(null);
+        }}
+        targetQuestion={studioTargetQuestion}
+        onApplyImageToQuestion={handleApplyImageFromStudio}
+        onAddToast={onAddToast}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Question, QuestionType } from '../types';
-import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle } from 'lucide-react';
+import { Edit3, Copy, Trash2, GripVertical, CheckCircle2, XCircle, Code, HelpCircle, Image as ImageIcon, BarChart2, Loader2, Sparkles, RefreshCw, Eye, Cloud, AlertCircle, TrendingUp } from 'lucide-react';
 import { extractAndCleanTikz } from '../lib/docxExporter';
 import { extractAndParseTabular, extractAndGenerateStatisticalChart, svgStringToPngBase64, isVariationTable, structureVariationTable, cleanVariationToken, generateVariationTableSvg, extractQuestionOptions } from '../lib/tableAndChartHelper';
 import { renderTikzToSvg, renderTikzToPng, renderTikzWithDetails, TikzEngine } from '../lib/tikzRenderer';
@@ -112,6 +112,7 @@ interface QuestionCardProps {
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
   onUpdateQuestion?: (q: Question) => void;
+  onOpenMathStudio?: (q: Question) => void;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -125,6 +126,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onDragOver,
   onDrop,
   onUpdateQuestion,
+  onOpenMathStudio,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -537,6 +539,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
         {/* Hover Action Toolbar */}
         <div className="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
+          {onOpenMathStudio && (
+            <button
+              onClick={() => onOpenMathStudio(question)}
+              className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+              title="📐 Mở Xưởng vẽ hình Toán (Đồ thị, BBT, Miền nghiệm, Sơ đồ cây)"
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => onEdit(question)}
             className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
@@ -705,12 +716,34 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* Question Illustration Image (chỉ render nếu đề gốc có ảnh và câu KHÔNG có TikZ và KHÔNG có Bảng Biến Thiên) */}
       {(question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]) && !activeTikz && !chartSvg && !hasVariationTable && (
-        <div className="flex justify-center p-2 bg-slate-50/80 border border-slate-100 rounded-xl overflow-hidden">
+        <div className="flex flex-col items-center justify-center p-2 bg-slate-50/80 border border-slate-100 rounded-xl overflow-hidden space-y-1.5">
           <img
             src={question.hinhAnh || question.noiDung.match(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/)?.[1]}
             alt={`Hình minh họa câu ${question.stt}`}
             className="max-h-64 max-w-full object-contain rounded-lg shadow-2xs"
           />
+          <div className="flex items-center space-x-1.5 pt-0.5">
+            {onOpenMathStudio && (
+              <button
+                type="button"
+                onClick={() => onOpenMathStudio(question)}
+                className="px-2 py-0.5 text-[10px] text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1"
+                title="Thay thế hoặc vẽ lại hình bằng Xưởng vẽ hình Toán"
+              >
+                <TrendingUp className="w-3 h-3 text-amber-600" />
+                <span>Sửa bằng Xưởng vẽ Toán</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleDeleteFigure}
+              className="px-2 py-0.5 text-[10px] text-rose-600 hover:bg-rose-50 border border-rose-200 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1"
+              title="Xóa hình này"
+            >
+              <Trash2 className="w-3 h-3 text-rose-500" />
+              <span>Xóa hình</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -897,6 +930,19 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {isGeneratingGeoviz ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>📐</span>}
                 <span>{isGeneratingGeoviz ? 'Đang vẽ GeoViz...' : 'Vẽ GeoViz (2D)'}</span>
               </button>
+
+              {/* Nút Xưởng vẽ Toán */}
+              {onOpenMathStudio && (
+                <button
+                  type="button"
+                  onClick={() => onOpenMathStudio(question)}
+                  className="px-2 py-0.5 text-[10px] text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded font-medium transition-colors cursor-pointer flex items-center space-x-1"
+                  title="📐 Mở Xưởng vẽ hình Toán: Đồ thị hàm số, Bảng biến thiên, Miền nghiệm BPT, Sơ đồ cây xác suất"
+                >
+                  <TrendingUp className="w-3 h-3 text-amber-600" />
+                  <span>Xưởng vẽ Toán</span>
+                </button>
+              )}
 
               {/* Nút Sao chép TikZ */}
               <button

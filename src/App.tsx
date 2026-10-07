@@ -5,6 +5,7 @@ import { useUndoRedo } from './lib/useUndoRedo';
 import { buildExamPrompt, callGeminiRoundRobin, parseExam, DEFAULT_KEYS_STORAGE_KEY, DEFAULT_MODEL_STORAGE_KEY, generateTikzFromQuestion, detectShapeType, normalizeModelName } from './lib/gemini';
 import { renderTikzToSvg } from './lib/tikzRenderer';
 import { svgStringToPngBase64 } from './lib/tableAndChartHelper';
+import { extractInequalitiesFromText, renderInequalitiesToPng } from './lib/inequalityRenderer';
 import {
   loginWithGoogle,
   logoutGoogle,
@@ -544,6 +545,29 @@ export function App() {
             }
           } catch (renderErr) {
             console.warn(`[TikZ-Render] Câu ${q.stt}:`, renderErr);
+          }
+        }
+
+        // Bước 5d: Tự động vẽ Miền nghiệm BPT (Toán 10 GDPT 2018) nếu câu hỏi chưa có hình và chứa hệ BPT
+        const ineqCandidateQuestions = allQuestions.filter(
+          (q) => !q.hinhAnh && (!q.tikzCode || !q.tikzCode.includes('tikzpicture'))
+        );
+        for (const q of ineqCandidateQuestions) {
+          const fullText = `${q.noiDung || ''} ${q.cauLenh || ''}`;
+          const ineqs = extractInequalitiesFromText(fullText);
+          if (ineqs.length >= 2) {
+            try {
+              const png = await renderInequalitiesToPng(ineqs, {
+                showIntersections: true,
+                showGrid: true,
+                showLabels: true,
+              });
+              if (png) {
+                q.hinhAnh = png;
+              }
+            } catch (ineqErr) {
+              console.warn(`[Ineq-Render] Câu ${q.stt}:`, ineqErr);
+            }
           }
         }
 

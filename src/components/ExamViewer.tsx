@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ExamData, Question } from '../types';
 import { Search, Eye, EyeOff } from 'lucide-react';
 import { QuestionCard } from './QuestionCard';
+import { MathStudioModal } from './MathStudioModal';
 import { isEnglishExamData } from '../lib/docxExporter';
 import { EnglishExamViewer } from './EnglishExamViewer';
 
@@ -26,7 +27,28 @@ const MathExamViewer: React.FC<ExamViewerProps> = ({
   onAddToast,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [studioTargetQuestion, setStudioTargetQuestion] = useState<Question | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleApplyImageFromStudio = (qId: string, pngBase64: string, tikzCode?: string) => {
+    if (!onChangeExam) return;
+    const updatedSections = exam.phan.map((section) => {
+      const qIdx = section.cauHoi.findIndex((q) => q.id === qId);
+      if (qIdx === -1) return section;
+
+      const newQuestions = [...section.cauHoi];
+      newQuestions[qIdx] = {
+        ...newQuestions[qIdx],
+        hinhAnh: pngBase64,
+        tikzCode: tikzCode || newQuestions[qIdx].tikzCode,
+        noiDung: newQuestions[qIdx].noiDung.replace(/!\[.*?\]\((data:image\/[^;]+;base64,[^)]+|https?:\/\/[^)]+)\)/g, '').trim(),
+      };
+      return { ...section, cauHoi: newQuestions };
+    });
+
+    onChangeExam({ ...exam, phan: updatedSections });
+  };
 
   useEffect(() => {
     if (window.MathJax?.typesetPromise && containerRef.current) {
@@ -136,6 +158,10 @@ const MathExamViewer: React.FC<ExamViewerProps> = ({
                     onCopyLatex={handleCopyLatex}
                     showAnswer={showAnswer}
                     onUpdateQuestion={handleUpdateQuestion}
+                    onOpenMathStudio={(targetQ) => {
+                      setStudioTargetQuestion(targetQ);
+                      setIsStudioOpen(true);
+                    }}
                   />
                 ))}
               </div>
@@ -143,6 +169,18 @@ const MathExamViewer: React.FC<ExamViewerProps> = ({
           );
         })}
       </div>
+
+      {/* Math Studio Modal (Xưởng vẽ hình & bảng Toán) */}
+      <MathStudioModal
+        isOpen={isStudioOpen}
+        onClose={() => {
+          setIsStudioOpen(false);
+          setStudioTargetQuestion(null);
+        }}
+        targetQuestion={studioTargetQuestion}
+        onApplyImageToQuestion={handleApplyImageFromStudio}
+        onAddToast={onAddToast || (() => {})}
+      />
     </div>
   );
 };

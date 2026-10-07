@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Question, QuestionType } from '../types';
 import { parseMixedContent } from '../lib/latexUtils';
 import { callGeminiRoundRobin } from '../lib/gemini';
-import { X, Save, Bot, Eye, HelpCircle, CheckCircle, Code, Image as ImageIcon, Upload, Trash2 } from 'lucide-react';
+import { X, Save, Bot, Eye, HelpCircle, CheckCircle, Code, Image as ImageIcon, Upload, Trash2, TrendingUp } from 'lucide-react';
+import { MathStudioModal } from './MathStudioModal';
 
 interface QuestionEditorProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiRefining, setIsAiRefining] = useState(false);
   const [showAiInput, setShowAiInput] = useState(false);
+  const [isMathStudioOpen, setIsMathStudioOpen] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -519,6 +521,18 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
               className="hidden"
               onChange={handleImageFileChange}
             />
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setIsMathStudioOpen(true)}
+                className="w-full px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                title="Mở Xưởng vẽ hình Toán: Đồ thị hàm số, Bảng biến thiên, Miền nghiệm BPT, Sơ đồ cây xác suất"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+                <span>📐 Mở Xưởng vẽ hình Toán (Đồ thị, BBT, Miền nghiệm, Sơ đồ cây)</span>
+              </button>
+            </div>
           </div>
 
           {/* Metadata: Bloom & Score */}
@@ -605,6 +619,22 @@ HUONG_DAN_GIAI: [Lời giải chi tiết]
           </button>
         </div>
       </div>
+
+      {/* Math Studio Modal nhúng sẵn cho câu hỏi đang sửa */}
+      <MathStudioModal
+        isOpen={isMathStudioOpen}
+        onClose={() => setIsMathStudioOpen(false)}
+        targetQuestion={qData}
+        onApplyImageToQuestion={(_qId, pngBase64, tikzCode) => {
+          setQData((prev) => ({
+            ...prev,
+            hinhAnh: pngBase64,
+            tikzCode: tikzCode || prev.tikzCode,
+          }));
+          setIsMathStudioOpen(false);
+        }}
+        onAddToast={onAddToast}
+      />
     </div>
   );
 };
