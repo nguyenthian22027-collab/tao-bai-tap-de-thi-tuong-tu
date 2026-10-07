@@ -121,14 +121,38 @@ function cleanMarkdownImages(text: string): string {
 }
 
 /**
- * Bóc tách triệt để lời giải hoặc đáp án nếu vô tình bị sót trong noiDung khi xuất chế độ Chỉ đề thi (exam_only)
+ * Bóc tách triệt để lời giải hoặc đáp án nếu vô tình bị sót trong noiDung khi xuất đề bài
  */
 export function stripSolutionFromPrompt(text: string): string {
   if (!text) return '';
-  return text
-    .replace(/(?:^|\n+)[*\s]*(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Lời giải chi tiết|Solution|HD giải)[\s:*_-]+[\s\S]*$/i, '')
-    .replace(/(?:^|\n+)[*\s]*(?:Đáp án|Đáp số|Kết quả|Answer)[\s:*_-]+[^\n]*$/i, '')
-    .trim();
+  let cleaned = text;
+
+  // 1. Cắt bỏ toàn bộ khối "Lời giải", "Hướng dẫn giải", "Giải chi tiết", "Solution", "Explanation" cho đến hết chuỗi
+  // Bất kể có dấu xuống dòng hay chỉ cách nhau bằng dấu chấm / chấm phẩy / khoảng trắng / markdown bold
+  cleaned = cleaned.replace(
+    /(?:^|\n+|\.\s+|;\s*|\b)[*_#\s]*(?:Lời giải(?:\s*chi tiết)?|Hướng dẫn giải(?:\s*chi tiết)?|Giải chi tiết|Hướng dẫn|Giải|Solution|Explanation|HD giải|HD)[\s:*_#–-]+[\s\S]*$/i,
+    ''
+  );
+
+  // 2. Cắt bỏ các khối "Đáp án", "Đáp số", "Kết quả", "Answer", "Key" (kèm phần sau đó đến hết dòng hoặc hết chuỗi)
+  cleaned = cleaned.replace(
+    /(?:^|\n+|\.\s+|;\s*|\b)[*_#\s]*(?:Đáp án(?:\s*đúng(?:\s*là)?)?|Đáp số|Kết quả|Answer|Key)[\s:*_#–-]+[\s\S]*$/i,
+    ''
+  );
+
+  // 3. Cắt bỏ "Chọn đáp án [A-D]", "Chọn [A-D].", "=> Chọn [A-D]", "-> [A-D]" ở cuối đề bài
+  cleaned = cleaned.replace(
+    /(?:^|\n+|\.\s+|;\s*|\b)[*_#\s]*(?:(?:=>|->|Do đó|Suy ra|Vậy)?\s*(?:Chọn(?:\s*đáp án)?|Ta chọn)[\s:*_#–-]*[ABCD][.\s]*)$/i,
+    ''
+  );
+
+  // 4. Cắt bỏ các cụm trong ngoặc ở cuối như (Đáp án: A), [Đáp án: A], (Đáp số: 5), (Answer: B), (Key: C)
+  cleaned = cleaned.replace(
+    /\s*[\(\[]\s*(?:Đáp án|Đáp số|Kết quả|Answer|Key)[\s:*_#–-]*[^\)\]]+[\)\]]\s*$/i,
+    ''
+  );
+
+  return cleaned.trim();
 }
 
 /**
@@ -1155,7 +1179,7 @@ export async function exportExamToDocxLatex(
             );
           }
 
-          let promptForDisplay = promptTextEng;
+          let promptForDisplay = stripSolutionFromPrompt(promptTextEng);
 
           // Xử lý làm sạch câu hỏi Biển báo 15 & 16
           if (q.stt === 15 || q.stt === 16) {
@@ -1307,11 +1331,8 @@ export async function exportExamToDocxLatex(
         }
       } else {
         // TOÀN BỘ LOGIC MÔN TOÁN VÀ CÁC MÔN KHÁC GIỮ NGUYÊN 100%
-        // Render Question Prompt Paragraphs
-        let cleanPrompt = cleanMarkdownImages(promptTextNoTable);
-        if (mode === 'exam_only') {
-          cleanPrompt = stripSolutionFromPrompt(cleanPrompt);
-        }
+        // Render Question Prompt Paragraphs (luôn bóc tách triệt để đáp án/lời giải để đề bài sạch sẽ 100%)
+        const cleanPrompt = stripSolutionFromPrompt(cleanMarkdownImages(promptTextNoTable));
         const parsedPromptParas = parseBlockToParagraphs(cleanPrompt);
         parsedPromptParas.forEach((p, pIdx) => {
           const runs: TextRun[] = [];
@@ -1447,7 +1468,7 @@ export async function exportExamToDocxLatex(
         // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (áp dụng cho mọi câu hỏi, đặt ngay trước các lựa chọn A, B, C, D hoặc mệnh đề a, b, c, d)
         if (q.cauLenh) {
           const clRuns: TextRun[] = [];
-          parseLineTokens(q.cauLenh).forEach((t) => {
+          parseLineTokens(stripSolutionFromPrompt(q.cauLenh)).forEach((t) => {
             if (t.type === 'math') {
               clRuns.push(new TextRun({ text: `$${t.content}$`, font: 'Courier New', color: '4F46E5', size: 22, bold: true }));
             } else {
@@ -1470,12 +1491,16 @@ export async function exportExamToDocxLatex(
 
         // 2. True / False — 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
         if (isDungSai) {
+          const cleanPropText = (txt?: string) => {
+            if (!txt) return '';
+            return txt.replace(/\s*[\(\[]?\s*(?:Đúng|Sai|True|False)\s*[\)\]]?\s*$/i, '').trim();
+          };
 
           const propositions = [
-            { key: 'a', text: q.menhDeA || q.optionA },
-            { key: 'b', text: q.menhDeB || q.optionB },
-            { key: 'c', text: q.menhDeC || q.optionC },
-            { key: 'd', text: q.menhDeD || q.optionD },
+            { key: 'a', text: cleanPropText(q.menhDeA || q.optionA) },
+            { key: 'b', text: cleanPropText(q.menhDeB || q.optionB) },
+            { key: 'c', text: cleanPropText(q.menhDeC || q.optionC) },
+            { key: 'd', text: cleanPropText(q.menhDeD || q.optionD) },
           ];
 
           propositions.forEach((m) => {
@@ -1548,6 +1573,29 @@ export async function exportExamToDocxLatex(
         ],
       })
     );
+    if (mode === 'answers_only') {
+      const metaParts: string[] = [];
+      if (exam.meta?.truong) metaParts.push(exam.meta.truong.toUpperCase());
+      if (exam.meta?.mon) metaParts.push(`MÔN: ${exam.meta.mon.toUpperCase()}`);
+      if (exam.meta?.khoi || exam.meta?.lop) metaParts.push(`LỚP: ${exam.meta.khoi || exam.meta.lop}`);
+      if (exam.meta?.deSo || exam.meta?.maDe) metaParts.push(`MÃ ĐỀ: ${exam.meta.deSo || exam.meta.maDe}`);
+      if (metaParts.length > 0) {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: metaParts.join(' | '),
+                bold: true,
+                size: 20,
+                color: '475569',
+              }),
+            ],
+            spacing: { after: 120 },
+          })
+        );
+      }
+    }
     children.push(new Paragraph({ text: '' }));
 
     const allQuestions = exam.phan.flatMap((p) => p.cauHoi);
@@ -2579,7 +2627,7 @@ export async function exportExamToDocxOmml(
             bodyXml += `<w:p><w:pPr><w:spacing w:before="100" w:after="40" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:i/><w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1E293B"/></w:rPr><w:t xml:space="preserve">Look at the entry of the word in a dictionary. Use what you can get from the entry to complete the sentences with no more than three words.</w:t></w:r></w:p>`;
           }
 
-          let promptForDisplay = promptTextEng;
+          let promptForDisplay = stripSolutionFromPrompt(promptTextEng);
 
           // Xử lý làm sạch câu hỏi Biển báo 15 & 16
           if (q.stt === 15 || q.stt === 16) {
@@ -2699,15 +2747,12 @@ export async function exportExamToDocxOmml(
         }
       } else {
         // TOÀN BỘ LOGIC CŨ MÔN TOÁN VÀ CÁC MÔN KHÁC GIỮ NGUYÊN 100%
-        // Question Prompt
+        // Question Prompt (luôn bóc tách triệt để đáp án/lời giải để đề bài sạch sẽ 100%)
         const prefixTokens: FormattedToken[] = [
           { type: 'text', content: `Câu ${q.stt}: `, bold: true },
         ];
 
-        let cleanPrompt = cleanMarkdownImages(promptTextNoTable);
-        if (mode === 'exam_only') {
-          cleanPrompt = stripSolutionFromPrompt(cleanPrompt);
-        }
+        const cleanPrompt = stripSolutionFromPrompt(cleanMarkdownImages(promptTextNoTable));
         bodyXml += emitMarkdownBlockXml(cleanPrompt, prefixTokens, 0);
 
         // Render all Tabular Tables if question contains LaTeX \begin{tabular}
@@ -2759,7 +2804,7 @@ export async function exportExamToDocxOmml(
 
         // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (áp dụng cho mọi câu hỏi, đặt ngay trước các lựa chọn A, B, C, D hoặc mệnh đề a, b, c, d)
         if (q.cauLenh) {
-          const clTokens: FormattedToken[] = parseLineTokens(q.cauLenh).map((t) => ({ ...t, bold: true }));
+          const clTokens: FormattedToken[] = parseLineTokens(stripSolutionFromPrompt(q.cauLenh)).map((t) => ({ ...t, bold: true }));
           bodyXml += createXmlParagraph(clTokens, 360, false, '0F172A');
         }
 
@@ -2817,12 +2862,16 @@ export async function exportExamToDocxOmml(
 
         // 2. True / False — 4 mệnh đề (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
         if (isDungSai) {
+          const cleanPropText = (txt?: string) => {
+            if (!txt) return '';
+            return txt.replace(/\s*[\(\[]?\s*(?:Đúng|Sai|True|False)\s*[\)\]]?\s*$/i, '').trim();
+          };
 
           const propositions = [
-            { key: 'a', text: q.menhDeA || q.optionA },
-            { key: 'b', text: q.menhDeB || q.optionB },
-            { key: 'c', text: q.menhDeC || q.optionC },
-            { key: 'd', text: q.menhDeD || q.optionD },
+            { key: 'a', text: cleanPropText(q.menhDeA || q.optionA) },
+            { key: 'b', text: cleanPropText(q.menhDeB || q.optionB) },
+            { key: 'c', text: cleanPropText(q.menhDeC || q.optionC) },
+            { key: 'd', text: cleanPropText(q.menhDeD || q.optionD) },
           ];
 
           propositions.forEach((m) => {
@@ -2863,6 +2912,16 @@ export async function exportExamToDocxOmml(
 
     // Tiêu đề phần đáp án
     bodyXml += createSimpleTextParagraph('ĐÁP ÁN VÀ HƯỚNG DẪN GIẢI CHI TIẾT', true, true, '1E3A8A');
+    if (mode === 'answers_only') {
+      const metaParts: string[] = [];
+      if (exam.meta?.truong) metaParts.push(exam.meta.truong.toUpperCase());
+      if (exam.meta?.mon) metaParts.push(`MÔN: ${exam.meta.mon.toUpperCase()}`);
+      if (exam.meta?.khoi || exam.meta?.lop) metaParts.push(`LỚP: ${exam.meta.khoi || exam.meta.lop}`);
+      if (exam.meta?.deSo || exam.meta?.maDe) metaParts.push(`MÃ ĐỀ: ${exam.meta.deSo || exam.meta.maDe}`);
+      if (metaParts.length > 0) {
+        bodyXml += createSimpleTextParagraph(metaParts.join(' | '), true, true, '475569');
+      }
+    }
     bodyXml += '<w:p/>';
 
     const allQuestions = exam.phan.flatMap((p) => p.cauHoi);

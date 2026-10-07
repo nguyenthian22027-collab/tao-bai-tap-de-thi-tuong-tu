@@ -176,7 +176,9 @@ export function examToMarkdown(
 
       const cauHoiList = phan.cauHoi || [];
       for (const q of cauHoiList) {
-        const promptClean = exportMode === 'exam_only' ? stripSolutionFromPrompt(noiDungCleaned) : noiDungCleaned;
+        const { optionA: expOptA, optionB: expOptB, optionC: expOptC, optionD: expOptD, cleanNoiDung: noiDungCleaned } = extractQuestionOptions(q);
+        const rawPrompt = noiDungCleaned || q.noiDung || '';
+        const promptClean = stripSolutionFromPrompt(rawPrompt);
         const noiDung = sanitizeMathText(promptClean);
         lines.push(`**Câu ${q.stt || ''}.** ${noiDung}`);
         lines.push('');
@@ -187,7 +189,7 @@ export function examToMarkdown(
 
         // Lời dẫn phụ / Câu lệnh hỏi nằm sau hình vẽ (Áp dụng cho mọi câu hỏi khi có câu lệnh: MCQ, Đúng/Sai, Trả lời ngắn, Tự luận)
         if (q.cauLenh && q.cauLenh.trim()) {
-          const trimmedCauLenh = q.cauLenh.trim();
+          const trimmedCauLenh = stripSolutionFromPrompt(q.cauLenh.trim());
           const cleanCauLenh = trimmedCauLenh.startsWith('**') && trimmedCauLenh.endsWith('**')
             ? trimmedCauLenh.slice(2, -2).trim()
             : trimmedCauLenh;
@@ -239,12 +241,13 @@ export function examToMarkdown(
           }
         }
 
-        // 2. Trắc nghiệm Đúng / Sai (4 mệnh đề) — Fallback đầy đủ
+        // 2. Trắc nghiệm Đúng / Sai (4 mệnh đề) — Fallback đầy đủ (Đề bài sạch sẽ, KHÔNG đánh dấu ĐÚNG/SAI)
         if (q.loai === QuestionType.TRAC_NGHIEM_DUNG_SAI) {
-          const propA = q.menhDeA || expOptA;
-          const propB = q.menhDeB || expOptB;
-          const propC = q.menhDeC || expOptC;
-          const propD = q.menhDeD || expOptD;
+          const cleanProp = (t?: string) => t ? t.replace(/\s*[\(\[]?\s*(?:Đúng|Sai|True|False)\s*[\)\]]?\s*$/i, '').trim() : '';
+          const propA = cleanProp(q.menhDeA || expOptA);
+          const propB = cleanProp(q.menhDeB || expOptB);
+          const propC = cleanProp(q.menhDeC || expOptC);
+          const propD = cleanProp(q.menhDeD || expOptD);
           if (propA) lines.push(`**a)** ${sanitizeMathText(propA)}`);
           if (propB) lines.push(`**b)** ${sanitizeMathText(propB)}`);
           if (propC) lines.push(`**c)** ${sanitizeMathText(propC)}`);
@@ -274,6 +277,16 @@ export function examToMarkdown(
     }
 
     lines.push('# ĐÁP ÁN VÀ HƯỚNG DẪN GIẢI CHI TIẾT');
+    if (exportMode === 'answers_only') {
+      const metaParts: string[] = [];
+      if (meta.truong) metaParts.push(`**${sanitizeMathText(meta.truong)}**`);
+      if (meta.mon) metaParts.push(`**Môn:** ${sanitizeMathText(meta.mon)}`);
+      if (meta.lop) metaParts.push(`**Lớp:** ${sanitizeMathText(meta.lop)}`);
+      if (meta.deSo) metaParts.push(`**Mã đề:** ${meta.deSo}`);
+      if (metaParts.length > 0) {
+        lines.push(metaParts.join(' | '));
+      }
+    }
     lines.push('');
 
     const allQuestions = (exam.phan || []).flatMap((p) => p.cauHoi || []);
