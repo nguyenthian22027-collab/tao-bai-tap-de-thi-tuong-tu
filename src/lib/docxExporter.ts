@@ -121,6 +121,17 @@ function cleanMarkdownImages(text: string): string {
 }
 
 /**
+ * Bóc tách triệt để lời giải hoặc đáp án nếu vô tình bị sót trong noiDung khi xuất chế độ Chỉ đề thi (exam_only)
+ */
+export function stripSolutionFromPrompt(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/(?:^|\n+)[*\s]*(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Lời giải chi tiết|Solution|HD giải)[\s:*_-]+[\s\S]*$/i, '')
+    .replace(/(?:^|\n+)[*\s]*(?:Đáp án|Đáp số|Kết quả|Answer)[\s:*_-]+[^\n]*$/i, '')
+    .trim();
+}
+
+/**
  * Strips TikZ LaTeX code from question text so it doesn't render as ugly code in the prompt
  */
 export function extractAndCleanTikz(content: string): { cleanText: string; tikzCode?: string } {
@@ -1297,7 +1308,10 @@ export async function exportExamToDocxLatex(
       } else {
         // TOÀN BỘ LOGIC MÔN TOÁN VÀ CÁC MÔN KHÁC GIỮ NGUYÊN 100%
         // Render Question Prompt Paragraphs
-        const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
+        let cleanPrompt = cleanMarkdownImages(promptTextNoTable);
+        if (mode === 'exam_only') {
+          cleanPrompt = stripSolutionFromPrompt(cleanPrompt);
+        }
         const parsedPromptParas = parseBlockToParagraphs(cleanPrompt);
         parsedPromptParas.forEach((p, pIdx) => {
           const runs: TextRun[] = [];
@@ -2690,7 +2704,10 @@ export async function exportExamToDocxOmml(
           { type: 'text', content: `Câu ${q.stt}: `, bold: true },
         ];
 
-        const cleanPrompt = cleanMarkdownImages(promptTextNoTable);
+        let cleanPrompt = cleanMarkdownImages(promptTextNoTable);
+        if (mode === 'exam_only') {
+          cleanPrompt = stripSolutionFromPrompt(cleanPrompt);
+        }
         bodyXml += emitMarkdownBlockXml(cleanPrompt, prefixTokens, 0);
 
         // Render all Tabular Tables if question contains LaTeX \begin{tabular}

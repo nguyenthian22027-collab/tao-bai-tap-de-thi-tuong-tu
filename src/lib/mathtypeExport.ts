@@ -8,7 +8,7 @@
 
 import { ExamData, QuestionType, Question } from '../types';
 import JSZip from 'jszip';
-import { ensureQuestionImages, parseBase64Image, base64ToUint8Array, getImageDimensions } from './docxExporter';
+import { ensureQuestionImages, parseBase64Image, base64ToUint8Array, getImageDimensions, stripSolutionFromPrompt } from './docxExporter';
 import { extractQuestionOptions } from './tableAndChartHelper';
 
 const MATHTYPE_PROXY = '/mathtype-api';
@@ -176,8 +176,8 @@ export function examToMarkdown(
 
       const cauHoiList = phan.cauHoi || [];
       for (const q of cauHoiList) {
-        const { optionA: expOptA, optionB: expOptB, optionC: expOptC, optionD: expOptD, cleanNoiDung: noiDungCleaned } = extractQuestionOptions(q);
-        const noiDung = sanitizeMathText(noiDungCleaned);
+        const promptClean = exportMode === 'exam_only' ? stripSolutionFromPrompt(noiDungCleaned) : noiDungCleaned;
+        const noiDung = sanitizeMathText(promptClean);
         lines.push(`**Câu ${q.stt || ''}.** ${noiDung}`);
         lines.push('');
 

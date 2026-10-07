@@ -1573,46 +1573,58 @@ export function parseExam(rawText: string): ExamData {
             'DAP_AN_C',
             'DAP_AN_D',
             'DAP_AN',
+            'DAP_SO',
+            'KET_QUA',
             'HUONG_DAN_GIAI',
+            'LOI_GIAI',
+            'HUONG_DAN',
             'TIKZ',
             'HINH_ANH',
             'MUC_DO',
             'DIEM',
           ];
 
-          if (recognizedKeys.includes(k)) {
-            currentMultiLineKey = k;
+          // Chuẩn hóa key
+          let normalizedKey = k;
+          if (['DAP_SO', 'KET_QUA', 'ĐÁP_SỐ', 'ĐÁP SỐ', 'ĐÁP_ÁN', 'ĐÁP ÁN', 'KẾT_QUẢ', 'KẾT QUẢ', 'ANSWER'].includes(k)) {
+            normalizedKey = 'DAP_AN';
+          } else if (['LOI_GIAI', 'LỜI_GIẢI', 'LỜI GIẢI', 'HUONG_DAN', 'HƯỚNG_DẪN', 'HƯỚNG DẪN GIẢI', 'HƯỚNG_DẪN_GIẢI', 'HD_GIAI', 'SOLUTION', 'EXPLANATION'].includes(k)) {
+            normalizedKey = 'HUONG_DAN_GIAI';
+          }
 
-            if (k === 'STT') qObj.stt = parseInt(v.replace(/[^0-9]/g, ''), 10) || qIdx + 1;
-            else if (k === 'LOAI') {
+          if (recognizedKeys.includes(normalizedKey)) {
+            currentMultiLineKey = normalizedKey;
+
+            if (normalizedKey === 'STT') qObj.stt = parseInt(v.replace(/[^0-9]/g, ''), 10) || qIdx + 1;
+            else if (normalizedKey === 'LOAI') {
               const cleanLoai = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim().toLowerCase();
               if (cleanLoai.includes('dung_sai')) qObj.loai = QuestionType.TRAC_NGHIEM_DUNG_SAI;
               else if (cleanLoai.includes('tra_loi_ngan')) qObj.loai = QuestionType.TRAC_NGHIEM_TRA_LOI_NGAN;
               else if (cleanLoai.includes('tu_luan')) qObj.loai = QuestionType.TU_LUAN;
               else qObj.loai = QuestionType.TRAC_NGHIEM_4_LUA_CHON;
-            } else if (k === 'NOI_DUNG') qObj.noiDung = v;
-            else if (k === 'A') qObj.optionA = v;
-            else if (k === 'B') qObj.optionB = v;
-            else if (k === 'C') qObj.optionC = v;
-            else if (k === 'D') qObj.optionD = v;
-            else if (k === 'CAU_LENH') qObj.cauLenh = v;
-            else if (k === 'MENH_DE_A') qObj.menhDeA = v;
-            else if (k === 'MENH_DE_B') qObj.menhDeB = v;
-            else if (k === 'MENH_DE_C') qObj.menhDeC = v;
-            else if (k === 'MENH_DE_D') qObj.menhDeD = v;
-            else if (k === 'DAP_AN_A') qObj.dapAnA = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
-            else if (k === 'DAP_AN_B') qObj.dapAnB = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
-            else if (k === 'DAP_AN_C') qObj.dapAnC = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
-            else if (k === 'DAP_AN_D') qObj.dapAnD = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
-            else if (k === 'DAP_AN') {
+            } else if (normalizedKey === 'NOI_DUNG') qObj.noiDung = v;
+            else if (normalizedKey === 'A') qObj.optionA = v;
+            else if (normalizedKey === 'B') qObj.optionB = v;
+            else if (normalizedKey === 'C') qObj.optionC = v;
+            else if (normalizedKey === 'D') qObj.optionD = v;
+            else if (normalizedKey === 'CAU_LENH') qObj.cauLenh = v;
+            else if (normalizedKey === 'MENH_DE_A') qObj.menhDeA = v;
+            else if (normalizedKey === 'MENH_DE_B') qObj.menhDeB = v;
+            else if (normalizedKey === 'MENH_DE_C') qObj.menhDeC = v;
+            else if (normalizedKey === 'MENH_DE_D') qObj.menhDeD = v;
+            else if (normalizedKey === 'DAP_AN_A') qObj.dapAnA = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
+            else if (normalizedKey === 'DAP_AN_B') qObj.dapAnB = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
+            else if (normalizedKey === 'DAP_AN_C') qObj.dapAnC = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
+            else if (normalizedKey === 'DAP_AN_D') qObj.dapAnD = (v.toUpperCase().includes('D') || v.includes('Đ') ? 'D' : 'S');
+            else if (normalizedKey === 'DAP_AN') {
               // Làm sạch đáp án nếu bị dính formatting markdown bold như **A** hoặc dấu ngoặc kép
               qObj.dapAn = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim();
             }
-            else if (k === 'HUONG_DAN_GIAI') qObj.huongDanGiai = v;
-            else if (k === 'TIKZ') qObj.tikzCode = v;
-            else if (k === 'HINH_ANH') qObj.hinhAnh = v;
-            else if (k === 'MUC_DO') qObj.mucDo = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim();
-            else if (k === 'DIEM') qObj.diem = parseFloat(v.replace(/[^0-9.]/g, '')) || (sectionType === 'trac_nghiem_4_lua_chon' ? 0.25 : 1.0);
+            else if (normalizedKey === 'HUONG_DAN_GIAI') qObj.huongDanGiai = v;
+            else if (normalizedKey === 'TIKZ') qObj.tikzCode = v;
+            else if (normalizedKey === 'HINH_ANH') qObj.hinhAnh = v;
+            else if (normalizedKey === 'MUC_DO') qObj.mucDo = v.replace(/^[*_`"']+|[*_`"']+$/g, '').trim();
+            else if (normalizedKey === 'DIEM') qObj.diem = parseFloat(v.replace(/[^0-9.]/g, '')) || (sectionType === 'trac_nghiem_4_lua_chon' ? 0.25 : 1.0);
             return;
           }
         }
@@ -1635,6 +1647,27 @@ export function parseExam(rawText: string): ExamData {
           else if (currentMultiLineKey === 'HINH_ANH') qObj.hinhAnh = (qObj.hinhAnh || '') + '\n' + lineTrim;
         }
       });
+
+      // Bóc tách LỜI GIẢI / HƯỚNG DẪN GIẢI nếu AI vô tình gộp vào đuôi NOI_DUNG
+      if (qObj.noiDung) {
+        const solPattern = /(?:^|\n+)[*\s]*(?:Lời giải|Hướng dẫn giải|Giải chi tiết|Lời giải chi tiết|Solution|HD giải)[\s:*_-]+([\s\S]*)$/i;
+        const solMatch = qObj.noiDung.match(solPattern);
+        if (solMatch && solMatch.index !== undefined && solMatch.index > 10) {
+          if (!qObj.huongDanGiai) {
+            qObj.huongDanGiai = solMatch[1].trim();
+          }
+          qObj.noiDung = qObj.noiDung.slice(0, solMatch.index).trim();
+        }
+
+        const ansPattern = /(?:^|\n+)[*\s]*(?:Đáp án|Đáp số|Kết quả|Answer)[\s:*_-]+([^\n]+)$/i;
+        const ansMatch = qObj.noiDung.match(ansPattern);
+        if (ansMatch && ansMatch.index !== undefined && ansMatch.index > 10) {
+          if (!qObj.dapAn) {
+            qObj.dapAn = ansMatch[1].trim();
+          }
+          qObj.noiDung = qObj.noiDung.slice(0, ansMatch.index).trim();
+        }
+      }
 
       // Tự động trích xuất mã TikZ nếu AI chèn trực tiếp vào NOI_DUNG
       if (qObj.noiDung) {
